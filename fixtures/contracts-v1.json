@@ -664,6 +664,63 @@
             ],
             "outcome": "refuse"
           }
+        },
+        {
+          "name": "complete-composite",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "and",
+              "children": [
+                {
+                  "node": "eq",
+                  "column": "items.tenant_id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                },
+                {
+                  "node": "eq",
+                  "column": "items.id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                },
+                {
+                  "node": "eq",
+                  "column": "items.part",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "scope-only positive requires a separate explicit application assertion of an ordinary base table without effects; source freshness/schema alone is not authority"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "conditional_scope"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "scope evidence only; never authorization"
+          }
         }
       ],
       "evidence": [
@@ -812,6 +869,194 @@
               "not_started"
             ],
             "outcome": "refuse"
+          }
+        },
+        {
+          "name": "same-composite-or",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "or",
+              "children": [
+                {
+                  "node": "and",
+                  "children": [
+                    {
+                      "node": "eq",
+                      "column": "items.tenant_id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.part",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "node": "and",
+                  "children": [
+                    {
+                      "node": "eq",
+                      "column": "items.tenant_id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.part",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "scope-only positive requires a separate explicit application assertion of an ordinary base table without effects; source freshness/schema alone is not authority"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "conditional_scope"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "scope evidence only; never authorization"
+          }
+        },
+        {
+          "name": "different-composite-or",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "or",
+              "children": [
+                {
+                  "node": "and",
+                  "children": [
+                    {
+                      "node": "eq",
+                      "column": "items.tenant_id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.part",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "node": "and",
+                  "children": [
+                    {
+                      "node": "eq",
+                      "column": "items.tenant_id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "2"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.part",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "scope-only positive requires a separate explicit application assertion of an ordinary base table without effects; source freshness/schema alone is not authority"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "conditional_scope"
+            ],
+            "risk": "high",
+            "precision": "broad",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "scope evidence only; never authorization"
           }
         }
       ],

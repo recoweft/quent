@@ -2,7 +2,7 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: DB-free operation IR and deterministic plans (QT-AI-01 PR1). No execution runtime is implemented.**
+**Status: DB-free operation IR, deterministic plans and conditional structural inspection (QT-AI-01 PR2). No execution runtime is implemented.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Tenant policy, execution gates, transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
@@ -10,6 +10,7 @@ The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTE
 No database is contacted. No release or crates.io publication is provided.
 
 - [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
+- [Conditional scope proof and fixed structural risk rules](specs/scope-risk-v1.md)
 - [Integrated contracts](specs/quent-contracts-v1.md)
 - [All 24 acceptance cases and owning issues](specs/acceptance.md)
 - [Architecture, dependency decisions and PR1 verification](specs/bootstrap.md)
@@ -38,7 +39,7 @@ cargo check -p quent --no-default-features --features mysql,runtime-tokio,tls-ru
 ```
 
 All QT-C01–QT-C24 runtime acceptance cases remain unverified. PR2 supplies 24
-language-neutral cases (66 scenarios), a bounded fixture validator, a scripted
+language-neutral cases (69 scenarios after QT-AI-01 PR2), a bounded fixture validator, a scripted
 DB call recorder and PostgreSQL/MySQL source-consumer templates. The 13 support
 tests validate those tools and records; runtime, real DB and compile-fail checks
 remain with their owning implementation issues. Expected fixture results are
@@ -47,3 +48,9 @@ contracts, never measured runtime verdicts.
 QT-AI-01 PR1 adds production plan evidence for QT-C01/QT-C07 and finite core
 planning tests; this does not clear full runtime acceptance or implement dispatch.
 No dependencies or Cargo.lock changes are needed.
+
+QT-AI-01 PR2 adds `Plan::inspect` over the same private finalized record. Explicit
+application-asserted signed integer key facts can prove conditional maximum scope;
+missing WHERE writes are structurally Blocked. Risk and scope never grant permission.
+QT-C02–05/C07 have limited DB-free inspection evidence; full runtime acceptance,
+live schema, tenant gates and real DB results remain pending. See the scope/risk guide.

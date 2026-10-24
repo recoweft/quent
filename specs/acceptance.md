@@ -50,3 +50,17 @@ dialects, with source-linked QT-C01/QT-C07 SQL/ordered args/metadata comparisons
 The recorder observes no calls; Core has no provider/DB dependencies or endpoint.
 This is plan-only evidence, not dispatcher/Tx/risk/tenant acceptance. QT-C02–05
 proof remains PR2 work, and every full runtime_pending marker stays unchanged.
+
+## QT-AI-01 PR2 conditional structural evidence
+
+[Scope/risk v1](scope-risk-v1.md) defines production inspection over the private
+finalized record. QT-C02–05 and QT-C07: 12 common-source scenarios × 2 dialects
+exercise fixed structural results, with separate application assertions, independent
+expectations and unchanged SQL/args/tree/metadata. Three positive/finite OR scenarios
+were added (69 scenarios total). Seven Core inspection tests include finite three-valued
+regression checks, supported positives, unknown/unsafe counterexamples, immutable
+results and canary/compile-fail boundaries. Full policy/dispatch/Tx/live-schema/DB
+acceptance is absent; none of the 24 runtime_pending markers is cleared. The bridge
+skips QT-C07 lossless-values (unsupported decimal/missing, tested as refusal elsewhere).
+Fixture full expectations are not current production verdicts: the guide records the
+limited structural distinctions, including Zero truth set versus nullable-key proof.

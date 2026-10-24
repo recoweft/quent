@@ -141,3 +141,17 @@ are checked for both dialects; decimal/missing/overflow are refused. No fixture
 verdict becomes risk/authority. Recorder observations remain empty because core
 has no DB/provider endpoint. This is plan evidence only; full runtime acceptance
 stays pending. See [capabilities](../../../../specs/plan-ir-v1.md).
+
+## QT-AI-01 PR2 inspection consumer
+
+The production bridge in contracts.rs consumes QT-C02–05/C07 (12 scenarios × both
+dialects), independently compares scope/risk/ordered args, and checks unchanged
+SQL/tree/metadata. Three scope-only positive/finite OR source scenarios bring the
+total to 69. It first checks UnsupportedContext, then supplies a separate explicit
+application assertion of ordinary base-table semantics; schema/fresh/allow text is
+never key/context authority. Nullable text unique is outside the supported signed-key
+proof domain. QT-C07 lossless-values is skipped by this bridge and remains covered
+by the separate value-refusal test. See ../../../../specs/scope-risk-v1.md for finite
+rules and differences from full future policy/Tx fixture expectations. Recorder
+observations remain empty; no dispatcher or DB behavior is claimed. All runtime
+acceptance markers stay pending.
