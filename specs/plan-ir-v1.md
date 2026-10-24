@@ -1,12 +1,17 @@
-# QT-AI-01 PR1: DB-free plan IR v1
+# QT-AI-01: DB-free plan IR v1
+
+The PR1 baseline and its verification are recorded below. PR2 adds the current
+[conditional scope/risk inspection contract](scope-risk-v1.md); statements below
+that defer inspection/risk to PR2 describe the PR1 baseline.
 
 Implemented in `quent-core`, with no dependencies, runtime, driver, provider,
 clock, catalog, EXPLAIN, global state or execution API. Draft → owned immutable
 Operation → finalize → one private Record containing final SQL, ordered native
 typed arguments, dialect and semantic metadata. Finalize may be repeated on the
 same immutable operation; each resulting plan is a separate immutable snapshot.
-No public serde/JSON input, execution handle, policy, risk, row/scope proof,
-trusted tenant, provider or dispatcher is implemented. Risk remains unevaluated;
+PR1 alone implements no public serde/JSON input, execution handle, policy, risk,
+row/scope proof, trusted tenant, provider or dispatcher. PR2 adds DB-free conditional
+scope/risk inspection, specified in [scope/risk v1](scope-risk-v1.md);
 plan success never grants permission. A column named id establishes no key fact.
 
 ## Operation and dialect capabilities
@@ -124,3 +129,11 @@ and each `cargo check -p quent --no-default-features --features
 Core dependency tree is empty; default normal workspace tree contains only local crates.
 Ubuntu/Windows CI results must be read from the actual PR checks, separately from
 these local observations. No local Windows program or real DB was required/run.
+
+## PR2 update
+
+`Plan::inspect` now inspects the same finalized record without rendering or DB calls.
+See [scope/risk v1](scope-risk-v1.md) for the current conditional snapshot contract,
+finite proof rules, fixed diagnostic register, completeness and non-suppressible
+missing-WHERE block. Earlier PR1 evidence/counts above are historical; full runtime
+acceptance remains pending. No tenant gate, execution handle or public view is added.

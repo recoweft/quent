@@ -572,3 +572,173 @@ fn production_plan_fixture_values_refuse_decimal_missing_and_overflow() {
         Err(E::Unsupported)
     );
 }
+
+#[test]
+fn production_inspection_c02_c05_c07_independent_of_fixture_verdicts() {
+    use quent_core::{
+        Dialect as D, Draft, Evidence, Ident, Input as I, Key, Projection, Risk, Scope, ScopeFacts,
+        Table, TableContext, Value,
+    };
+    let r = register();
+    let mut count = 0;
+    for case in r
+        .cases
+        .iter()
+        .filter(|c| ["QT-C02", "QT-C03", "QT-C04", "QT-C05", "QT-C07"].contains(&c.id.as_str()))
+    {
+        let schema = &case.preconditions.schemas[0];
+        let t = Table::new(vec![Ident::new("items").unwrap()], None).unwrap();
+        for scenario in &case.scenarios {
+            if scenario.name == "lossless-values" {
+                continue;
+            } // unsupported decimal/missing tested separately
+            let filter = plan_filter(&t, schema, &scenario.shape.filter);
+            let draft = match scenario.shape.operation {
+                Operation::Update => Draft::update(
+                    t.clone(),
+                    vec![(
+                        plan_column(&t, schema, "items.status"),
+                        I::Value(Value::Text("updated_canary".into())),
+                    )],
+                ),
+                Operation::Delete => Draft::delete(t.clone()),
+                Operation::Select => Draft::select(
+                    t.clone(),
+                    scenario
+                        .shape
+                        .projection
+                        .iter()
+                        .map(|n| Projection::new(plan_column(&t, schema, n), None))
+                        .collect(),
+                ),
+                _ => panic!("unsupported bridge shape"),
+            };
+            let operation = if let Some(p) = filter.clone() {
+                draft.filter(p)
+            } else {
+                draft
+            }
+            .freeze();
+            for d in [D::Postgres, D::Mysql] {
+                // Registry is documentary. Neither its schema/freshness/allow claims
+                // nor expected risk can establish ordinary-table context.
+                let columns = schema
+                    .columns
+                    .iter()
+                    .map(|c| plan_column(&t, schema, &c.name))
+                    .collect::<Vec<_>>();
+                let keys = vec![Key::Primary(
+                    schema
+                        .primary_key
+                        .iter()
+                        .map(|n| plan_column(&t, schema, n))
+                        .collect(),
+                )];
+                let unsupported = ScopeFacts::application_asserted(
+                    t.clone(),
+                    d,
+                    columns.clone(),
+                    keys.clone(),
+                    TableContext::Unsupported,
+                )
+                .unwrap();
+                let plan = operation.finalize(d).unwrap();
+                assert_eq!(
+                    plan.inspect(Some(&unsupported)).evidence(),
+                    Evidence::UnsupportedContext
+                );
+                // Explicit test-harness assumption, independent of fixture claims.
+                // Exclude nullable text unique from this supported signed-key domain.
+                let asserted = ScopeFacts::application_asserted(
+                    t.clone(),
+                    d,
+                    columns,
+                    keys,
+                    TableContext::OrdinaryBaseTableWithoutEffects,
+                )
+                .unwrap();
+                let sql = plan.sensitive_source().sql().to_owned();
+                let args = plan.sensitive_source().args().to_vec();
+                let meta = plan.sensitive_source().metadata().clone();
+                let i = plan.inspect(Some(&asserted));
+                // Independent expected mapping for the limited production contract.
+                // Full fixture policy/dispatch/Tx verdicts remain runtime_pending.
+                let (scope, risk) = match scenario.name.as_str() {
+                    "no-where-update" | "no-where-delete" => (Scope::Broad, Risk::Blocked),
+                    "tenant-wide" | "id-positive" | "partial-composite" => {
+                        (Scope::Broad, Risk::High)
+                    }
+                    "multi-in" => (Scope::Broad, Risk::Destructive),
+                    "unproven-or" => (Scope::Unknown, Risk::High),
+                    "not-null-empty-in" => (Scope::Zero, Risk::Medium),
+                    "nullable-unique" => (Scope::Zero, Risk::Low), // = NULL has no TRUE rows; not single or authority
+                    "complete-composite" | "same-composite-or" => (Scope::Single, Risk::Low),
+                    "different-composite-or" => (Scope::FiniteBound(2), Risk::High),
+                    _ => panic!("unregistered scope scenario"),
+                };
+                assert_eq!(i.scope(), scope);
+                assert_eq!(i.risk(), risk);
+                assert_eq!(i.scope(), plan.inspect(Some(&asserted)).scope());
+                assert_eq!(i.findings(), plan.inspect(Some(&asserted)).findings());
+                assert_eq!(plan.sensitive_source().sql(), sql);
+                assert_eq!(plan.sensitive_source().args(), args);
+                assert_eq!(plan.sensitive_source().metadata(), &meta);
+                assert_eq!(meta.predicate(), filter.as_ref());
+                // Independent argument oracle for each source scenario.
+                let expected = match scenario.name.as_str() {
+                    "no-where-update" => vec![Value::Text("updated_canary".into())],
+                    "no-where-delete" => vec![],
+                    "tenant-wide" => vec![Value::Text("updated_canary".into()), Value::I64(1)],
+                    "id-positive" => vec![Value::Text("updated_canary".into()), Value::I64(0)],
+                    "multi-in" => vec![Value::I64(1), Value::I64(2)],
+                    "partial-composite" => vec![
+                        Value::Text("updated_canary".into()),
+                        Value::I64(1),
+                        Value::I64(1),
+                    ],
+                    "unproven-or" => vec![
+                        Value::Text("updated_canary".into()),
+                        Value::I64(1),
+                        Value::Text("active".into()),
+                    ],
+                    "not-null-empty-in" => vec![Value::Null(quent_core::SqlType::Text)],
+                    "nullable-unique" => vec![
+                        Value::Text("updated_canary".into()),
+                        Value::Null(quent_core::SqlType::Text),
+                    ],
+                    "complete-composite" => vec![
+                        Value::Text("updated_canary".into()),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                    ],
+                    "same-composite-or" => vec![
+                        Value::Text("updated_canary".into()),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                    ],
+                    "different-composite-or" => vec![
+                        Value::Text("updated_canary".into()),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(1),
+                        Value::I64(2),
+                        Value::I64(1),
+                    ],
+                    _ => unreachable!(),
+                };
+                assert_eq!(args, expected);
+                let recorder = Recorder::default();
+                assert_eq!(recorder.call_count(), 0);
+                recorder.verify(&[]).unwrap();
+                count += 1;
+            }
+        }
+    }
+    assert_eq!(count, 24); // 12 source scenarios × 2 dialects; one unsupported value scenario skipped
+}
