@@ -28,7 +28,7 @@ pub struct ScopeFacts {
     pub(super) dialect: Dialect,
     pub(super) columns: Vec<Column>,
     keys: Vec<Key>,
-    context: TableContext,
+    pub(super) context: TableContext,
 }
 impl ScopeFacts {
     pub fn application_asserted(
@@ -281,6 +281,11 @@ fn branches(p: &Predicate, work: &mut usize) -> Option<Vec<Branch>> {
     };
     Some(result)
 }
+// Preparation may ask only whether the existing finite analysis exhausts its
+// budget; it does not receive branches or promote a scope result into policy.
+pub(super) fn within_branch_budget(p: &Predicate) -> bool {
+    branches(p, &mut 0).is_some()
+}
 fn predicate_columns(p: &Predicate, out: &mut Vec<Column>) {
     match p {
         Predicate::And(ps) | Predicate::Or(ps) => {
@@ -406,7 +411,7 @@ impl Plan {
         let mut findings = vec![];
         let mut add = |code| findings.push(Finding { code });
         let write = matches!(d.body, Body::Update(_) | Body::Delete);
-        let risk = if write && d.predicate.is_none() {
+        let risk = if write && (d.predicate.is_none() || self.record.caller_missing_where) {
             add(FindingCode::MissingWhere);
             Risk::Blocked
         } else if matches!(d.body, Body::Insert(_)) {

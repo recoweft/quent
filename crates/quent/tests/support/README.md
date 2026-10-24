@@ -163,8 +163,24 @@ carrier APIs, support/refusal table, exact owned content, Strict default and the
 application authentication responsibility. QT-C11 has DB-free A/B isolation and
 preparation inheritance evidence; QT-C08 claim nonpromotion, QT-C12 exact content/
 target/subject/generation comparison and QT-C15 redaction/compile-fail evidence are
-limited to this carrier boundary. Policy declarations are not enforced. ScopeFacts
+limited to this carrier boundary. Raw declarations alone are not enforced; QT-AI-02 PR2 preparation enforces a finite subset. ScopeFacts
 remains ApplicationAsserted; Plan/inspect retain the same private finalized record.
 All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
 pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
 PR2. No runtime dispatch/refusal/rollback or live database results are claimed.
+
+## QT-AI-02 PR2 production policy consumer
+
+The real `PreparationContext::prepare_operation` consumes 15 common source shapes
+× both dialects from QT-C02–07/C10. The harness explicitly supplies a qualified
+canonical namespace, exact native schema coverage and ordinary-table assertions;
+source claims never authenticate that context. Independent structural expectations
+are compared with the final tree/args/metadata and original/context immutability.
+QT-C06 uses automatic mode for both shapes (no manual proof API is claimed).
+QT-C07 lossless-values and QT-C09 multirow batch are excluded, because the production
+IR does not support them. No first-row lowering or missing-API compile failure is
+counted as batch runtime evidence. QT-C08 claims cannot supply required schema.
+Core separately tests single INSERT, PII/soft-delete/RequiredFilter/protected writes,
+A/B snapshots, budgets and redaction. All full runtime_pending markers stay intact.
+No dispatcher/provider/Tx/database effects or recorder refusal/rollback are measured.
+See [current finite capabilities](../../../../specs/policy-preparation-v1.md).

@@ -785,6 +785,208 @@ fn c08_documentary_claims_do_not_populate_application_snapshot() {
         );
         assert_eq!(context.sensitive_source().tenant(), None);
         assert_eq!(context.sensitive_source().subject(), None);
+        let table = core::Table::new(
+            vec![
+                core::Ident::new("catalog").unwrap(),
+                core::Ident::new("items").unwrap(),
+            ],
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            context
+                .prepare()
+                .prepare_operation(&core::Draft::delete(table).freeze())
+                .unwrap_err(),
+            core::PolicyError::MissingSchema
+        );
         // No dispatcher/Tx exists: do not claim fixture expected refusal/rollback.
     }
+}
+
+#[test]
+fn production_policy_common_source_c02_to_c10_finite_bridge() {
+    use quent_core as q;
+    let r = register();
+    let mut measured = 0;
+    for case in r.cases.iter().filter(|c| {
+        [
+            "QT-C02", "QT-C03", "QT-C04", "QT-C05", "QT-C06", "QT-C07", "QT-C09", "QT-C10",
+        ]
+        .contains(&c.id.as_str())
+    }) {
+        let schema = &case.preconditions.schemas[0];
+        // Explicit harness namespace/ordinary-table assumptions, not fixture claims.
+        let t = q::Table::new(
+            vec![
+                q::Ident::new("catalog").unwrap(),
+                q::Ident::new("items").unwrap(),
+            ],
+            None,
+        )
+        .unwrap();
+        for scenario in &case.scenarios {
+            if ["lossless-values", "one-bad-tenant"].contains(&scenario.name.as_str()) {
+                continue;
+            }
+            // Batch is absent from the production IR. QT-C09 is deliberately not
+            // lowered to a first-row single INSERT and counted as batch evidence.
+            let filter = plan_filter(&t, schema, &scenario.shape.filter);
+            let c = |name: &str| plan_column(&t, schema, name);
+            let draft = match scenario.shape.operation {
+                Operation::Select => q::Draft::select(
+                    t.clone(),
+                    scenario
+                        .shape
+                        .projection
+                        .iter()
+                        .map(|n| q::Projection::new(c(n), None))
+                        .collect(),
+                ),
+                Operation::Delete => q::Draft::delete(t.clone()),
+                Operation::Update => {
+                    let data = if scenario.name == "forbidden-patch" {
+                        scenario
+                            .shape
+                            .input_columns
+                            .iter()
+                            .zip(&scenario.shape.rows[0])
+                            .map(|(name, input)| {
+                                (
+                                    c(name),
+                                    if matches!(input, Input::Missing { .. }) {
+                                        q::Input::Missing
+                                    } else {
+                                        q::Input::Value(plan_value(input).unwrap())
+                                    },
+                                )
+                            })
+                            .collect()
+                    } else {
+                        vec![(
+                            c("items.status"),
+                            q::Input::Value(q::Value::Text("updated_canary".into())),
+                        )]
+                    };
+                    q::Draft::update(t.clone(), data)
+                }
+                _ => panic!("unregistered policy bridge operation"),
+            };
+            let op = if let Some(p) = filter.clone() {
+                draft.filter(p)
+            } else {
+                draft
+            }
+            .freeze();
+            for d in [q::Dialect::Postgres, q::Dialect::Mysql] {
+                let b = q::DatabaseBinding::application_supplied(
+                    q::DatabaseIdentity::new("db_a").unwrap(),
+                    q::TargetAddress::new("route_a").unwrap(),
+                    q::Ident::new("catalog").unwrap(),
+                    d,
+                );
+                let g = q::Generation::new(1).unwrap();
+                let mut declarations = vec![q::PolicyDeclaration::Tenant(c("items.tenant_id"))];
+                // Minimal declaration extension is finite, not a callback or Any.
+                declarations.push(q::PolicyDeclaration::Generated(c("items.generated")));
+                declarations.push(q::PolicyDeclaration::Readonly(c("items.readonly")));
+                let facts = q::ScopeFacts::application_asserted(
+                    t.clone(),
+                    d,
+                    schema.columns.iter().map(|x| c(&x.name)).collect(),
+                    vec![q::Key::Primary(
+                        schema.primary_key.iter().map(|n| c(n)).collect(),
+                    )],
+                    q::TableContext::OrdinaryBaseTableWithoutEffects,
+                )
+                .unwrap();
+                let context = q::DatabaseContext::new(
+                    q::Settings::new(
+                        b.clone(),
+                        q::SettingsIdentity::new("settings").unwrap(),
+                        g,
+                        q::PolicySet::new(
+                            b.clone(),
+                            q::PolicyIdentity::new("policy").unwrap(),
+                            g,
+                            declarations,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap(),
+                    q::ApplicationContext::application_supplied(
+                        b.clone(),
+                        Some(
+                            q::SchemaSnapshot::application_supplied(
+                                b.clone(),
+                                q::SchemaIdentity::new("schema").unwrap(),
+                                g,
+                                vec![facts],
+                            )
+                            .unwrap(),
+                        ),
+                        None,
+                        Some(
+                            q::TenantSnapshot::application_supplied(
+                                b.clone(),
+                                c("items.tenant_id"),
+                                q::Value::I64(1),
+                            )
+                            .unwrap(),
+                        ),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+                let result = context.prepare().prepare_operation(&op);
+                measured += 1;
+                if scenario.name == "forbidden-patch" {
+                    assert_eq!(result.unwrap_err(), q::PolicyError::TenantWrite);
+                    continue;
+                }
+                let p = result.unwrap();
+                let i = p.inspect();
+                // Literal expectations for this limited API, independent of the
+                // fixture's future dispatcher/provider/transaction verdicts.
+                let (scope, risk) = match scenario.name.as_str() {
+                    "no-where-update" | "no-where-delete" => (q::Scope::Broad, q::Risk::Blocked),
+                    "tenant-wide" | "id-positive" | "partial-composite" | "tenant-leak" => {
+                        (q::Scope::Broad, q::Risk::High)
+                    }
+                    "multi-in" => (q::Scope::Broad, q::Risk::Destructive),
+                    "complete-composite" | "same-composite-or" => (q::Scope::Single, q::Risk::Low),
+                    "different-composite-or" => (q::Scope::FiniteBound(2), q::Risk::High),
+                    "unproven-or" => (q::Scope::Unknown, q::Risk::High),
+                    "auto-wrap" => (q::Scope::Broad, q::Risk::Medium),
+                    "not-null-empty-in" => (q::Scope::Zero, q::Risk::Medium),
+                    "nullable-unique" => (q::Scope::Zero, q::Risk::Low),
+                    _ => panic!("unregistered policy bridge expectation"),
+                };
+                assert_eq!((i.scope(), i.risk()), (scope, risk), "{}", scenario.name);
+                let expected_filter = q::Predicate::And(
+                    filter
+                        .clone()
+                        .into_iter()
+                        .chain([q::Predicate::Compare(
+                            c("items.tenant_id"),
+                            q::Compare::Eq,
+                            q::Value::I64(1),
+                        )])
+                        .collect(),
+                );
+                assert_eq!(
+                    i.sensitive_source().metadata().predicate(),
+                    Some(&expected_filter)
+                );
+                let original = op.finalize(d).unwrap();
+                let mut args = original.sensitive_source().args().to_vec();
+                args.push(q::Value::I64(1));
+                assert_eq!(i.sensitive_source().args(), args);
+                assert_eq!(p.sensitive_source().original_operation(), &op);
+                assert!(p.sensitive_source().context().same_snapshot(&context));
+                assert_eq!(op.finalize(d).unwrap(), original);
+            }
+        }
+    }
+    assert_eq!(measured, 30); // 15 supported/refused source shapes × two dialects.
 }

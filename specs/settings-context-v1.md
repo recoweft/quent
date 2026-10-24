@@ -1,5 +1,10 @@
 # QT-AI-02 PR1: immutable application snapshots
 
+Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:
+[policy preparation v1](policy-preparation-v1.md). Implementation-status paragraphs describe their named historical PR; the
+integrated requirements remain current. Raw Plan/snapshot APIs are non-enforcing
+and non-executable.
+
 `quent-core` now supplies owned private-field `Settings`, `PolicySet`,
 `DatabaseBinding`, `SchemaSnapshot`, `TenantSnapshot`, `ApplicationContext`,
 `DatabaseContext` and DB-free `PreparationContext`. There is no mutable global,

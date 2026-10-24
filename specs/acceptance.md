@@ -1,5 +1,10 @@
 # 受入責務台帳
 
+Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:
+[policy preparation v1](policy-preparation-v1.md). Implementation-status paragraphs describe their named historical PR; the
+integrated requirements remain current. Raw Plan/snapshot APIs are non-enforcing
+and non-executable.
+
 QT-AI-00 PR2: 全24件を [version 1 fixture](../fixtures/contracts-v1.json) に収録。
 下表の入力・結果は契約の期待であり測定結果ではない。Goquent Cxxとの意味の対応は未検証。
 QT-C21〜24も同じ形式でfixture_validated。実装責務は各行のowning issueに残る。
@@ -72,7 +77,8 @@ carrier APIs, support/refusal table, exact owned content, Strict default and the
 application authentication responsibility. QT-C11 has DB-free A/B isolation and
 preparation inheritance evidence; QT-C08 claim nonpromotion, QT-C12 exact content/
 target/subject/generation comparison and QT-C15 redaction/compile-fail evidence are
-limited to this carrier boundary. Policy declarations are not enforced. ScopeFacts
+limited to this carrier boundary. Raw snapshot declarations alone are not enforced; the current preparation API
+enforces the finite subset described in the policy preparation guide. ScopeFacts
 remains ApplicationAsserted; Plan/inspect retain the same private finalized record.
 All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
 pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
