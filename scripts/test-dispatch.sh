@@ -3,21 +3,23 @@
 set -euo pipefail
 pg_image=postgres@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
 my_image=mysql@sha256:2952e3be7807f06fc18de50b3ea1a632d5c70d63482ff7d7376fe3aa8999babf
-pg_container="quent-dispatch-pg-$$"
-my_container="quent-dispatch-my-$$"
+run_id=$(cat /proc/sys/kernel/random/uuid)
+pg_container="quent-dispatch-pg-$run_id"
+my_container="quent-dispatch-my-$run_id"
+created=()
 cleanup() {
   result=$?
   trap - EXIT
-  for container in "$pg_container" "$my_container"; do
-    if docker container inspect "$container" >/dev/null 2>&1; then
-      docker rm --force --volumes "$container" >/dev/null || result=1
-    fi
+  for container in "${created[@]}"; do
+    docker rm --force --volumes "$container" >/dev/null || result=1
   done
   exit "$result"
 }
 trap cleanup EXIT
 # Anonymous image-declared volumes are removed by --volumes, including on failure.
+created+=("$pg_container")
 docker run -d --name "$pg_container" -p 127.0.0.1::5432 -e POSTGRES_DB=quent_dispatch_test -e POSTGRES_HOST_AUTH_METHOD=trust "$pg_image" >/dev/null
+created+=("$my_container")
 docker run -d --name "$my_container" -p 127.0.0.1::3306 -e MYSQL_DATABASE=quent_dispatch_test -e MYSQL_ALLOW_EMPTY_PASSWORD=yes "$my_image" --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --default-time-zone=+00:00 >/dev/null
 ready=false
 for attempt in {1..60}; do
