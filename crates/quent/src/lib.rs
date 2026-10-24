@@ -46,3 +46,7 @@ extern crate self as quent;
 #[cfg(all(test, feature = "output-tracing"))]
 #[path = "../tests/output_capture/mod.rs"]
 mod output_capture;
+
+/// Bounded DB-free source parsing and offline evidence; no execution authority.
+#[cfg(feature = "manifest")]
+pub mod manifest;

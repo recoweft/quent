@@ -2,13 +2,14 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: safe output boundaries (QT-AI-04 planned PR2), atop finite owned atomic execution.**
+**Status: DB-free schema/manifest foundation (QT-AI-05 planned PR1), atop finite owned atomic execution.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
-models/codegen, manifests, review, migration, commands and MCP are future work.
+models/codegen, live manifest verification, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
 Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/provider-free. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
 
+- [Schema/manifest source, canonical fingerprints and offline evidence](specs/schema-manifest-v1.md)
 - [Output surfaces, local file protections, CLI and CI/MCP limits](specs/output-boundaries-v1.md)
 - [Public view schema, code register, information boundary and evidence](specs/public-views-v1.md)
 - [Owned atomic results, borrowed Tx boundaries and failure/guarantee tables](specs/atomic-results-v1.md)
@@ -106,3 +107,8 @@ checked before secret writes; all other OS/filesystems fail closed (Windows ACL 
 is unsupported). CI/MCP/remote refuse; environment detection does not authenticate an
 application. Files are output-only and cannot restore execution authority. See the
 output guide for exact conditional guarantees and CLI non-success behavior.
+
+Optional `manifest` adds a strict bounded sensitive JSON source parser and independent
+schema/policy/generated-code/live-claim canonical fingerprints. Offline exact-content
+comparison never grants live freshness or execution authority. Public summaries are
+output-only; Core and the default facade retain their dependency boundaries.

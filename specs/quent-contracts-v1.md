@@ -248,3 +248,14 @@ Historical statements above deferring public views describe their named baseline
 No public JSON or copied display classification is execution authority. Sensitive
 getters and the complete private gate remain unchanged; CLI/tracing/export remain
 with PR2/owning issues. All 24 full runtime_pending markers remain.
+
+## QT-AI-05 planned PR1 manifest boundary
+
+[Manifest source v1](schema-manifest-v1.md) adds optional DB-free finite source/wire,
+independent domain canonical/fingerprint and offline evidence. C19/C24 have bounded
+production API positive/negative evidence, with C01/C07/C08/C12/C15 boundary coverage.
+Source parsing/equality never supplies live catalog/authorization or trusted facts;
+existing Strict/context/validated/atomic gates remain unchanged. Full runtime_pending
+stays on all 24 fixture cases. PR2 owns explicit live catalog, drift and CLI verify;
+codegen and business authority remain with their owning Issues. Measured commands,
+exact head and CI/DB regressions are recorded in the execution/PR report.
