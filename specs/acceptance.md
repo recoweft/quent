@@ -83,3 +83,13 @@ remains ApplicationAsserted; Plan/inspect retain the same private finalized reco
 All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
 pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
 PR2. No runtime dispatch/refusal/rollback or live database results are claimed.
+
+## QT-AI-03 PR1 runtime boundary
+
+[Immediate SQLx dispatcher](sqlx-dispatch-v1.md) adds the current shared Strict gate,
+owned-session context binding, finite native adapters and bounded redacted results.
+Its support/refusal and evidence tables supersede historical statements above about
+the absence of execution. Raw Plan/source/preparation remain non-executable inputs.
+INSERT remains InsertUnverified/High and is refused without a provider. All full
+runtime_pending markers remain: limited live PR1 evidence is recorded separately
+from PR2 handles, PR3 Tx/atomicity and QT-AI-09 authorization responsibilities.

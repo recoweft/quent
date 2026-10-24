@@ -2,13 +2,14 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: DB-free plans/inspection and finite tenant/column policy preparation (QT-AI-02 PR2). No execution runtime is implemented.**
+**Status: immediate Strict PostgreSQL/MySQL dispatch (QT-AI-03 planned PR1).**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
-Execution gates, transactions,
+Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
-No database is contacted. No release or crates.io publication is provided.
+Plan/compile/inspect and the CLI contact no database/provider. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
 
+- [SQLx execution, Strict gate/refusals, native matrix and real DB test procedure](specs/sqlx-dispatch-v1.md)
 - [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
 - [Finite policy enforcement, support/refusal table and acceptance limits](specs/policy-preparation-v1.md)
 - [Immutable settings, policy declarations and application context boundaries](specs/settings-context-v1.md)
@@ -33,7 +34,7 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo doc --workspace --all-features --no-deps --locked
 ```
 
-Optional dependency compatibility checks (these do not implement adapters):
+Optional adapter build checks (live behavior requires the separate test command):
 
 ```sh
 cargo check -p quent --no-default-features --features postgres,runtime-tokio,tls-rustls --locked
@@ -71,3 +72,21 @@ conservative. Exact qualified canonical identities are required. Original WHERE-
 write blocks survive automatic filters. Success grants no permission. See the
 [policy preparation guide](specs/policy-preparation-v1.md) for the family matrix,
 limited DB-free evidence and remaining runtime/Tx/authorization responsibilities.
+
+QT-AI-03 PR1 adds owned immediate sessions, the private shared dispatcher, finite
+native binding/decoding and redacted bounded results. The app supplies authenticated
+current context and authoritative database semantics; routing key equality does not
+authenticate a physical DB. No delayed handle/Tx/provider permit is implemented.
+
+Run both real DB acceptance suites against freshly created digest-pinned containers:
+
+```sh
+bash scripts/test-dispatch.sh
+bash scripts/check-features.sh
+# Explicit DB-free all-feature subset, also used by Windows CI:
+cargo test --workspace --all-features --locked -- --skip live_
+```
+
+Live tests fail without dedicated DB opt-in; they never silently pass on missing env.
+The required live-databases CI job runs them on both engines. Limited PR1 measurements
+are separate from the still-pending full case responsibilities; see the dispatch guide.

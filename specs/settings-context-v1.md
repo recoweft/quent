@@ -144,3 +144,13 @@ checks and all 16 subsets of the four facade features passed with --locked --off
 runs. Core dependency tree has no dependencies; default normal workspace tree has
 only local crates. Hosted Ubuntu/Windows CI is separate evidence read from the PR;
 local checks do not claim Windows execution or real DB/Tx acceptance.
+
+## QT-AI-03 PR1 runtime boundary
+
+[Immediate SQLx dispatcher](sqlx-dispatch-v1.md) adds the current shared Strict gate,
+owned-session context binding, finite native adapters and bounded redacted results.
+Its support/refusal and evidence tables supersede historical statements above about
+the absence of execution. Raw Plan/source/preparation remain non-executable inputs.
+INSERT remains InsertUnverified/High and is refused without a provider. All full
+runtime_pending markers remain: limited live PR1 evidence is recorded separately
+from PR2 handles, PR3 Tx/atomicity and QT-AI-09 authorization responsibilities.

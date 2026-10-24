@@ -321,6 +321,16 @@ impl SensitiveSource<'_> {
     pub fn metadata(&self) -> &Metadata {
         &self.record.metadata
     }
+    /// Ordered finite result types from this same finalized record.
+    pub fn result_columns(&self) -> Vec<(SqlType, bool)> {
+        match &self.record.metadata.projection {
+            FinalProjection::Columns(ps) => ps
+                .iter()
+                .map(|p| (p.column.sql_type, p.column.nullable))
+                .collect(),
+            _ => vec![],
+        }
+    }
     pub fn dialect(&self) -> Dialect {
         self.record.dialect
     }

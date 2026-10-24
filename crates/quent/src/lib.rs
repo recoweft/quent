@@ -1,4 +1,4 @@
-//! Quent facade bootstrap. No DB adapter or execution API is implemented yet.
+//! Immediate application-only execution of policy-prepared operations.
 //!
 //! Application snapshots have no public JSON restoration or export boundary.
 //! These examples use the test-only serde dependency to check the actual traits.
@@ -21,3 +21,14 @@
 //! ```compile_fail
 //! fn export(p: &quent_core::PolicyPreparation) { serde_json::to_string(p).unwrap(); }
 //! ```
+
+#[cfg(all(
+    feature = "runtime-tokio",
+    any(feature = "postgres", feature = "mysql")
+))]
+mod execution;
+#[cfg(all(
+    feature = "runtime-tokio",
+    any(feature = "postgres", feature = "mysql")
+))]
+pub use execution::*;
