@@ -190,6 +190,8 @@ pub struct Draft {
     predicate: Option<Predicate>,
     order: Vec<Order>,
     limit: Option<u64>,
+    returning: Vec<Projection>,
+    version: Option<(Column, Value)>,
 }
 impl Draft {
     fn new(table: Table, body: Body) -> Self {
@@ -199,6 +201,8 @@ impl Draft {
             predicate: None,
             order: vec![],
             limit: None,
+            returning: vec![],
+            version: None,
         }
     }
     pub fn select(table: Table, projection: Vec<Projection>) -> Self {
@@ -235,9 +239,38 @@ impl Draft {
         self.limit = None;
         Ok(self)
     }
+    /// Finite PostgreSQL UPDATE/DELETE projection, finalized with the original IR.
+    /// Other families/dialects refuse during preparation, before database I/O.
+    pub fn returning(mut self, projection: Vec<Projection>) -> Self {
+        self.returning = projection;
+        self
+    }
+    /// Compare a nonnullable signed integer version and assign its checked successor.
+    /// Original key/tenant proof is still required independently of this predicate.
+    pub fn optimistic_version(mut self, column: Column, expected: Value) -> Result<Self> {
+        if self.version.is_some()
+            || !matches!(self.body, Body::Update(_))
+            || column.nullable
+            || column.sql_type != expected.sql_type()
+        {
+            return Err(PlanError::Type);
+        }
+        version_successor(&expected)?;
+        self.version = Some((column, expected));
+        Ok(self)
+    }
     pub fn freeze(self) -> Operation {
         Operation(self)
     }
+}
+fn version_successor(value: &Value) -> Result<Value> {
+    Ok(match value {
+        Value::I8(n) => Value::I8(n.checked_add(1).ok_or(PlanError::Type)?),
+        Value::I16(n) => Value::I16(n.checked_add(1).ok_or(PlanError::Type)?),
+        Value::I32(n) => Value::I32(n.checked_add(1).ok_or(PlanError::Type)?),
+        Value::I64(n) => Value::I64(n.checked_add(1).ok_or(PlanError::Type)?),
+        _ => return Err(PlanError::Unsupported),
+    })
 }
 /// No mutable access, serialization, provider, connection or dispatch capability.
 #[derive(Clone, PartialEq, Eq)]
@@ -254,16 +287,21 @@ pub struct Metadata {
     operation: Operation,
     projection: FinalProjection,
     family: Family,
+    write_data: Vec<(Column, Input)>,
 }
 impl Metadata {
+    pub fn optimistic_version(&self) -> bool {
+        self.operation.0.version.is_some()
+    }
+    /// The separate version condition deliberately cannot establish ordinary key proof.
+    pub fn sensitive_version(&self) -> Option<(&Column, &Value)> {
+        self.operation.0.version.as_ref().map(|(c, v)| (c, v))
+    }
     pub fn projection(&self) -> &FinalProjection {
         &self.projection
     }
     pub fn ordered_write_data(&self) -> &[(Column, Input)] {
-        match &self.operation.0.body {
-            Body::Insert(data) | Body::Update(data) => data,
-            _ => &[],
-        }
+        &self.write_data
     }
     pub fn order(&self) -> &[Order] {
         &self.operation.0.order
@@ -556,7 +594,7 @@ impl Operation {
         } else {
             table.clone()
         };
-        let (family, projection) = match &d.body {
+        let (family, mut projection) = match &d.body {
             Body::Select(p) => {
                 if p.is_empty() {
                     return Err(PlanError::Shape);
@@ -598,7 +636,14 @@ impl Operation {
                 (Family::Insert, FinalProjection::None)
             }
             Body::Update(data) => {
-                let (cols, args) = r.data(data)?;
+                let mut data = data.clone();
+                if let Some((column, expected)) = &d.version {
+                    if column.nullable || column.sql_type != expected.sql_type() {
+                        return Err(PlanError::Type);
+                    }
+                    data.push((column.clone(), Input::Value(version_successor(expected)?)));
+                }
+                let (cols, args) = r.data(&data)?;
                 r.sql = format!(
                     "UPDATE {table} SET {}",
                     cols.iter()
@@ -617,6 +662,46 @@ impl Operation {
         if let Some(p) = &d.predicate {
             let p = r.predicate(p, 0)?;
             r.sql.push_str(&format!(" WHERE {p}"));
+        }
+        if let Some((column, expected)) = &d.version {
+            if family != Family::Update {
+                return Err(PlanError::Unsupported);
+            }
+            let condition = r.predicate(
+                &Predicate::Compare(column.clone(), Compare::Eq, expected.clone()),
+                0,
+            )?;
+            r.sql.push_str(if d.predicate.is_some() {
+                " AND "
+            } else {
+                " WHERE "
+            });
+            r.sql.push_str(&condition);
+        }
+        if !d.returning.is_empty() {
+            if dialect != Dialect::Postgres || !matches!(family, Family::Update | Family::Delete) {
+                return Err(PlanError::Unsupported);
+            }
+            let mut names = Vec::new();
+            let cols = d
+                .returning
+                .iter()
+                .map(|p| {
+                    let name = p.alias.as_ref().unwrap_or(&p.column.name);
+                    if names.contains(name) {
+                        return Err(PlanError::Shape);
+                    }
+                    names.push(name.clone());
+                    let col = r.column(&p.column, true)?;
+                    Ok(if let Some(a) = &p.alias {
+                        format!("{col} AS {}", r.ident(a))
+                    } else {
+                        col
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            r.sql.push_str(&format!(" RETURNING {}", cols.join(", ")));
+            projection = FinalProjection::Columns(d.returning.clone());
         }
         if !d.order.is_empty() {
             let order = d
@@ -649,6 +734,16 @@ impl Operation {
                 sql: r.sql,
                 args: r.args,
                 metadata: Metadata {
+                    write_data: {
+                        let mut data = match &d.body {
+                            Body::Update(ds) | Body::Insert(ds) => ds.clone(),
+                            _ => vec![],
+                        };
+                        if let Some((column, expected)) = &d.version {
+                            data.push((column.clone(), Input::Value(version_successor(expected)?)));
+                        }
+                        data
+                    },
                     operation: self.clone(),
                     projection,
                     family,
@@ -699,8 +794,11 @@ impl Operation {
             }
             _ => (),
         }
-        if d.order.len() > 256 {
+        if d.order.len() > 256 || d.returning.len() > 256 {
             return Err(PlanError::Budget);
+        }
+        if d.version.is_some() {
+            args += 2;
         }
         let mut pending = Vec::new();
         if let Some(p) = &d.predicate {

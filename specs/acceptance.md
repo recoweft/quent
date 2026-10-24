@@ -100,3 +100,16 @@ from PR2 handles, PR3 Tx/atomicity and QT-AI-09 authorization responsibilities.
 context/session/deadline checks, ownership and async stage contract. This adds finite
 QT-C12/C13/C14 evidence through the same production dispatcher without changing
 Core planning, PR1 refusal/native gates or any full runtime_pending marker.
+
+## QT-AI-03 PR3 finite responsibilities
+
+[Atomic results v1](atomic-results-v1.md) records the production API, state/guarantee
+tables, dialect semantics, actual dedicated-DB observer evidence, test-only injection
+and explicitly unverified network completion faults. C16 has finite owned success/
+rollback/version/RETURNING and borrowed non-atomic evidence. C11 snapshot inheritance
+and C12–14 exact identity/input/expiry/consumption/cancellation are checked through
+the same dispatcher; C02/C06/C07/C10/C15 retain existing regressions and new version/
+projection checks. Original 87 tests remain, with four Core IR tests added; the API
+harness has two compiling controls and 29 checked negative programs. This does not
+clear any of the 24 full runtime_pending markers or establish provider/command
+responsibilities. Local and hosted measurements are reported separately.

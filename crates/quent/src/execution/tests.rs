@@ -59,6 +59,20 @@ fn context_variant(
     extras: Vec<PolicyDeclaration>,
     variant: u8,
 ) -> DatabaseContext {
+    let mut cs = fields(d);
+    if variant == 3 {
+        cs.reverse();
+    }
+    context_schema(d, t, subject, extras, variant, cs)
+}
+fn context_schema(
+    d: Dialect,
+    t: i64,
+    subject: &str,
+    extras: Vec<PolicyDeclaration>,
+    variant: u8,
+    cs: Vec<Column>,
+) -> DatabaseContext {
     let binding = DatabaseBinding::application_supplied(
         DatabaseIdentity::new(if variant == 1 {
             "other_db"
@@ -79,13 +93,7 @@ fn context_variant(
     let facts = ScopeFacts::application_asserted(
         table(),
         d,
-        {
-            let mut cs = fields(d);
-            if variant == 3 {
-                cs.reverse();
-            }
-            cs
-        },
+        cs,
         vec![Key::Primary(vec![tenant(), key()])],
         TableContext::OrdinaryBaseTableWithoutEffects,
     )
@@ -204,8 +212,257 @@ fn common_gate_all_families_and_contexts() {
 
 // These tests fail if explicitly selected without dedicated target opt-in. Normal
 // DB-free CI commands explicitly exclude live_; required live CI selects them.
+macro_rules! atomic_cases {
+    ($session:ident, $borrowed:ident, $connection:ty, $options:ident, $d:ident, $c:ident, $observer:ident, $create:literal, $seed:literal) => {{
+        let d=$d; let options=&$options; let observer=&mut $observer; let c=&$c;
+        // Reset this run's disposable fixture only. Existing regression assertions ran first.
+        sqlx::query("DROP TABLE quent_dispatch_test.items").execute(&mut *observer).await.unwrap();
+        sqlx::query($create).execute(&mut *observer).await.unwrap();
+        sqlx::query($seed).execute(&mut *observer).await.unwrap();
+        let one=ExpectedRows::exactly(1).unwrap();
+        let zero=ExpectedRows::exactly(0).unwrap();
+        let two=ExpectedRows::exactly(2).unwrap();
+        let make=|n| Draft::update(table(),write(Value::Text("atomic".into()),changed())).filter(filter(n)).freeze();
+        let observe= "SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1";
+        let mut s=$session::connect(options.clone(),c.clone()).await.unwrap();
+        let op=make(1);
+        let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        drop(s.execute_atomic(c,&op,one,h));
+        assert!(s.is_available()); assert!(s.recorder.events.is_empty());
+        let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        let r=s.execute_atomic(c,&op,one,h).await.unwrap();
+        assert_eq!(r.state(),ResultState::Committed);
+        assert_eq!(s.recorder.events, ["begin","begun","send","decoded","expectation","commit","committed"]);
+        assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"atomic");
+        let cb=context(d,22,"subject_b",vec![]);let mut sb=$session::connect(options.clone(),cb.clone()).await.unwrap();
+        let opb=make(2);let hb=sb.validate_atomic(&cb,&opb,one,MAX_TTL).unwrap();sb.execute_atomic(&cb,&opb,one,hb).await.unwrap();
+        assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"atomic");
+        assert_eq!(sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=22 AND id=2").fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"atomic");
+        let protected=context(d,11,"subject",vec![PolicyDeclaration::Readonly(changed())]);
+        let blocked=$session::connect(options.clone(),protected.clone()).await.unwrap();assert!(blocked.validate_atomic(&protected,&op,one,MAX_TTL).is_err());assert!(blocked.recorder.events.is_empty());
+        // Both drivers report an unchanged matched UPDATE as one, not changed zero.
+        s.recorder=Recorder::default();
+        let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        let r=s.execute_atomic(c,&op,one,h).await.unwrap();
+        assert_eq!(r.affected_rows(), Some(if d==Dialect::Postgres {AffectedRows::PostgresMatched(1)}else{AffectedRows::MysqlFoundRows(1)}));
+        for (n,expected) in [(1,zero),(1,two),(999,one)] {
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11 AND id=1").execute(&mut *observer).await.unwrap();
+            let op=make(n); s.recorder=Recorder::default();
+            let h=s.validate_atomic(c,&op,expected,MAX_TTL).unwrap();
+            let e=s.execute_atomic(c,&op,expected,h).await.unwrap_err();
+            assert_eq!(e,AtomicFailure{cause:ExecutionError::ExpectationMismatch,disposition:AtomicDisposition::RolledBack});
+            assert_eq!(s.recorder.events,["begin","begun","send","decoded","expectation","rollback","rolled_back"]);
+            assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
+        }
+        let op=make(999); let h=s.validate_atomic(c,&op,zero,MAX_TTL).unwrap();
+        assert_eq!(s.execute_atomic(c,&op,zero,h).await.unwrap().state(),ResultState::Committed);
+        // Version is an additional condition: the original key and tenant proof stays necessary.
+        let versioned=|version| {
+            let draft=Draft::update(table(),write(Value::Text("version".into()),changed())).filter(filter(1)).optimistic_version(key(),Value::I64(version)).unwrap();
+            (if d==Dialect::Postgres {draft.returning(vec![Projection::new(key(),None),Projection::new(changed(),None)])}else{draft}).freeze()
+        };
+        let op=versioned(0); s.recorder=Recorder::default();
+        let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        assert_eq!(s.execute_atomic(c,&op,one,h).await.unwrap_err(),AtomicFailure{cause:ExecutionError::Conflict,disposition:AtomicDisposition::RolledBack});
+        assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
+        let op=versioned(1); let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        s.execute_atomic(c,&op,one,h).await.unwrap();
+        assert_eq!(sqlx::query("SELECT id,txt FROM quent_dispatch_test.items WHERE tenant=11").fetch_one(&mut *observer).await.unwrap().get::<i64,_>(0),2);
+        sqlx::query("UPDATE quent_dispatch_test.items SET id=1,txt='before' WHERE tenant=11").execute(&mut *observer).await.unwrap();
+        for value in [Value::I64(i64::MAX),Value::Null(SqlType::I64),Value::U64(0)] {
+            assert!(Draft::update(table(),write(Value::Text("x".into()),changed())).filter(filter(1)).optimistic_version(key(),value).is_err());
+        }
+        let op=Draft::update(table(),write(Value::Text("x".into()),changed())).optimistic_version(key(),Value::I64(1)).unwrap().freeze();
+        let before=s.recorder.calls.len(); assert!(s.validate_atomic(c,&op,one,MAX_TTL).is_err()); assert_eq!(before,s.recorder.calls.len());
+        // Exact binding covers expectations, version and final projection.
+        let op=make(1); let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        assert_eq!(s.execute_atomic(c,&op,two,h).await.unwrap_err().disposition(),AtomicDisposition::NotStarted);
+        let other=context(d,22,"subject",vec![]); let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        assert_eq!(s.execute_atomic(&other,&op,one,h).await.unwrap_err().cause(),ExecutionError::ContextMismatch);
+        let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        assert_eq!(s.execute_atomic(c,&versioned(1),one,h).await.unwrap_err().cause(),ExecutionError::OperationMismatch);
+        let mut h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap(); h.operation.expires=Instant::now();
+        assert_eq!(s.execute_atomic(c,&op,one,h).await.unwrap_err().cause(),ExecutionError::Expired);
+        // Expiry after begin: runner's final gate rechecks after that await.
+        s.recorder=Recorder::default(); let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap(); s.final_now=Some(h.operation.expires);
+        assert_eq!(s.execute_atomic(c,&op,one,h).await.unwrap_err().disposition(),AtomicDisposition::RolledBack);
+        assert!(s.recorder.calls.is_empty()); assert!(!s.recorder.events.contains(&"commit"));
+        // Borrowed normal result stays uncommitted; atomic entry rejects without send.
+        let mut raw=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+        let mut tx=raw.begin().await.unwrap();
+        let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
+        let _physical_id=borrowed.test_connection_id().await;
+        assert_eq!(borrowed.validate_atomic(c,&op,one,MAX_TTL).unwrap_err(),ExecutionError::Unsupported);
+        assert!(borrowed.recorder.calls.is_empty()); assert!(borrowed.recorder.events.is_empty());
+        let r=borrowed.execute(c,op.clone()).await.unwrap(); assert_eq!(r.state(),ResultState::Uncommitted);
+        assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
+        let stale=borrowed.validate(c,&op,MAX_TTL).unwrap();
+        drop(borrowed); tx.rollback().await.unwrap();
+        assert_eq!(s.execute_validated(c,&op,stale).await.unwrap_err(),ExecutionError::ContextMismatch);
+        let mut tx=raw.begin().await.unwrap(); let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
+        let from_session=s.validate(c,&op,MAX_TTL).unwrap();
+        assert_eq!(borrowed.execute_validated(c,&op,from_session).await.unwrap_err(),ExecutionError::ContextMismatch);
+        let old=borrowed.validate(c,&op,MAX_TTL).unwrap(); drop(borrowed); tx.rollback().await.unwrap();
+        let mut tx=raw.begin().await.unwrap(); let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
+        assert_eq!(borrowed.execute_validated(c,&op,old).await.unwrap_err(),ExecutionError::ContextMismatch);
+        drop(borrowed); tx.rollback().await.unwrap();
+        let mut tx=raw.begin().await.unwrap();let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
+        assert_eq!(borrowed.validate_atomic(c,&op,one,MAX_TTL).unwrap_err(),ExecutionError::Unsupported);
+        borrowed.execute(c,op.clone()).await.unwrap();
+        assert!(!borrowed.recorder.events.contains(&"commit"));assert!(!borrowed.recorder.events.contains(&"rollback"));
+        drop(borrowed);tx.commit().await.unwrap();
+        assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"atomic");
+        sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11 AND id=1").execute(&mut *observer).await.unwrap();
+        let ret=Draft::update(table(),write(Value::Text("returning".into()),changed())).filter(filter(1)).returning(vec![Projection::new(key(),None),Projection::new(changed(),None)]).freeze();
+        if d==Dialect::Mysql {
+            s.recorder=Recorder::default(); assert!(s.validate_atomic(c,&ret,one,MAX_TTL).is_err());
+            assert!(s.recorder.calls.is_empty()); assert!(s.recorder.events.is_empty());
+        } else {
+            let h=s.validate_atomic(c,&ret,one,MAX_TTL).unwrap(); let r=s.execute_atomic(c,&ret,one,h).await.unwrap();
+            assert_eq!(r.sensitive_rows(),&[vec![Value::I64(1),Value::Text("returning".into())]]);
+            // PII projection and protected version assignment refuse via the same gate.
+            let pii=context(d,11,"subject",vec![PolicyDeclaration::Pii(changed())]);
+            let ps=$session::connect(options.clone(),pii.clone()).await.unwrap(); assert!(ps.validate_atomic(&pii,&ret,one,MAX_TTL).is_err());
+            for policy in [PolicyDeclaration::Readonly(key()),PolicyDeclaration::Generated(key())] {
+                let pc=context(d,11,"subject",vec![policy]); let ps=$session::connect(options.clone(),pc.clone()).await.unwrap();
+                assert!(ps.validate_atomic(&pc,&versioned(1),one,MAX_TTL).is_err());
+            }
+        }
+        for policy in [PolicyDeclaration::Tenant(tenant()),PolicyDeclaration::Readonly(key()),PolicyDeclaration::Generated(key())] {
+            let pc=context(d,11,"subject",if matches!(policy,PolicyDeclaration::Tenant(_)){vec![]}else{vec![policy]});
+            let ps=$session::connect(options.clone(),pc.clone()).await.unwrap();
+            let version_col=if pc.same_snapshot(c){tenant()}else{key()};
+            let op=Draft::update(table(),write(Value::Text("x".into()),changed())).filter(filter(1)).optimistic_version(version_col,Value::I64(11)).unwrap().freeze();
+            assert!(ps.validate_atomic(&pc,&op,one,MAX_TTL).is_err()); assert!(ps.recorder.calls.is_empty());
+        }
+        if d==Dialect::Postgres {
+            let protected=col("small",SqlType::I16,true);
+            let ret=Draft::update(table(),write(Value::Text("x".into()),changed())).filter(filter(1)).returning(vec![Projection::new(protected.clone(),None),Projection::new(tenant(),None)]).freeze();
+            let pc=context(d,11,"subject",vec![PolicyDeclaration::Pii(protected.clone())]);let ps=$session::connect(options.clone(),pc.clone()).await.unwrap();
+            assert_eq!(ps.validate_atomic(&pc,&ret,one,MAX_TTL).unwrap_err(),ExecutionError::Policy(PolicyError::PiiAccess));
+            let pc=context(d,11,"subject",vec![PolicyDeclaration::Readonly(protected)]);let mut ps=$session::connect(options.clone(),pc.clone()).await.unwrap();
+            let h=ps.validate_atomic(&pc,&ret,one,MAX_TTL).unwrap();let r=ps.execute_atomic(&pc,&ret,one,h).await.unwrap();assert_eq!(r.sensitive_rows()[0][1],Value::I64(11));
+        }
+        // Finite test-only completion failures. These are not network accidents.
+        for fault in [AtomicFault::Begin,AtomicFault::Commit,AtomicFault::CommitReplyLost,AtomicFault::Rollback,AtomicFault::RollbackReplyLost] {
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11 AND id=1").execute(&mut *observer).await.unwrap();
+            let mut faulted=$session::connect(options.clone(),c.clone()).await.unwrap();
+            let op=make(1); let expected=if matches!(fault,AtomicFault::Rollback|AtomicFault::RollbackReplyLost){zero}else{one};
+            let h=faulted.validate_atomic(c,&op,expected,MAX_TTL).unwrap(); faulted.atomic_fault=Some(fault);
+            let e=faulted.execute_atomic(c,&op,expected,h).await.unwrap_err();
+            assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert!(!faulted.is_available());
+            assert!(std::error::Error::source(&e).is_none());
+            assert_eq!(faulted.execute(c,op).await.unwrap_err(),ExecutionError::SessionUnavailable);
+            assert!(faulted.recorder.calls.len()<=1);
+            drop(faulted);
+            let actual=sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0);
+            assert_eq!(actual,if fault==AtomicFault::CommitReplyLost {"atomic"}else{"before"});
+        }
+        // Constructed but unpolled was tested above. Here begin completed and a
+        // test-only final barrier prevents the business send; drop is unconfirmed.
+        let mut canceled=$session::connect(options.clone(),c.clone()).await.unwrap();
+        let op=make(1); let h=canceled.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        canceled.final_barrier=Some(Arc::new(tokio::sync::Notify::new()));
+        let trace=canceled.recorder.live.clone();
+        let mut f=Box::pin(canceled.execute_atomic(c,&op,one,h));
+        tokio::time::timeout(Duration::from_secs(10),async {
+            loop {assert!(poll_once(f.as_mut()).await.is_pending());if trace.lock().unwrap().contains(&"begun"){break;} tokio::task::yield_now().await;}
+        }).await.unwrap(); drop(f);
+        assert_eq!(*trace.lock().unwrap(),["begin","begun"]); assert!(!canceled.is_available()); drop(canceled);
+        // Real row-lock cancellation, timeout and termination of only this run's
+        // exact business connection. Observer queries use the dedicated test role.
+        for mode in [0,1,2] {
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11 AND id=1").execute(&mut *observer).await.unwrap();
+            let mut locker=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+            let mut lock=locker.begin().await.unwrap();
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt=txt WHERE tenant=11 AND id=1").execute(&mut *lock).await.unwrap();
+            let mut canceled=$session::connect(options.clone(),c.clone()).await.unwrap();
+            let connection_id=canceled.test_connection_id().await;
+            let op=make(1); let h=canceled.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+            let trace=canceled.recorder.live.clone();
+            let mut f=Box::pin(canceled.execute_atomic(c,&op,one,h));
+            let waiting=if d==Dialect::Postgres {"SELECT COUNT(*) FROM pg_stat_activity WHERE pid=$1 AND usename=current_user AND wait_event_type='Lock' AND query LIKE 'UPDATE %'"} else {"SELECT COUNT(*) FROM performance_schema.data_lock_waits w JOIN performance_schema.threads t ON t.THREAD_ID=w.REQUESTING_THREAD_ID WHERE t.PROCESSLIST_ID=?"};
+            tokio::time::timeout(Duration::from_secs(10),async {
+                loop {assert!(poll_once(f.as_mut()).await.is_pending()); let r=sqlx::query(sqlx::AssertSqlSafe(waiting.to_owned())).bind(connection_id).fetch_one(&mut *observer).await.unwrap();if r.get::<i64,_>(0)>0{break;}tokio::task::yield_now().await;}
+            }).await.expect("atomic UPDATE not observed in server lock wait");
+            assert_eq!(*trace.lock().unwrap(),["begin","begun","send"]);
+            if mode==2 {
+                if d==Dialect::Postgres {
+                    sqlx::query("SELECT pg_terminate_backend(CAST($1 AS INT))").bind(connection_id).execute(&mut *observer).await.unwrap();
+                } else {
+                    // ID is obtained directly from the dedicated connection; no user SQL input.
+                    sqlx::query(sqlx::AssertSqlSafe(format!("KILL CONNECTION {connection_id}"))).execute(&mut *observer).await.unwrap();
+                }
+                let e=tokio::time::timeout(Duration::from_secs(10),f.as_mut()).await.unwrap().unwrap_err();
+                assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown);
+            } else if mode==1 {assert!(tokio::time::timeout(Duration::from_millis(1),f.as_mut()).await.is_err());}
+            drop(f); assert!(!canceled.is_available());
+            assert!(!trace.lock().unwrap().contains(&"commit")); assert!(!trace.lock().unwrap().contains(&"rolled_back"));
+            drop(canceled); lock.rollback().await.unwrap();
+            assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
+            println!("PR3 {:?}: real atomic lock observed; mode={} (drop/timeout/disconnect); no commit/confirmed rollback; session quarantined; observer unchanged",d,mode);
+        }
+        // Deliberately inaccurate asserted key in a disposable fixture: no gate bypass.
+        // This demonstrates why application schema assertions are conditional evidence.
+        let drop_key=if d==Dialect::Postgres {"ALTER TABLE quent_dispatch_test.items DROP CONSTRAINT items_pkey"} else {"ALTER TABLE quent_dispatch_test.items DROP PRIMARY KEY"};
+        sqlx::query(sqlx::AssertSqlSafe(drop_key.to_owned())).execute(&mut *observer).await.unwrap();
+        sqlx::query("UPDATE quent_dispatch_test.items SET txt='before',optional=1 WHERE tenant=11").execute(&mut *observer).await.unwrap();
+        sqlx::query("INSERT INTO quent_dispatch_test.items(id,tenant,txt,optional) VALUES(1,11,'before',NULL)").execute(&mut *observer).await.unwrap();
+        s.recorder=Recorder::default(); let op=make(1); let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
+        assert_eq!(s.execute_atomic(c,&op,one,h).await.unwrap_err().cause(),ExecutionError::ExpectationMismatch);
+        assert_eq!(s.recorder.events.iter().filter(|e|**e=="rollback").count(),1);
+        assert!(!s.recorder.events.contains(&"commit"));
+        for row in sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=11").fetch_all(&mut *observer).await.unwrap() {assert_eq!(row.get::<String,_>(0),"before");}
+        if d==Dialect::Postgres {
+            let ret=Draft::update(table(),write(Value::Text("full returning".into()),changed())).filter(filter(1)).returning(vec![Projection::new(key(),None),Projection::new(tenant(),None)]).freeze();
+            let h=s.validate_atomic(c,&ret,two,MAX_TTL).unwrap();let result=s.execute_atomic(c,&ret,two,h).await.unwrap();assert_eq!(result.sensitive_rows().len(),2);
+            assert_eq!(result.sensitive_rows(),&[vec![Value::I64(1),Value::I64(11)],vec![Value::I64(1),Value::I64(11)]]);
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11").execute(&mut *observer).await.unwrap();
+            let mut columns=fields(d); let last=col("optional",SqlType::I64,false); columns[7]=last.clone();
+            let badc=context_schema(d,11,"subject",vec![],0,columns);
+            let mut bads=$session::connect(options.clone(),badc.clone()).await.unwrap();
+            let op=Draft::update(table(),write(Value::Text("bad decode".into()),changed())).filter(filter(1)).returning(vec![Projection::new(key(),None),Projection::new(last,None)]).freeze();
+            let h=bads.validate_atomic(&badc,&op,two,MAX_TTL).unwrap();
+            let e=bads.execute_atomic(&badc,&op,two,h).await.unwrap_err(); assert_eq!(e.cause(),ExecutionError::Decode);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);
+            assert!(!bads.recorder.events.contains(&"commit"));
+            assert_eq!(bads.recorder.events.iter().filter(|e|**e=="row_decoded").count(),1,"first full row decoded before later-row NULL error");
+            for row in sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=11").fetch_all(&mut *observer).await.unwrap(){assert_eq!(row.get::<String,_>(0),"before");}
+            // Physical native mismatch in the later column.
+            let mut columns=fields(d); let last=col("small",SqlType::I32,true); columns[2]=last.clone();
+            let badc=context_schema(d,11,"subject",vec![],0,columns); let mut bads=$session::connect(options.clone(),badc.clone()).await.unwrap();
+            let op=Draft::update(table(),write(Value::Text("bad type".into()),changed())).filter(filter(1)).returning(vec![Projection::new(key(),None),Projection::new(last,None)]).freeze();
+            let h=bads.validate_atomic(&badc,&op,two,MAX_TTL).unwrap(); assert_eq!(bads.execute_atomic(&badc,&op,two,h).await.unwrap_err().cause(),ExecutionError::Decode);
+            // Business write is small; a different returned text column exceeds the result budget.
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt=repeat('x',4097) WHERE tenant=11").execute(&mut *observer).await.unwrap();
+            let op=Draft::update(table(),write(Value::I32(7),col("normal",SqlType::I32,true))).filter(filter(1)).returning(vec![Projection::new(changed(),None)]).freeze();
+            let h=s.validate_atomic(c,&op,two,MAX_TTL).unwrap(); assert_eq!(s.execute_atomic(c,&op,two,h).await.unwrap_err().cause(),ExecutionError::ResultLimit);
+            for row in sqlx::query("SELECT normal FROM quent_dispatch_test.items WHERE tenant=11").fetch_all(&mut *observer).await.unwrap(){assert_ne!(row.get::<Option<i32>,_>(0),Some(7));}
+        }
+        if d==Dialect::Postgres {
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt=repeat('x',4096) WHERE tenant=11").execute(&mut *observer).await.unwrap();
+            sqlx::query("INSERT INTO quent_dispatch_test.items(id,tenant,txt) SELECT 1,11,repeat('x',4096) FROM generate_series(1,254)").execute(&mut *observer).await.unwrap();
+            let op=Draft::update(table(),write(Value::I32(7),col("normal",SqlType::I32,true))).filter(filter(1)).returning(vec![Projection::new(key(),None),Projection::new(changed(),None)]).freeze();
+            let expected=ExpectedRows::exactly(256).unwrap();let h=s.validate_atomic(c,&op,expected,MAX_TTL).unwrap();
+            assert_eq!(s.execute_atomic(c,&op,expected,h).await.unwrap_err().cause(),ExecutionError::ResultLimit);
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt='small' WHERE tenant=11").execute(&mut *observer).await.unwrap();
+            sqlx::query("INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'small')").execute(&mut *observer).await.unwrap();
+            let h=s.validate_atomic(c,&op,expected,MAX_TTL).unwrap();assert_eq!(s.execute_atomic(c,&op,expected,h).await.unwrap_err().cause(),ExecutionError::ResultLimit);
+            for row in sqlx::query("SELECT normal FROM quent_dispatch_test.items WHERE tenant=11").fetch_all(&mut *observer).await.unwrap(){assert_ne!(row.get::<Option<i32>,_>(0),Some(7));}
+            // Restore exactly two rows for the following DELETE check.
+            sqlx::query("DELETE FROM quent_dispatch_test.items WHERE tenant=11").execute(&mut *observer).await.unwrap();
+            sqlx::query("INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'before'),(1,11,'before')").execute(&mut *observer).await.unwrap();
+        }
+        let draft=Draft::delete(table()).filter(filter(1));
+        let delete=(if d==Dialect::Postgres {draft.returning(vec![Projection::new(key(),None),Projection::new(tenant(),None)])}else{draft}).freeze();
+        let h=s.validate_atomic(c,&delete,one,MAX_TTL).unwrap();assert_eq!(s.execute_atomic(c,&delete,one,h).await.unwrap_err().disposition(),AtomicDisposition::RolledBack);
+        let h=s.validate_atomic(c,&delete,two,MAX_TTL).unwrap();let r=s.execute_atomic(c,&delete,two,h).await.unwrap();
+        if d==Dialect::Postgres {assert_eq!(r.sensitive_rows().len(),2);}
+        assert_eq!(sqlx::query("SELECT COUNT(*) FROM quent_dispatch_test.items WHERE tenant=11").fetch_one(&mut *observer).await.unwrap().get::<i64,_>(0),0);
+        println!("PR3 {:?}: production begin/send/full consumption/expectation/commit once; unchanged matched=1; mismatch 0/1/multiple, version conflict rollback; independent observer verified; borrowed uncommitted and cross-Tx refusal; RETURNING {}",d,if d==Dialect::Postgres {"full consumption/decode/budget"}else{"unsupported, zero send"});
+    }};
+}
 macro_rules! live_suite {
-    ($name:ident, $feature:literal, $session:ident, $connection:ty, $options:ty, $dialect:expr, $dsn:literal, $create:literal, $seed:literal) => {
+    ($name:ident, $feature:literal, $session:ident, $borrowed:ident, $connection:ty, $options:ty, $dialect:expr, $dsn:literal, $create:literal, $seed:literal) => {
         #[cfg(feature=$feature)]
         #[test]
         fn $name() {
@@ -480,6 +737,7 @@ macro_rules! live_suite {
                 // Allowed DELETE reports matched observation; it is not atomic API.
                 let r=session.execute(&c,Draft::delete(table()).filter(filter(259)).freeze()).await.unwrap();
                 assert_eq!(r.affected_rows(),Some(expected_affected));
+                atomic_cases!($session, $borrowed, $connection, options, d, c, observer, $create, $seed);
                 let mut failed_write=$session::connect(options.clone(),c.clone()).await.unwrap();
                 // Type mismatch fails redacted; no success truncation of results.
                 let bad=select(d).filter(filter(1)).freeze();
@@ -510,6 +768,7 @@ live_suite!(
     live_postgres,
     "postgres",
     PostgresSession,
+    BorrowedPostgresTransaction,
     sqlx::PgConnection,
     sqlx::postgres::PgConnectOptions,
     Dialect::Postgres,
@@ -521,6 +780,7 @@ live_suite!(
     live_mysql,
     "mysql",
     MysqlSession,
+    BorrowedMysqlTransaction,
     sqlx::MySqlConnection,
     sqlx::mysql::MySqlConnectOptions,
     Dialect::Mysql,
@@ -532,6 +792,7 @@ live_suite!(
 #[test]
 fn redacted_results_errors_and_limits() {
     let r = ExecutionResult {
+        state: ResultState::Observed,
         rows: vec![vec![Value::Text(
             "CANARY_SQL_identifier_reason_value".into(),
         )]],
@@ -539,6 +800,35 @@ fn redacted_results_errors_and_limits() {
         affected: None,
     };
     assert_eq!(format!("{r:?}"), "ExecutionResult([REDACTED])");
+    for state in [
+        ResultState::Observed,
+        ResultState::Uncommitted,
+        ResultState::Committed,
+    ] {
+        let r = ExecutionResult {
+            state,
+            rows: vec![vec![Value::Text("CANARY".into())]],
+            count: None,
+            affected: None,
+        };
+        assert!(!format!("{r:?}").contains("CANARY"));
+    }
+    assert_eq!(
+        ExpectedRows::exactly(257).unwrap_err(),
+        ExecutionError::Unsupported
+    );
+    for disposition in [
+        AtomicDisposition::NotStarted,
+        AtomicDisposition::RolledBack,
+        AtomicDisposition::OutcomeUnknown,
+    ] {
+        let e = AtomicFailure {
+            cause: ExecutionError::Decode,
+            disposition,
+        };
+        assert!(std::error::Error::source(&e).is_none());
+        assert!(!format!("{e:?} {e}").contains("CANARY"));
+    }
     for e in [
         ExecutionError::Connect,
         ExecutionError::ReadFailed,

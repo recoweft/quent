@@ -2,13 +2,14 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: consumed validation and Strict PostgreSQL/MySQL dispatch (QT-AI-03 planned PR2).**
+**Status: finite owned atomic results and borrowed transactions (QT-AI-03 planned PR3).**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
-Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Transactions,
+Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
 Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/provider-free. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
 
+- [Owned atomic results, borrowed Tx boundaries and failure/guarantee tables](specs/atomic-results-v1.md)
 - [Consumed handles, exact current binding, expiry and cancellation stages](specs/owned-validation-v1.md)
 - [SQLx execution, Strict gate/refusals, native matrix and real DB test procedure](specs/sqlx-dispatch-v1.md)
 - [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
@@ -77,7 +78,7 @@ limited DB-free evidence and remaining runtime/Tx/authorization responsibilities
 QT-AI-03 PR1 adds owned immediate sessions, the private shared dispatcher, finite
 native binding/decoding and redacted bounded results. The app supplies authenticated
 current context and authoritative database semantics; routing key equality does not
-authenticate a physical DB. PR2 adds consumed delayed handles with exact current-operation/context/session checks and an exclusive monotonic deadline. Tx/provider permits remain future work.
+authenticate a physical DB. PR2 adds consumed delayed handles with exact current-operation/context/session checks and an exclusive monotonic deadline. PR3 adds one-operation owned atomic execution and borrowed uncommitted results. Provider permits remain future work.
 
 Run both real DB acceptance suites against freshly created digest-pinned containers:
 
