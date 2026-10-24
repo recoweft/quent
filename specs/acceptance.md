@@ -64,3 +64,16 @@ acceptance is absent; none of the 24 runtime_pending markers is cleared. The bri
 skips QT-C07 lossless-values (unsupported decimal/missing, tested as refusal elsewhere).
 Fixture full expectations are not current production verdicts: the guide records the
 limited structural distinctions, including Zero truth set versus nullable-key proof.
+
+## QT-AI-02 PR1 snapshot foundation
+
+See [immutable settings/application snapshots](settings-context-v1.md) for implemented
+carrier APIs, support/refusal table, exact owned content, Strict default and the
+application authentication responsibility. QT-C11 has DB-free A/B isolation and
+preparation inheritance evidence; QT-C08 claim nonpromotion, QT-C12 exact content/
+target/subject/generation comparison and QT-C15 redaction/compile-fail evidence are
+limited to this carrier boundary. Policy declarations are not enforced. ScopeFacts
+remains ApplicationAsserted; Plan/inspect retain the same private finalized record.
+All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
+pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
+PR2. No runtime dispatch/refusal/rollback or live database results are claimed.

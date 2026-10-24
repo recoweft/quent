@@ -742,3 +742,49 @@ fn production_inspection_c02_c05_c07_independent_of_fixture_verdicts() {
     }
     assert_eq!(count, 24); // 12 source scenarios × 2 dialects; one unsupported value scenario skipped
 }
+
+#[test]
+fn c08_documentary_claims_do_not_populate_application_snapshot() {
+    use quent_core as core;
+    let r = register();
+    let case = r.cases.iter().find(|c| c.id == "QT-C08").unwrap();
+    assert!(case.preconditions.allow_claim);
+    for dialect in [core::Dialect::Postgres, core::Dialect::Mysql] {
+        // Explicit server-side construction, deliberately no bridge from fixture
+        // claims to tenant/subject/schema. Expectations are independent literals.
+        let binding = core::DatabaseBinding::application_supplied(
+            core::DatabaseIdentity::new("server-target").unwrap(),
+            core::TargetAddress::new("server-route").unwrap(),
+            core::Ident::new("catalog").unwrap(),
+            dialect,
+        );
+        let policy = core::PolicySet::new(
+            binding.clone(),
+            core::PolicyIdentity::new("policy").unwrap(),
+            core::Generation::new(1).unwrap(),
+            vec![],
+        )
+        .unwrap();
+        let settings = core::Settings::new(
+            binding.clone(),
+            core::SettingsIdentity::new("settings").unwrap(),
+            core::Generation::new(1).unwrap(),
+            policy,
+        )
+        .unwrap();
+        let app =
+            core::ApplicationContext::application_supplied(binding, None, None, None).unwrap();
+        let context = core::DatabaseContext::new(settings, app).unwrap();
+        assert_eq!(
+            context.presence(),
+            core::ContextPresence {
+                schema: false,
+                subject: false,
+                tenant: false
+            }
+        );
+        assert_eq!(context.sensitive_source().tenant(), None);
+        assert_eq!(context.sensitive_source().subject(), None);
+        // No dispatcher/Tx exists: do not claim fixture expected refusal/rollback.
+    }
+}

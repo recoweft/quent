@@ -220,3 +220,16 @@ Compile-failでは「別key/modelの混在」「handle再使用/複製」「view
 実装開始時はAGENTS.mdと依存固定値を確認し、Issue本文・本仕様・前PRのmain結果を読み直す。公開APIを増やす前に共通IR/gate/出力境界へ接続する。partial/unsupportedを成功へ変えない。通常CRUDとtyped/specの別実行経路を作らない。テストは該当caseと両DBの必要範囲、compile-fail、feature/doc checksを実行する。結果を偽らずskipの理由を報告する。
 
 Issue作成とwork登録は実行ではない。先行実装work 6b291980-36b5-48b1-8e9f-eff4bc3aed65 revision 2はPR1に限定されていた（運用履歴）。公開release、crates.io publish、無関係repo変更は含まない。
+
+## QT-AI-02 PR1 snapshot foundation
+
+See [immutable settings/application snapshots](settings-context-v1.md) for implemented
+carrier APIs, support/refusal table, exact owned content, Strict default and the
+application authentication responsibility. QT-C11 has DB-free A/B isolation and
+preparation inheritance evidence; QT-C08 claim nonpromotion, QT-C12 exact content/
+target/subject/generation comparison and QT-C15 redaction/compile-fail evidence are
+limited to this carrier boundary. Policy declarations are not enforced. ScopeFacts
+remains ApplicationAsserted; Plan/inspect retain the same private finalized record.
+All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
+pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
+PR2. No runtime dispatch/refusal/rollback or live database results are claimed.

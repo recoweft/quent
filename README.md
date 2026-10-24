@@ -2,7 +2,7 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: DB-free operation IR, deterministic plans and conditional structural inspection (QT-AI-01 PR2). No execution runtime is implemented.**
+**Status: DB-free plans/inspection plus immutable per-database application snapshots (QT-AI-02 PR1). No execution runtime is implemented.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Tenant policy, execution gates, transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
@@ -10,6 +10,7 @@ The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTE
 No database is contacted. No release or crates.io publication is provided.
 
 - [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
+- [Immutable settings, policy declarations and application context boundaries](specs/settings-context-v1.md)
 - [Conditional scope proof and fixed structural risk rules](specs/scope-risk-v1.md)
 - [Integrated contracts](specs/quent-contracts-v1.md)
 - [All 24 acceptance cases and owning issues](specs/acceptance.md)
@@ -54,3 +55,9 @@ application-asserted signed integer key facts can prove conditional maximum scop
 missing WHERE writes are structurally Blocked. Risk and scope never grant permission.
 QT-C02–05/C07 have limited DB-free inspection evidence; full runtime acceptance,
 live schema, tenant gates and real DB results remain pending. See the scope/risk guide.
+
+QT-AI-02 PR1 adds private owned Strict settings, finite **unenforced** policy
+declarations and typed target/schema/tenant/subject snapshots. DB-free preparation
+inherits exact immutable content; construction does not authenticate callers or
+physical databases. QT-C08/C11/C12/C15 have limited carrier/compile-fail evidence;
+full policy, dispatch and Tx acceptance remains pending. See the snapshot guide.

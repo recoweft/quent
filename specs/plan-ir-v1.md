@@ -137,3 +137,16 @@ See [scope/risk v1](scope-risk-v1.md) for the current conditional snapshot contr
 finite proof rules, fixed diagnostic register, completeness and non-suppressible
 missing-WHERE block. Earlier PR1 evidence/counts above are historical; full runtime
 acceptance remains pending. No tenant gate, execution handle or public view is added.
+
+## QT-AI-02 PR1 snapshot foundation
+
+See [immutable settings/application snapshots](settings-context-v1.md) for implemented
+carrier APIs, support/refusal table, exact owned content, Strict default and the
+application authentication responsibility. QT-C11 has DB-free A/B isolation and
+preparation inheritance evidence; QT-C08 claim nonpromotion, QT-C12 exact content/
+target/subject/generation comparison and QT-C15 redaction/compile-fail evidence are
+limited to this carrier boundary. Policy declarations are not enforced. ScopeFacts
+remains ApplicationAsserted; Plan/inspect retain the same private finalized record.
+All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
+pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
+PR2. No runtime dispatch/refusal/rollback or live database results are claimed.

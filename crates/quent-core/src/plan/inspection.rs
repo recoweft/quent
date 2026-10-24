@@ -24,9 +24,9 @@ impl Key {
 /// derived from a name, public digest, fixture, freshness or allow claim.
 #[derive(Clone, PartialEq, Eq)]
 pub struct ScopeFacts {
-    table: Table,
-    dialect: Dialect,
-    columns: Vec<Column>,
+    pub(super) table: Table,
+    pub(super) dialect: Dialect,
+    pub(super) columns: Vec<Column>,
     keys: Vec<Key>,
     context: TableContext,
 }
