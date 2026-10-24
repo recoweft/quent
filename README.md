@@ -1,13 +1,22 @@
+Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](specs/manifest-verify-v1.md).
+Earlier PR-specific absence statements below describe their historical baseline.
+
 # Quent
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: DB-free schema/manifest foundation (QT-AI-05 planned PR1), atop finite owned atomic execution.**
+**Status: explicit finite schema/catalog verification (QT-AI-05 planned PR2), atop finite owned atomic execution.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
-models/codegen, live manifest verification, review, migration, commands and MCP are future work.
-The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
-Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/provider-free. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
+models/codegen, review, migration, commands and MCP are future work.
+CLI `manifest verify --offline SOURCE COMPARISON` is DB-free; `--live SOURCE CONFIG`
+explicitly runs a bounded read-only catalog observation with optional driver/runtime
+features. Inputs must be explicitly named regular files; Unix FIFO inputs refuse
+without waiting for a writer. Opened-handle checks and byte limits do not guarantee
+OS/filesystem I/O deadlines; see the verification specification for symlink and OS
+conditions. Other CLI routes retain fixed non-success refusal.
+Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
+connect/execute and dedicated catalog-reader APIs perform I/O. No release or crates.io publication is provided.
 
 - [Schema/manifest source, canonical fingerprints and offline evidence](specs/schema-manifest-v1.md)
 - [Output surfaces, local file protections, CLI and CI/MCP limits](specs/output-boundaries-v1.md)
@@ -25,7 +34,7 @@ Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/
 - [Versioned fixtures and test support limits](crates/quent/tests/support/README.md)
 
 The workspace contains `quent-core` (no dependencies), `quent` (facade with
-optional SQLx dependencies), and `quent-cli` (depends only on core).
+optional SQLx dependencies), and `quent-cli` (default depends only on core; manifest/driver/runtime are optional).
 Core exposes owned IR and non-executable plans with explicit sensitive inspection. LLM, runtime and database drivers
 are not required for core or default workspace builds.
 
@@ -86,7 +95,7 @@ authenticate a physical DB. PR2 adds consumed delayed handles with exact current
 Run both real DB acceptance suites against freshly created digest-pinned containers:
 
 ```sh
-bash scripts/test-dispatch.sh
+bash scripts/test-dispatch.sh cargo test --workspace --all-features --locked -- --test-threads=1
 bash scripts/check-features.sh
 # Explicit DB-free all-feature subset, also used by Windows CI:
 cargo test --workspace --all-features --locked -- --skip live_
@@ -112,3 +121,8 @@ Optional `manifest` adds a strict bounded sensitive JSON source parser and indep
 schema/policy/generated-code/live-claim canonical fingerprints. Offline exact-content
 comparison never grants live freshness or execution authority. Public summaries are
 output-only; Core and the default facade retain their dependency boundaries.
+
+Live observation is private in-process evidence with exact target/context/connection
+binding and exclusive monotonic expiry; it grants no execution authority. PG/MySQL
+default ambiguity, metadata privileges, finite support and snapshot/DDL conditions
+are explicit in the [verification matrix](specs/manifest-verify-v1.md).

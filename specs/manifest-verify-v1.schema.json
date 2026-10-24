@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Output-only manifest verification v1; never authority input",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "schema",
+        "coverage",
+        "changes",
+        "policy",
+        "generated_code",
+        "external_live"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_verify_summary"
+        },
+        "version": {
+          "const": 1
+        },
+        "schema": {
+          "enum": [
+            "Matched",
+            "Drift",
+            "Missing",
+            "Unverified",
+            "Stale",
+            "Unknown",
+            "Unsupported"
+          ]
+        },
+        "coverage": {
+          "enum": [
+            "Missing",
+            "Unknown",
+            "Partial",
+            "Complete",
+            "Unsupported"
+          ]
+        },
+        "changes": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8208
+          }
+        },
+        "policy": {
+          "const": "Unverified"
+        },
+        "generated_code": {
+          "const": "Unverified"
+        },
+        "external_live": {
+          "const": "Unverified"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "state",
+        "live"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_verify_offline"
+        },
+        "version": {
+          "const": 1
+        },
+        "state": {
+          "enum": [
+            "OfflineConsistent",
+            "Different",
+            "Unsupported",
+            "Missing",
+            "Unknown"
+          ]
+        },
+        "live": {
+          "const": "Unverified"
+        }
+      }
+    }
+  ]
+}

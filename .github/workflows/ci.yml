@@ -50,5 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Production dispatcher on digest-pinned disposable DBs (no env skip)
-        run: bash scripts/test-dispatch.sh
+      - name: Compile complete regression before the disposable DB lifetime
+        run: cargo test --workspace --all-features --locked --no-run
+      - name: Production dispatcher and catalog/CLI on digest-pinned disposable DBs (no env skip)
+        run: bash scripts/test-dispatch.sh cargo test --workspace --all-features --locked -- --test-threads=1

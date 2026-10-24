@@ -32,14 +32,21 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
     );
     fs::write(dir.join("Cargo.toml"), manifest).unwrap();
     let prelude = "#![allow(dead_code)]\nuse quent::{PostgresSession,ValidatedOperation,ValidatedAtomicOperation,ExpectedRows,BorrowedPostgresTransaction};\nuse quent_core::{DatabaseContext,Operation};\n";
+    let runs = std::cell::Cell::new(0);
+    let controls = std::cell::Cell::new(0);
     let run = |source: &str| {
+        runs.set(runs.get() + 1);
         fs::write(dir.join("src/lib.rs"), format!("{prelude}{source}")).unwrap();
-        Command::new(env!("CARGO"))
+        let result = Command::new(env!("CARGO"))
             .args(["check", "--offline", "--quiet", "--manifest-path"])
             .arg(dir.join("Cargo.toml"))
             .env("CARGO_TARGET_DIR", repo.join("../../target/owned-api"))
             .output()
-            .unwrap()
+            .unwrap();
+        if result.status.success() {
+            controls.set(controls.get() + 1);
+        }
+        result
     };
     let output = run(
         "async fn control(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation) { let h=s.validate(c,o,std::time::Duration::from_secs(1)).unwrap(); let _=s.execute_validated(c,o,h).await; }",
@@ -81,6 +88,48 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         "manifest control: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let output = run(
+        "async fn control(r:&mut quent::manifest::live::PostgresReader,c:&DatabaseContext,s:&quent::manifest::live::Scope,m:&quent::manifest::ManifestSource,b:quent::manifest::live::Budget) {let o=r.observe(c,s,m,b,std::time::Duration::from_secs(1)).await.unwrap();let _=r.compare(c,s,m,&o).to_json();}",
+    );
+    assert!(
+        output.status.success(),
+        "live reader control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for carrier in [
+        "quent::manifest::live::Observation",
+        "quent::manifest::live::VerifySummary",
+        "quent::manifest::live::Scope",
+    ] {
+        for authority in [
+            "quent_core::ApplicationContext",
+            "quent_core::SchemaSnapshot",
+            "quent_core::ScopeFacts",
+            "DatabaseContext",
+            "ValidatedOperation",
+            "ValidatedAtomicOperation",
+        ] {
+            let r = run(&format!("fn f(v:{carrier}){{let _:{authority}=v.into();}}"));
+            assert!(!r.status.success());
+            assert!(String::from_utf8_lossy(&r.stderr).contains("E0277"));
+        }
+    }
+    let r = run(
+        "fn f(){let _:quent::manifest::live::Observation=serde_json::from_str(\"{}\").unwrap();}",
+    );
+    assert!(!r.status.success());
+    assert!(String::from_utf8_lossy(&r.stderr).contains("E0277"));
+    let r = run("fn f(o:&quent::manifest::live::Observation){serde_json::to_string(o).unwrap();}");
+    assert!(!r.status.success());
+    assert!(String::from_utf8_lossy(&r.stderr).contains("E0277"));
+    for body in [
+        "fn f(o:&quent::manifest::live::Observation){let _=&o.observed;}",
+        "fn f(r:&mut quent::manifest::live::PostgresReader){let _=&mut r.connection;}",
+    ] {
+        let r = run(body);
+        assert!(!r.status.success());
+        assert!(String::from_utf8_lossy(&r.stderr).contains("error[E0616]"));
+    }
     for carrier in [
         "quent::manifest::ManifestSource",
         "quent::manifest::SensitiveManifestSource<'_>",
@@ -94,6 +143,7 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "DatabaseContext",
             "ValidatedOperation",
             "ValidatedAtomicOperation",
+            "quent::manifest::live::Observation",
         ] {
             let r = run(&format!("fn f(v:{carrier}){{let _:{authority}=v.into();}}"));
             let d = String::from_utf8_lossy(&r.stderr);
@@ -364,4 +414,10 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "{name}: missing API/dependency: {diagnostic}"
         );
     }
+    assert_eq!(controls.get(), 6, "compiling positive controls");
+    assert_eq!(
+        runs.get() - controls.get(),
+        127,
+        "diagnostic-checked negatives (100 retained)"
+    );
 }

@@ -1,3 +1,6 @@
+Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](manifest-verify-v1.md).
+Earlier PR-specific absence statements below describe their historical baseline.
+
 # QT-AI-04 planned PR2: output boundaries v1
 
 Current implementation, superseding PR-specific historical absence statements in

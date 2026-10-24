@@ -10,7 +10,7 @@ struct Quiet<F> {
     future: Option<Pin<Box<F>>>,
     dispatch: Dispatch,
 }
-pub(super) fn quiet<F: Future>(future: F) -> impl Future<Output = F::Output> {
+pub(crate) fn quiet<F: Future>(future: F) -> impl Future<Output = F::Output> {
     Quiet {
         future: Some(Box::pin(future)),
         dispatch: Dispatch::new(tracing::subscriber::NoSubscriber::default()),

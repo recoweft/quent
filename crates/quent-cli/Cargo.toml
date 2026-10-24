@@ -12,3 +12,19 @@ workspace = true
 
 [dependencies]
 quent-core.workspace = true
+quent = { path = "../quent", optional = true, default-features = false }
+serde = { version = "=1.0.229", features = ["derive"], optional = true }
+serde_json = { version = "=1.0.154", optional = true }
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "=1.1.4", default-features = false, features = ["std", "fs"], optional = true }
+
+[features]
+default = []
+manifest = ["dep:quent", "quent/manifest", "dep:serde", "dep:serde_json", "dep:rustix"]
+postgres = ["manifest", "dep:sqlx", "sqlx/postgres", "quent/postgres"]
+mysql = ["manifest", "dep:sqlx", "sqlx/mysql", "quent/mysql"]
+runtime-tokio = ["manifest", "dep:tokio", "quent/runtime-tokio", "tokio/rt", "tokio/time"]
+tls-rustls = ["quent?/tls-rustls", "sqlx?/tls-rustls-ring-webpki"]

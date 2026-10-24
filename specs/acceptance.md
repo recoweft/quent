@@ -1,3 +1,6 @@
+Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](manifest-verify-v1.md).
+Earlier PR-specific absence statements below describe their historical baseline.
+
 # 受入責務台帳
 
 Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:
@@ -148,3 +151,21 @@ existing Strict/context/validated/atomic gates remain unchanged. Full runtime_pe
 stays on all 24 fixture cases. PR2 owns explicit live catalog, drift and CLI verify;
 codegen and business authority remain with their owning Issues. Measured commands,
 exact head and CI/DB regressions are recorded in the execution/PR report.
+
+## QT-AI-05 PR2 finite catalog boundary
+
+C19/C24 add explicit real catalog, bounded comparison and strict CLI workflow;
+C08/C12/C15 add private observation provenance, exclusive monotonic expiry, exact
+current content/session and source-free nonpromotion boundaries. See the linked
+reader matrix for supported defaults/privileges and PG/MySQL snapshot differences.
+Existing CRUD/validated/atomic gates are unchanged. All 24 full runtime_pending
+markers remain. Only actually executed commands and measured subcases in the PR
+and execution report are evidence; the fixture expectations are unchanged.
+
+Revision 2 C24/C15 input-boundary evidence adds real product subprocess tests for
+writerless Unix FIFO in all three verify inputs, special-file/final-symlink refusal,
+opened-file replacement races, exact byte limits and a detecting TCP positive
+control for config rejection before connect. Five-second watchdogs kill/wait and
+fail on hangs. Unix NONBLOCK is a FIFO-open guarantee, not an OS/filesystem deadline.
+Windows file regressions run in hosted CI; Unix FIFO and local WSL evidence do not
+establish Windows live support. No full runtime_pending marker is cleared.
