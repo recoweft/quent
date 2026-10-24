@@ -1,3 +1,5 @@
+Current PR3 additions: [finite owned atomic results, version/RETURNING IR and borrowed Tx boundaries](atomic-results-v1.md). Earlier PR-specific absence statements below describe their historical baseline.
+
 # QT-AI-02 PR1: immutable application snapshots
 
 Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:

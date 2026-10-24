@@ -95,6 +95,8 @@ fn columns(d: &Draft) -> Vec<&Column> {
         Body::Insert(ds) | Body::Update(ds) => out.extend(ds.iter().map(|(c, _)| c)),
         _ => (),
     }
+    out.extend(d.returning.iter().map(|p| &p.column));
+    out.extend(d.version.iter().map(|(c, _)| c));
     out.extend(d.order.iter().map(|o| &o.column));
     fn visit<'a>(p: &'a Predicate, out: &mut Vec<&'a Column>) {
         match p {
@@ -260,7 +262,10 @@ impl PreparationContext {
                         tenant_occurrences(p, tenant, false)?;
                     }
                     match &d.body {
-                        Body::Update(ds) if ds.iter().any(|(column, _)| column == c) => {
+                        Body::Update(ds)
+                            if ds.iter().any(|(column, _)| column == c)
+                                || d.version.as_ref().is_some_and(|(column, _)| column == c) =>
+                        {
                             return Err(PolicyError::TenantWrite);
                         }
                         Body::Insert(ds) => {
@@ -302,7 +307,8 @@ impl PreparationContext {
                 }
                 PolicyDeclaration::Readonly(_) | PolicyDeclaration::Generated(_) => {
                     if let Body::Update(ds) | Body::Insert(ds) = &d.body
-                        && ds.iter().any(|(column, _)| column == c)
+                        && (ds.iter().any(|(column, _)| column == c)
+                            || d.version.as_ref().is_some_and(|(column, _)| column == c))
                     {
                         return Err(PolicyError::ProtectedWrite);
                     }

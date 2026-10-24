@@ -1,3 +1,5 @@
+Current PR3 additions: [finite owned atomic results, version/RETURNING IR and borrowed Tx boundaries](atomic-results-v1.md). Earlier PR-specific absence statements below describe their historical baseline.
+
 Current PR2 behavior: [consumed validation, current input/session binding, expiry
 and cancellation stages](owned-validation-v1.md). The PR1 baseline below remains
 historical where it defers delayed handles; its finite gate/native matrix is preserved.

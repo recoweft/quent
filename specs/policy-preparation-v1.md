@@ -1,3 +1,5 @@
+Current PR3 additions: [finite owned atomic results, version/RETURNING IR and borrowed Tx boundaries](atomic-results-v1.md). Earlier PR-specific absence statements below describe their historical baseline.
+
 # QT-AI-02 PR2: finite DB-free policy preparation
 
 `PreparationContext::prepare_operation(&Operation)` is the single application-only

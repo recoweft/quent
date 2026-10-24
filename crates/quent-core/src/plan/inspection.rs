@@ -317,6 +317,8 @@ fn proof(
         }
         _ => (),
     }
+    columns.extend(d.returning.iter().map(|p| p.column.clone()));
+    columns.extend(d.version.iter().map(|(c, _)| c.clone()));
     columns.extend(d.order.iter().map(|o| o.column.clone()));
     if let Some(p) = &d.predicate {
         predicate_columns(p, &mut columns);

@@ -1,3 +1,5 @@
+Current PR3 additions: [finite owned atomic results, version/RETURNING IR and borrowed Tx boundaries](atomic-results-v1.md). Earlier PR-specific absence statements below describe their historical baseline.
+
 # QT-AI-01 PR2: conditional scope and structural risk v1
 
 Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:

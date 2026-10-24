@@ -6,7 +6,8 @@ use sqlx::{
 };
 
 /// Owns a connection and its full immutable application snapshot. No raw executor
-/// getter, callbacks, pool routing or transaction API is exposed. Delayed handles
+/// getter, callbacks or pool routing is exposed. Finite owned atomic execution owns
+/// transaction completion; borrowed adapters never do. Delayed handles
 /// are private-record consumers bound to this exact connection lifetime.
 /// Construction authenticates neither the application context nor physical DB.
 /// ```compile_fail
@@ -26,12 +27,15 @@ pub struct PostgresSession {
     context: DatabaseContext,
     available: bool,
     identity: Arc<()>,
+    result_state: ResultState,
     #[cfg(test)]
     pub(super) final_now: Option<Instant>,
     #[cfg(test)]
     pub(super) final_barrier: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
     pub(super) recorder: Recorder,
+    #[cfg(test)]
+    pub(super) atomic_fault: Option<AtomicFault>,
 }
 impl fmt::Debug for PostgresSession {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -53,15 +57,19 @@ impl PostgresSession {
             context,
             available: true,
             identity: Arc::new(()),
+            result_state: ResultState::Observed,
             #[cfg(test)]
             final_now: None,
             #[cfg(test)]
             final_barrier: None,
             #[cfg(test)]
             recorder: Recorder::default(),
+            #[cfg(test)]
+            atomic_fault: None,
         })
     }
     immediate_dispatch!(Postgres, Postgres, PostgresMatched);
+    atomic_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
 }
 fn bind<'q>(
     query: &mut sqlx::query::Query<'q, Postgres, <Postgres as sqlx::Database>::Arguments>,
@@ -151,3 +159,17 @@ fn decode_count(row: &PgRow) -> Result<Value> {
     }
     Ok(Value::I64(count))
 }
+
+impl NativeConnection for PgConnection {
+    type Connection = Self;
+    fn native(&mut self) -> &mut Self {
+        self
+    }
+}
+borrowed_dispatch!(
+    BorrowedPostgresTransaction,
+    Postgres,
+    PgConnection,
+    Postgres,
+    PostgresMatched
+);
