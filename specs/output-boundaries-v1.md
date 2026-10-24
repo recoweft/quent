@@ -147,7 +147,12 @@ FIFO/device/unsafe-parent refusal, concurrent create, actual restrictive-umask
 failure with empty file, finite CI/surface denial and absence of trace fallback.
 Original diagnostic/schema tests and 60 negative + 3 compiling controls are retained;
 PR2 adds 11 diagnostic-checked negatives and a detail/trace compiling control.
-Existing live production tests capture actual result/driver/atomic failure summaries;
+Existing live production tests capture actual result/driver/atomic failure summaries,
+and an outer subscriber observes the entire real connection/dispatch/Tx/error lifetime
+to require zero unsolicited events with SQLx statement/slow logging disabled. The
+outer capture excludes fixture-only raw setup/cleanup (which can emit PostgreSQL
+notices); this is finite evidence on the supported ordinary-table scenarios, not
+sanitization of independently executed application SQL or arbitrary server logging;
 export success/denial does not change the retained gate or atomic outcome. Fixed
 source errors discard external cause text rather than formatting it. No DB semantics
 changed: DB-free output evidence is separate from full existing live regression.

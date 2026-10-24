@@ -495,12 +495,16 @@ macro_rules! live_suite {
             let dsn = std::env::var($dsn).expect("explicit dedicated DB DSN required");
             let options: $options = dsn.parse().expect("invalid dedicated test DSN");
             let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            // Observe actual product connect/dispatch/Tx/error emissions too, not only
+            // explicit view emission. Nested view checks use their own recorder.
+            #[cfg(feature="output-tracing")] let lifetime_capture=output_capture::Capture::default();
             // Setup is deliberately separate raw SQL, never counted as dispatch.
             runtime.block_on(async {
                 let mut setup = <$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
                 sqlx::query($create).execute(&mut setup).await.unwrap();
                 sqlx::query($seed).execute(&mut setup).await.unwrap();
             });
+            #[cfg(feature="output-tracing")] let subscriber=tracing::subscriber::set_default(lifetime_capture.clone());
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||runtime.block_on(async {
                 let d = $dialect; let c = context(d,11,"subject",vec![]);
                 let mut session = $session::connect(options.clone(),c.clone()).await.unwrap();
@@ -782,10 +786,12 @@ macro_rules! live_suite {
                 #[cfg(feature="output-tracing")] output_capture::check(&e.public_view(),&e.public_view().to_json());
                 assert!(std::error::Error::source(&e).is_none());
             })));
+            #[cfg(feature="output-tracing")] drop(subscriber);
             // Cleanup executes even after an assertion panic. Container wrapper also
             // removes its dedicated servers on command failure.
             runtime.block_on(async { let mut setup=<$connection>::connect_with(&options.disable_statement_logging()).await.unwrap(); sqlx::query("DROP TABLE IF EXISTS quent_dispatch_test.items").execute(&mut setup).await.unwrap(); });
             if let Err(panic) = result { std::panic::resume_unwind(panic); }
+            #[cfg(feature="output-tracing")] lifetime_capture.assert_safe(0);
         }
     }
 }
