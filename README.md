@@ -2,14 +2,15 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: DB-free plans/inspection plus immutable per-database application snapshots (QT-AI-02 PR1). No execution runtime is implemented.**
+**Status: DB-free plans/inspection and finite tenant/column policy preparation (QT-AI-02 PR2). No execution runtime is implemented.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
-Tenant policy, execution gates, transactions,
+Execution gates, transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
 No database is contacted. No release or crates.io publication is provided.
 
 - [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
+- [Finite policy enforcement, support/refusal table and acceptance limits](specs/policy-preparation-v1.md)
 - [Immutable settings, policy declarations and application context boundaries](specs/settings-context-v1.md)
 - [Conditional scope proof and fixed structural risk rules](specs/scope-risk-v1.md)
 - [Integrated contracts](specs/quent-contracts-v1.md)
@@ -39,11 +40,11 @@ cargo check -p quent --no-default-features --features postgres,runtime-tokio,tls
 cargo check -p quent --no-default-features --features mysql,runtime-tokio,tls-rustls --locked
 ```
 
-All QT-C01–QT-C24 runtime acceptance cases remain unverified. PR2 supplies 24
+All QT-C01–QT-C24 full runtime acceptance cases remain pending. QT-AI-00 PR2 supplied 24
 language-neutral cases (69 scenarios after QT-AI-01 PR2), a bounded fixture validator, a scripted
 DB call recorder and PostgreSQL/MySQL source-consumer templates. The 13 support
-tests validate those tools and records; runtime, real DB and compile-fail checks
-remain with their owning implementation issues. Expected fixture results are
+tests validate those tools and records; full runtime and real DB checks
+remain with their owning implementation issues. Later changes add real API compile-fail tests. Expected fixture results are
 contracts, never measured runtime verdicts.
 
 QT-AI-01 PR1 adds production plan evidence for QT-C01/QT-C07 and finite core
@@ -54,10 +55,19 @@ QT-AI-01 PR2 adds `Plan::inspect` over the same private finalized record. Explic
 application-asserted signed integer key facts can prove conditional maximum scope;
 missing WHERE writes are structurally Blocked. Risk and scope never grant permission.
 QT-C02–05/C07 have limited DB-free inspection evidence; full runtime acceptance,
-live schema, tenant gates and real DB results remain pending. See the scope/risk guide.
+live schema, execution gates and real DB results remain pending. See the scope/risk guide.
 
-QT-AI-02 PR1 adds private owned Strict settings, finite **unenforced** policy
+QT-AI-02 PR1 introduced private owned Strict settings, finite policy
 declarations and typed target/schema/tenant/subject snapshots. DB-free preparation
 inherits exact immutable content; construction does not authenticate callers or
 physical databases. QT-C08/C11/C12/C15 have limited carrier/compile-fail evidence;
-full policy, dispatch and Tx acceptance remains pending. See the snapshot guide.
+raw snapshots alone enforce no policy.
+
+QT-AI-02 PR2 connects `PreparationContext::prepare_operation` to the common IR,
+then the existing finalizer and inspection record. Tenant guards wrap the entire
+caller predicate; explicit mismatch, tenant assignment and unsupported context
+refuse. Soft-delete, PII, RequiredFilter and protected-write rules are finite and
+conservative. Exact qualified canonical identities are required. Original WHERE-less
+write blocks survive automatic filters. Success grants no permission. See the
+[policy preparation guide](specs/policy-preparation-v1.md) for the family matrix,
+limited DB-free evidence and remaining runtime/Tx/authorization responsibilities.

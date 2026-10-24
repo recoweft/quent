@@ -1,5 +1,10 @@
 # QT-AI-01: DB-free plan IR v1
 
+Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:
+[policy preparation v1](policy-preparation-v1.md). Implementation-status paragraphs describe their named historical PR; the
+integrated requirements remain current. Raw Plan/snapshot APIs are non-enforcing
+and non-executable.
+
 The PR1 baseline and its verification are recorded below. PR2 adds the current
 [conditional scope/risk inspection contract](scope-risk-v1.md); statements below
 that defer inspection/risk to PR2 describe the PR1 baseline.
@@ -145,7 +150,8 @@ carrier APIs, support/refusal table, exact owned content, Strict default and the
 application authentication responsibility. QT-C11 has DB-free A/B isolation and
 preparation inheritance evidence; QT-C08 claim nonpromotion, QT-C12 exact content/
 target/subject/generation comparison and QT-C15 redaction/compile-fail evidence are
-limited to this carrier boundary. Policy declarations are not enforced. ScopeFacts
+limited to this carrier boundary. Raw snapshot declarations alone are not enforced; the current preparation API
+enforces the finite subset described in the policy preparation guide. ScopeFacts
 remains ApplicationAsserted; Plan/inspect retain the same private finalized record.
 All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
 pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02

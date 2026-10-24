@@ -89,18 +89,25 @@ pub enum SettingsMode {
     Strict,
 }
 
-/// Declarations only: none of these policies is enforced in this PR.
+/// Finite declarations, enforced only by PreparationContext::prepare_operation.
 #[derive(Clone, PartialEq, Eq)]
 pub enum PolicyDeclaration {
     Tenant(Column),
     SoftDelete(Column),
     Pii(Column),
     RequiredFilter(Column),
+    Readonly(Column),
+    Generated(Column),
 }
 impl PolicyDeclaration {
     fn column(&self) -> &Column {
         match self {
-            Self::Tenant(c) | Self::SoftDelete(c) | Self::Pii(c) | Self::RequiredFilter(c) => c,
+            Self::Tenant(c)
+            | Self::SoftDelete(c)
+            | Self::Pii(c)
+            | Self::RequiredFilter(c)
+            | Self::Readonly(c)
+            | Self::Generated(c) => c,
         }
     }
 }
@@ -489,3 +496,6 @@ impl SensitiveContextSource<'_> {
     }
 }
 redacted!(SensitiveContextSource<'_>);
+
+mod policy;
+pub use policy::*;

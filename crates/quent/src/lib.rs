@@ -11,3 +11,13 @@
 //!     serde_json::to_string(context).unwrap();
 //! }
 //! ```
+//!
+//! Policy preparation is neither serializable authority nor an executable handle.
+//! ```compile_fail
+//! fn restore() {
+//!     let _: quent_core::PolicyPreparation = serde_json::from_str("{}").unwrap();
+//! }
+//! ```
+//! ```compile_fail
+//! fn export(p: &quent_core::PolicyPreparation) { serde_json::to_string(p).unwrap(); }
+//! ```

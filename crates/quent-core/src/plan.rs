@@ -287,6 +287,7 @@ struct Record {
     args: Vec<Value>,
     metadata: Metadata,
     dialect: Dialect,
+    caller_missing_where: bool,
 }
 /// Private finalized record. No execute, authorization, serde or SQL reconstruction API.
 /// ```compile_fail
@@ -519,6 +520,7 @@ impl Renderer<'_> {
 impl Operation {
     /// Pure, bounded rendering from this owned snapshot. Does not evaluate risk.
     pub fn finalize(&self, dialect: Dialect) -> Result<Plan> {
+        self.check_budget()?;
         let d = &self.0;
         let read = matches!(d.body, Body::Select(_) | Body::Count);
         if !read && (!d.order.is_empty() || d.limit.is_some() || d.table.alias.is_some()) {
@@ -642,6 +644,8 @@ impl Operation {
                     family,
                 },
                 dialect,
+                caller_missing_where: matches!(d.body, Body::Update(_) | Body::Delete)
+                    && d.predicate.is_none(),
             },
         })
     }
@@ -652,3 +656,75 @@ pub use inspection::*;
 
 mod context;
 pub use context::*;
+
+impl Operation {
+    fn check_budget(&self) -> Result<()> {
+        let d = &self.0;
+        let mut args = usize::from(d.limit.is_some());
+        let value = |v: &Value| -> Result<()> {
+            if matches!(v, Value::Text(s) if s.len() > 4096) {
+                return Err(PlanError::Budget);
+            }
+            Ok(())
+        };
+        match &d.body {
+            Body::Select(ps) if ps.len() > 256 => return Err(PlanError::Budget),
+            Body::Insert(ds) | Body::Update(ds) => {
+                if ds.len() > 256 {
+                    return Err(PlanError::Budget);
+                }
+                args += ds.len();
+                for (_, input) in ds {
+                    if let Input::Value(v) = input {
+                        value(v)?;
+                    }
+                }
+            }
+            _ => (),
+        }
+        if d.order.len() > 256 {
+            return Err(PlanError::Budget);
+        }
+        let mut pending = Vec::new();
+        if let Some(p) = &d.predicate {
+            pending.push((p, 0));
+        }
+        let mut nodes = 0;
+        while let Some((p, depth)) = pending.pop() {
+            nodes += 1;
+            if depth > 16 || nodes > 1024 {
+                return Err(PlanError::Budget);
+            }
+            match p {
+                Predicate::And(ps) | Predicate::Or(ps) => {
+                    if ps.len() > 256 || pending.len() + ps.len() > 1024 {
+                        return Err(PlanError::Budget);
+                    }
+                    pending.extend(ps.iter().map(|p| (p, depth + 1)));
+                }
+                Predicate::Not(p) => pending.push((p, depth + 1)),
+                Predicate::Compare(_, _, v) => {
+                    args += 1;
+                    value(v)?;
+                }
+                Predicate::In(_, vs) => {
+                    if vs.len() > 256 {
+                        return Err(PlanError::Budget);
+                    }
+                    args += vs.len();
+                    for v in vs {
+                        value(v)?;
+                    }
+                }
+                Predicate::IsNull(_) => (),
+            }
+            if args > 1024 {
+                return Err(PlanError::Budget);
+            }
+        }
+        if args > 1024 {
+            return Err(PlanError::Budget);
+        }
+        Ok(())
+    }
+}
