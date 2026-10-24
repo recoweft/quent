@@ -259,3 +259,7 @@ existing Strict/context/validated/atomic gates remain unchanged. Full runtime_pe
 stays on all 24 fixture cases. PR2 owns explicit live catalog, drift and CLI verify;
 codegen and business authority remain with their owning Issues. Measured commands,
 exact head and CI/DB regressions are recorded in the execution/PR report.
+
+QT-AI-06 PR1 source syntax, finite refusals, application role assertions and remaining
+typed compiler duties: [OperationSpec v1](operation-spec-v1.md). The initial source
+subset has no trusted tenant-ref wire; tenant context is application-only.

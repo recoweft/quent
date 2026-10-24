@@ -50,3 +50,7 @@ mod output_capture;
 /// Bounded DB-free source parsing and offline evidence; no execution authority.
 #[cfg(feature = "manifest")]
 pub mod manifest;
+
+/// Bounded read-only source syntax and application-asserted column roles.
+#[cfg(feature = "operation-spec")]
+pub mod operation_spec;
