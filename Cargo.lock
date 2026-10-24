@@ -682,6 +682,8 @@ name = "quent"
 version = "0.1.0"
 dependencies = [
  "quent-core",
+ "serde",
+ "serde_json",
  "sqlx",
  "tokio",
 ]

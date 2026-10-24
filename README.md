@@ -2,7 +2,7 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: bootstrap only (QT-AI-00 planned PR1). No ORM runtime is implemented.**
+**Status: bootstrap and contract test support (QT-AI-00 PR1/PR2). No ORM runtime is implemented.**
 CRUD, SQL planning/validation, tenant policy, execution gates, transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
@@ -10,7 +10,8 @@ No database is contacted. No release or crates.io publication is provided.
 
 - [Integrated contracts](specs/quent-contracts-v1.md)
 - [All 24 acceptance cases and owning issues](specs/acceptance.md)
-- [Architecture, dependency decisions and verification](specs/bootstrap.md)
+- [Architecture, dependency decisions and PR1 verification](specs/bootstrap.md)
+- [Versioned fixtures and test support limits](crates/quent/tests/support/README.md)
 
 The workspace contains `quent-core` (no dependencies), `quent` (facade with
 optional SQLx dependencies), and `quent-cli` (depends only on core).
@@ -34,7 +35,9 @@ cargo check -p quent --no-default-features --features postgres,runtime-tokio,tls
 cargo check -p quent --no-default-features --features mysql,runtime-tokio,tls-rustls --locked
 ```
 
-All QT-C01–QT-C24 runtime acceptance cases remain unverified. Language-neutral
-fixtures and DB call recorders belong to planned PR2; runtime and compile-fail
-checks belong to their implementation issues. Zero tests in this bootstrap
-must not be interpreted as verification of those contracts.
+All QT-C01–QT-C24 runtime acceptance cases remain unverified. PR2 supplies 24
+language-neutral cases (66 scenarios), a bounded fixture validator, a scripted
+DB call recorder and PostgreSQL/MySQL source-consumer templates. The 13 support
+tests validate those tools and records; runtime, real DB and compile-fail checks
+remain with their owning implementation issues. Expected fixture results are
+contracts, never measured runtime verdicts.

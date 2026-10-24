@@ -1,0 +1,4737 @@
+{
+  "kind": "quent-contract-fixtures",
+  "version": "1",
+  "cases": [
+    {
+      "id": "QT-C01",
+      "owners": [
+        "QT-AI-01",
+        "QT-AI-06",
+        "QT-AI-08"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "offline-repeat",
+          "shape": {
+            "operation": "select",
+            "projection": [
+              "items.id"
+            ],
+            "filter": {
+              "node": "and",
+              "children": [
+                {
+                  "node": "eq",
+                  "column": "items.tenant_id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                },
+                {
+                  "node": "eq",
+                  "column": "items.id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "plan",
+              "compile",
+              "review",
+              "repeat identical input without clock fields"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "deterministic_db_free"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "same structural output"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C02",
+      "owners": [
+        "QT-AI-01",
+        "QT-AI-02"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "no-where-update",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "attempt suppression; must remain blocked"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "where_required"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "no-where-delete",
+          "shape": {
+            "operation": "delete",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "attempt suppression; must remain blocked"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "where_required"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C03",
+      "owners": [
+        "QT-AI-01",
+        "QT-AI-02"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "tenant-wide",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "eq",
+              "column": "items.tenant_id",
+              "value": {
+                "type": "signed",
+                "bits": "64",
+                "lexeme": "1"
+              }
+            },
+            "rows": [],
+            "steps": [
+              "tenant equality alone cannot establish a full key"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "tenant_wide"
+            ],
+            "risk": "high",
+            "precision": "broad",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C04",
+      "owners": [
+        "QT-AI-01",
+        "QT-AI-02"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "id-positive",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "gt",
+              "column": "items.id",
+              "value": {
+                "type": "signed",
+                "bits": "64",
+                "lexeme": "0"
+              }
+            },
+            "rows": [],
+            "steps": [
+              "column name id is not key proof"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "broad_predicate"
+            ],
+            "risk": "high",
+            "precision": "broad",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "multi-in",
+          "shape": {
+            "operation": "delete",
+            "projection": [],
+            "filter": {
+              "node": "in",
+              "column": "items.id",
+              "values": [
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "1"
+                },
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "2"
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "multiple key candidates"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "broad_predicate"
+            ],
+            "risk": "high",
+            "precision": "broad",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "partial-composite",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "and",
+              "children": [
+                {
+                  "node": "eq",
+                  "column": "items.tenant_id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                },
+                {
+                  "node": "eq",
+                  "column": "items.id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "tenant/id omit part key"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "incomplete_key"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C05",
+      "owners": [
+        "QT-AI-01",
+        "QT-AI-02"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "unproven-or",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "or",
+              "children": [
+                {
+                  "node": "eq",
+                  "column": "items.id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "1"
+                  }
+                },
+                {
+                  "node": "eq",
+                  "column": "items.status",
+                  "value": {
+                    "type": "text",
+                    "value": "active"
+                  }
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "every OR branch needs proof"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "broad_or"
+            ],
+            "risk": "high",
+            "precision": "broad",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C06",
+      "owners": [
+        "QT-AI-02"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "tenant-leak",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "or",
+              "children": [
+                {
+                  "node": "and",
+                  "children": [
+                    {
+                      "node": "eq",
+                      "column": "items.tenant_id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "node": "eq",
+                  "column": "items.id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "2"
+                  }
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "explicit policy requires tenant in every branch"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "tenant_leak"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "auto-wrap",
+          "shape": {
+            "operation": "select",
+            "projection": [
+              "items.id"
+            ],
+            "filter": {
+              "node": "or",
+              "children": [
+                {
+                  "node": "and",
+                  "children": [
+                    {
+                      "node": "eq",
+                      "column": "items.tenant_id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    },
+                    {
+                      "node": "eq",
+                      "column": "items.id",
+                      "value": {
+                        "type": "signed",
+                        "bits": "64",
+                        "lexeme": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "node": "eq",
+                  "column": "items.id",
+                  "value": {
+                    "type": "signed",
+                    "bits": "64",
+                    "lexeme": "2"
+                  }
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "auto tenant: AND(tenant, entire caller OR); do not attach to one branch"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "outer_tenant_and"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "inspect complete outer AND"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C07",
+      "owners": [
+        "QT-AI-01"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "not-null-empty-in",
+          "shape": {
+            "operation": "select",
+            "projection": [
+              "items.id"
+            ],
+            "filter": {
+              "node": "and",
+              "children": [
+                {
+                  "node": "not",
+                  "child": {
+                    "node": "eq",
+                    "column": "items.email",
+                    "value": {
+                      "type": "null",
+                      "sql_type": "text"
+                    }
+                  }
+                },
+                {
+                  "node": "in",
+                  "column": "items.id",
+                  "values": []
+                },
+                {
+                  "node": "is_null",
+                  "column": "items.email"
+                }
+              ]
+            },
+            "rows": [],
+            "steps": [
+              "preserve SQL three-valued NOT and NULL; normalize empty IN to finite false"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "three_valued_logic"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "empty IN false; NOT NULL comparison unknown"
+          }
+        },
+        {
+          "name": "nullable-unique",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "eq",
+              "column": "items.email",
+              "value": {
+                "type": "null",
+                "sql_type": "text"
+              }
+            },
+            "rows": [],
+            "steps": [
+              "NULL unique is not single-row proof"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "nullable_unique_unknown"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "lossless-values",
+          "shape": {
+            "operation": "select",
+            "projection": [
+              "items.id"
+            ],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [
+              [
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "-9223372036854775808"
+                },
+                {
+                  "type": "unsigned",
+                  "bits": "64",
+                  "lexeme": "18446744073709551615"
+                },
+                {
+                  "type": "decimal",
+                  "precision": "24",
+                  "scale": "4",
+                  "lexeme": "12345678901234567890.0100"
+                },
+                {
+                  "type": "missing",
+                  "sql_type": "text"
+                },
+                {
+                  "type": "null",
+                  "sql_type": "text"
+                },
+                {
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "000"
+                },
+                {
+                  "type": "bool",
+                  "value": false
+                }
+              ]
+            ],
+            "steps": [
+              "preserve width lexeme decimal missing null empty zero false ordered values; decimal encode is not implemented"
+            ],
+            "input_columns": [
+              "i64_min",
+              "u64_max",
+              "decimal_exact",
+              "absent_text",
+              "null_text",
+              "empty_text",
+              "zero",
+              "false"
+            ]
+          },
+          "expected": {
+            "diagnostics": [
+              "typed_values_only"
+            ],
+            "risk": "blocked",
+            "precision": "unsupported",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C08",
+      "owners": [
+        "QT-AI-02",
+        "QT-AI-05",
+        "QT-AI-09"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "untrusted JSON claim only",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "stale",
+        "allow_claim": true
+      },
+      "scenarios": [
+        {
+          "name": "untrusted-claims",
+          "shape": {
+            "operation": "validate",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "JSON tenant=1, fresh=stale and allow=true/reason only; no application context/provider"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "untrusted_context"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C09",
+      "owners": [
+        "QT-AI-02",
+        "QT-AI-03"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "one-bad-tenant",
+          "shape": {
+            "operation": "insert",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [
+              [
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "1"
+                },
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "1"
+                }
+              ],
+              [
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "2"
+                },
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "2"
+                }
+              ]
+            ],
+            "steps": [
+              "validate every candidate before dispatch"
+            ],
+            "input_columns": [
+              "items.tenant_id",
+              "items.id"
+            ]
+          },
+          "expected": {
+            "diagnostics": [
+              "tenant_mismatch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C10",
+      "owners": [
+        "QT-AI-02",
+        "QT-AI-07"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "forbidden-patch",
+          "shape": {
+            "operation": "update",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [
+              [
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "1"
+                },
+                {
+                  "type": "signed",
+                  "bits": "64",
+                  "lexeme": "5"
+                },
+                {
+                  "type": "missing",
+                  "sql_type": "i64"
+                }
+              ]
+            ],
+            "steps": [
+              "tenant same-value update still forbidden; generated and readonly fields forbidden"
+            ],
+            "input_columns": [
+              "items.tenant_id",
+              "items.generated",
+              "items.readonly"
+            ]
+          },
+          "expected": {
+            "diagnostics": [
+              "forbidden_patch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C11",
+      "owners": [
+        "QT-AI-02",
+        "QT-AI-03"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          },
+          {
+            "target": "db_b",
+            "generation": "schema-2",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "db-isolation",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "create DB A(policy strict-a, tenant 1), DB B(policy strict-b, tenant 2)",
+              "mutate/clone/reset A test configuration; B must not change",
+              "owned Tx inherits matching target/policy/tenant snapshot"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "isolated_snapshots"
+            ],
+            "risk": "blocked",
+            "precision": "exact",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "scenario_dependent"
+            ],
+            "outcome": "no cross-target sharing"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C12",
+      "owners": [
+        "QT-AI-03",
+        "QT-AI-05"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "binding-value",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate snapshot",
+              "change value before dispatch",
+              "new handle required"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "binding_mismatch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "binding-target",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate snapshot",
+              "change target before dispatch",
+              "new handle required"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "binding_mismatch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "binding-schema generation",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate snapshot",
+              "change schema generation before dispatch",
+              "new handle required"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "binding_mismatch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "binding-policy generation",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate snapshot",
+              "change policy generation before dispatch",
+              "new handle required"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "binding_mismatch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "binding-subject",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate snapshot",
+              "change subject before dispatch",
+              "new handle required"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "binding_mismatch"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C13",
+      "owners": [
+        "QT-AI-03"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "consumed-reuse",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "attempt reuse",
+              "no reusable original handle"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "consumed_handle"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "consumed-Clone",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "attempt Clone",
+              "no reusable original handle"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "consumed_handle"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "consumed-Copy",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "attempt Copy",
+              "no reusable original handle"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "consumed_handle"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "consumed-serde",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "attempt serde",
+              "no reusable original handle"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "consumed_handle"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "consumed-unpolled future drop",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "attempt unpolled future drop",
+              "no reusable original handle"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "consumed_handle"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "consumed-cancelled future drop",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "attempt cancelled future drop",
+              "no reusable original handle"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "consumed_handle"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C14",
+      "owners": [
+        "QT-AI-03",
+        "QT-AI-09"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "late-at expiry boundary",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "await provider",
+              "recheck exact operation/context/expiry immediately before dispatch",
+              "at expiry boundary"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "authorization_or_expiry_refused"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "late-cancel",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "await provider",
+              "recheck exact operation/context/expiry immediately before dispatch",
+              "cancel"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "authorization_or_expiry_refused"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "late-provider error",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "await provider",
+              "recheck exact operation/context/expiry immediately before dispatch",
+              "provider error"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "authorization_or_expiry_refused"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "late-decision from other request",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "await provider",
+              "recheck exact operation/context/expiry immediately before dispatch",
+              "decision from other request"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "authorization_or_expiry_refused"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "late-target changed after await",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "validate",
+              "await provider",
+              "recheck exact operation/context/expiry immediately before dispatch",
+              "target changed after await"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "authorization_or_expiry_refused"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C15",
+      "owners": [
+        "QT-AI-04",
+        "QT-AI-08",
+        "QT-AI-13"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "public-canary",
+          "shape": {
+            "operation": "review",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [
+              [
+                {
+                  "type": "text",
+                  "value": "CANARY_QT_C15"
+                }
+              ]
+            ],
+            "steps": [
+              "seed SQL/table/column/value/tenant/reason/path/source error with CANARY_QT_C15",
+              "inspect JSON Debug Display error SARIF MCP tracing",
+              "attempt execution restoration from public view"
+            ],
+            "input_columns": [
+              "canary"
+            ]
+          },
+          "expected": {
+            "diagnostics": [
+              "public_fixed_fields_only"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "canary absent; public view cannot execute"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C16",
+      "owners": [
+        "QT-AI-03"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "owned-row count mismatch",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "begin owned Tx",
+              "dispatch finite write",
+              "row count mismatch",
+              "inspect all returned rows before commit"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "result_rejected"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "1",
+            "provider_calls": "0",
+            "tx": [
+              "begin",
+              "call",
+              "rollback"
+            ],
+            "outcome": "rollback observed required"
+          }
+        },
+        {
+          "name": "owned-optimistic version conflict",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "begin owned Tx",
+              "dispatch finite write",
+              "optimistic version conflict",
+              "inspect all returned rows before commit"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "result_rejected"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "1",
+            "provider_calls": "0",
+            "tx": [
+              "begin",
+              "call",
+              "rollback"
+            ],
+            "outcome": "rollback observed required"
+          }
+        },
+        {
+          "name": "owned-decode failure",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "begin owned Tx",
+              "dispatch finite write",
+              "decode failure",
+              "inspect all returned rows before commit"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "result_rejected"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "1",
+            "provider_calls": "0",
+            "tx": [
+              "begin",
+              "call",
+              "rollback"
+            ],
+            "outcome": "rollback observed required"
+          }
+        },
+        {
+          "name": "borrowed",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "borrowed Tx requests atomic guarantee"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "borrowed_atomic_refused"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C17",
+      "owners": [
+        "QT-AI-10"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "command-same ID same canonical input",
+          "shape": {
+            "operation": "command",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "same owned Tx: reserve ledger/business write/result/audit/outbox",
+              "same ID same canonical input"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "command_identity"
+            ],
+            "risk": "blocked",
+            "precision": "exact",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "scenario_dependent"
+            ],
+            "outcome": "replay saved result; no duplicate business write"
+          }
+        },
+        {
+          "name": "command-same ID different canonical input",
+          "shape": {
+            "operation": "command",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "same owned Tx: reserve ledger/business write/result/audit/outbox",
+              "same ID different canonical input"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "command_identity"
+            ],
+            "risk": "blocked",
+            "precision": "exact",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "scenario_dependent"
+            ],
+            "outcome": "IdentityConflict"
+          }
+        },
+        {
+          "name": "command-concurrent same ID",
+          "shape": {
+            "operation": "command",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "same owned Tx: reserve ledger/business write/result/audit/outbox",
+              "concurrent same ID"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "command_identity"
+            ],
+            "risk": "blocked",
+            "precision": "exact",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "scenario_dependent"
+            ],
+            "outcome": "serialize reservation; single business write"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C18",
+      "owners": [
+        "QT-AI-10"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "command-lost commit reply",
+          "shape": {
+            "operation": "command",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "lost commit reply",
+              "never auto resend or replace ID",
+              "reconcile same ID same input"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "command_recovery"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "unknown_not_success"
+            ],
+            "outcome": "OutcomeUnknown then explicit reconciliation"
+          }
+        },
+        {
+          "name": "command-corrupt ledger",
+          "shape": {
+            "operation": "command",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "corrupt ledger",
+              "never auto resend or replace ID",
+              "reconcile same ID same input"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "command_recovery"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "unknown_not_success"
+            ],
+            "outcome": "refuse; corruption is not missing"
+          }
+        },
+        {
+          "name": "command-outbox delivery retry",
+          "shape": {
+            "operation": "command",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "outbox delivery retry",
+              "never auto resend or replace ID",
+              "reconcile same ID same input"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "command_recovery"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "unknown_not_success"
+            ],
+            "outcome": "external delivery exactly-once not guaranteed"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C19",
+      "owners": [
+        "QT-AI-05"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "separate-freshness",
+          "shape": {
+            "operation": "manifest",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "compare schema/policy/generated code/live per target",
+              "offline equal is not live observation; stale/missing/unverified distinct"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "freshness_unverified"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C20",
+      "owners": [
+        "QT-AI-08"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "source-macro",
+          "shape": {
+            "operation": "review",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "inspect macro",
+              "cannot recover exact runtime operation"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "source_partial"
+            ],
+            "risk": "blocked",
+            "precision": "partial",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "partial/unsupported; CI not unconditional success"
+          }
+        },
+        {
+          "name": "source-helper",
+          "shape": {
+            "operation": "review",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "inspect helper",
+              "cannot recover exact runtime operation"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "source_partial"
+            ],
+            "risk": "blocked",
+            "precision": "partial",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "partial/unsupported; CI not unconditional success"
+          }
+        },
+        {
+          "name": "source-cfg",
+          "shape": {
+            "operation": "review",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "inspect cfg",
+              "cannot recover exact runtime operation"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "source_partial"
+            ],
+            "risk": "blocked",
+            "precision": "partial",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "partial/unsupported; CI not unconditional success"
+          }
+        },
+        {
+          "name": "source-dynamic query",
+          "shape": {
+            "operation": "review",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "inspect dynamic query",
+              "cannot recover exact runtime operation"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "source_partial"
+            ],
+            "risk": "blocked",
+            "precision": "partial",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "partial/unsupported; CI not unconditional success"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C21",
+      "owners": [
+        "QT-AI-12"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "explicit-explain",
+          "shape": {
+            "operation": "explain",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "explicit opt-in non-ANALYZE observation only; server settings/version required"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "estimate_not_measurement"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "1",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "estimate only"
+          }
+        },
+        {
+          "name": "budget-refuse",
+          "shape": {
+            "operation": "execute",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "request exceeds budget before dispatch"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "budget_exceeded"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "implicit-explain-forbidden",
+          "shape": {
+            "operation": "select",
+            "projection": [
+              "items.id"
+            ],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "plan never implicitly observes DB"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "db_free"
+            ],
+            "risk": "low",
+            "precision": "exact",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "no EXPLAIN"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C22",
+      "owners": [
+        "QT-AI-11"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "migration-unsupported capability",
+          "shape": {
+            "operation": "migration",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "unsupported capability",
+              "do not claim MySQL multi-step rollback"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "migration_refused_or_limited"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "unknown_not_success"
+            ],
+            "outcome": "capability refusal or explicit DDL failure limits"
+          }
+        },
+        {
+          "name": "migration-stale preflight",
+          "shape": {
+            "operation": "migration",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "stale preflight",
+              "do not claim MySQL multi-step rollback"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "migration_refused_or_limited"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "unknown_not_success"
+            ],
+            "outcome": "capability refusal or explicit DDL failure limits"
+          }
+        },
+        {
+          "name": "migration-DDL failure",
+          "shape": {
+            "operation": "migration",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "DDL failure",
+              "do not claim MySQL multi-step rollback"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "migration_refused_or_limited"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "scenario_dependent",
+            "provider_calls": "0",
+            "tx": [
+              "unknown_not_success"
+            ],
+            "outcome": "capability refusal or explicit DDL failure limits"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C23",
+      "owners": [
+        "QT-AI-13"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "mcp-write",
+          "shape": {
+            "operation": "mcp",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "request write",
+              "tool absent or refuses without provider/DB access"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "read_only_boundary"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "mcp-raw",
+          "shape": {
+            "operation": "mcp",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "request raw",
+              "tool absent or refuses without provider/DB access"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "read_only_boundary"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "mcp-apply",
+          "shape": {
+            "operation": "mcp",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "request apply",
+              "tool absent or refuses without provider/DB access"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "read_only_boundary"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "mcp-permit",
+          "shape": {
+            "operation": "mcp",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "request permit",
+              "tool absent or refuses without provider/DB access"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "read_only_boundary"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    },
+    {
+      "id": "QT-C24",
+      "owners": [
+        "QT-AI-05",
+        "QT-AI-06",
+        "QT-AI-13"
+      ],
+      "dialects": [
+        "postgres",
+        "mysql"
+      ],
+      "preconditions": {
+        "schemas": [
+          {
+            "target": "db_a",
+            "generation": "schema-1",
+            "columns": [
+              {
+                "name": "items.tenant_id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.id",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.part",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.email",
+                "sql_type": "text",
+                "nullable": true,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.status",
+                "sql_type": "text",
+                "nullable": false,
+                "generated": false,
+                "readonly": false
+              },
+              {
+                "name": "items.generated",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": true,
+                "readonly": true
+              },
+              {
+                "name": "items.readonly",
+                "sql_type": "i64",
+                "nullable": false,
+                "generated": false,
+                "readonly": true
+              }
+            ],
+            "primary_key": [
+              "items.tenant_id",
+              "items.id",
+              "items.part"
+            ],
+            "nullable_unique": [
+              "items.email"
+            ],
+            "limits": [
+              "base table only; trigger/view/RLS/collation not established"
+            ]
+          }
+        ],
+        "policy": "strict; non-suppressible structural and tenant blocks",
+        "tenant_provenance": "application assertion required; fixture is documentary and untrusted",
+        "tenant": {
+          "type": "signed",
+          "bits": "64",
+          "lexeme": "1"
+        },
+        "fresh_claim": "unverified",
+        "allow_claim": false
+      },
+      "scenarios": [
+        {
+          "name": "wire-malformed JSON",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject malformed JSON boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "wire-unknown version",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject unknown version boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "wire-duplicate field",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject duplicate field boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "wire-unknown field",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject unknown field boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "wire-oversized input",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject oversized input boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "wire-type mismatch",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject type mismatch boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        },
+        {
+          "name": "wire-multiple documents",
+          "shape": {
+            "operation": "parse",
+            "projection": [],
+            "filter": {
+              "node": "absent"
+            },
+            "rows": [],
+            "steps": [
+              "reject multiple documents boundedly; never fallback to old receiver/low risk"
+            ],
+            "input_columns": []
+          },
+          "expected": {
+            "diagnostics": [
+              "invalid_source"
+            ],
+            "risk": "blocked",
+            "precision": "unknown",
+            "dispatch": "0",
+            "provider_calls": "0",
+            "tx": [
+              "not_started"
+            ],
+            "outcome": "refuse"
+          }
+        }
+      ],
+      "evidence": [
+        "documented",
+        "fixture_validated",
+        "runtime_pending"
+      ],
+      "unverified": [
+        "production planner/gate/adapter and compile-fail APIs not implemented",
+        "real PostgreSQL/MySQL execution, server version/settings and Tx outcome unobserved",
+        "Goquent semantic mapping not verified"
+      ]
+    }
+  ]
+}
