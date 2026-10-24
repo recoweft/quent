@@ -484,6 +484,45 @@ macro_rules! atomic_cases {
         println!("PR3 {:?}: production begin/send/full consumption/expectation/commit once; unchanged matched=1; mismatch 0/1/multiple, version conflict rollback; independent observer verified; borrowed uncommitted and cross-Tx refusal; RETURNING {}",d,if d==Dialect::Postgres {"full consumption/decode/budget"}else{"unsupported, zero send"});
     }};
 }
+#[cfg(feature = "operation-spec")]
+fn spec_mapping(c: &DatabaseContext, d: Dialect) -> crate::operation_spec::TypedModelContract {
+    spec_mapping_columns(c, fields(d))
+}
+#[cfg(feature = "operation-spec")]
+fn spec_mapping_columns(
+    c: &DatabaseContext,
+    fields: Vec<Column>,
+) -> crate::operation_spec::TypedModelContract {
+    use crate::operation_spec::*;
+    let columns = fields
+        .into_iter()
+        .map(|c| {
+            TypedColumn::application_supplied(
+                c.sensitive_name().sensitive_text(),
+                c.sensitive_name().clone(),
+                ColumnType::Native(c.sql_type()),
+                c.nullable(),
+                if c == tenant() {
+                    ColumnRole::Tenant
+                } else {
+                    ColumnRole::Ordinary
+                },
+                true,
+            )
+            .unwrap()
+        })
+        .collect();
+    TypedModelContract::application_asserted("items", table(), columns, ModelCoverage::Complete, c)
+        .unwrap()
+}
+#[cfg(feature = "operation-spec")]
+fn read_spec(d: Dialect) -> crate::operation_spec::SpecSource {
+    let names: Vec<_> = fields(d)
+        .iter()
+        .map(|c| c.sensitive_name().sensitive_text().to_owned())
+        .collect();
+    crate::operation_spec::SpecSource::parse(&serde_json::to_vec(&serde_json::json!({"kind":"quent_operation_spec","version":1,"model":"items","fields":names,"filter":{"op":"eq","field":"id","value":{"type":"i64","value":1}},"order":[],"limit":10})).unwrap()).unwrap()
+}
 macro_rules! live_suite {
     ($name:ident, $feature:literal, $session:ident, $borrowed:ident, $connection:ty, $options:ty, $dialect:expr, $dsn:literal, $create:literal, $seed:literal) => {
         #[cfg(feature=$feature)]
@@ -529,6 +568,64 @@ macro_rules! live_suite {
                     assert!(raw_capture.0.lock().unwrap().iter().any(|s|s.contains("CANARY_SQL_name_tenant_subject_reason_source")),"driver notice positive control missing");
                     sqlx::query("DROP TRIGGER output_canary ON quent_dispatch_test.items").execute(&mut raw).await.unwrap();
                     sqlx::query("DROP FUNCTION quent_dispatch_test.output_canary()").execute(&mut raw).await.unwrap();
+                }
+                #[cfg(feature="operation-spec")]
+                {
+                    let mapping=spec_mapping(&c,d);
+                    let compiled=read_spec(d).compile(&mapping,&c).unwrap();
+                    let inspection=compiled.inspect();
+                    assert_eq!(inspection.scope(),Scope::Single);
+                    assert_eq!(compiled.public_view(),inspection.public_view());
+                    let record=inspection.sensitive_source();
+                    let expected_sql=if d==Dialect::Postgres { "SELECT \"items\".\"id\", \"items\".\"tenant\", \"items\".\"small\", \"items\".\"normal\", \"items\".\"big\", \"items\".\"flag\", \"items\".\"txt\", \"items\".\"optional\" FROM \"quent_dispatch_test\".\"items\" WHERE ((\"items\".\"id\" = $1) AND (\"items\".\"tenant\" = $2)) LIMIT $3" } else { "SELECT `items`.`id`, `items`.`tenant`, `items`.`small`, `items`.`normal`, `items`.`big`, `items`.`flag`, `items`.`txt`, `items`.`optional`, `items`.`tiny`, `items`.`u_tiny`, `items`.`u_small`, `items`.`u_normal`, `items`.`u_big` FROM `quent_dispatch_test`.`items` WHERE ((`items`.`id` = ?) AND (`items`.`tenant` = ?)) LIMIT ?" };
+                    assert_eq!(record.sql(),expected_sql);
+                    let address=record.sql().as_ptr() as usize;
+                    let args=vec![Value::I64(1),Value::I64(11),Value::I64(10)];
+                    assert_eq!(record.args(),args);
+                    let mut reads=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let r=reads.execute_compiled_read(&c,&mapping,compiled).await.unwrap();
+                    let mut expected=vec![Value::I64(1),Value::I64(11),Value::I16(i16::MIN),Value::I32(i32::MAX),Value::I64(i64::MIN),Value::Bool(false),Value::Text(String::new()),Value::Null(SqlType::I64)];
+                    if d==Dialect::Mysql {expected.extend([Value::I8(i8::MIN),Value::U8(u8::MAX),Value::U16(u16::MAX),Value::U32(u32::MAX),Value::U64(u64::MAX)]);}
+                    assert_eq!(r.sensitive_rows(),&[expected]);
+                    assert_eq!(reads.recorder.calls,vec![(expected_sql.to_owned(),args)]);
+                    assert_eq!(reads.recorder.sql_addresses,vec![address],"the inspected heap SQL allocation is the dispatched record; no re-render");
+                    // Application assertions can be wrong: native decode still refuses
+                    // unexpected NULL, with one send, no retry and quarantined session.
+                    let mut declared=fields(d);
+                    let optional=declared.iter_mut().find(|c|c.sensitive_name().sensitive_text()=="optional").unwrap();
+                    *optional=col("optional",SqlType::I64,false);
+                    let wrong=context_schema(d,11,"subject",vec![],0,declared.clone());
+                    let wrong_mapping=spec_mapping_columns(&wrong,declared);
+                    let compiled=read_spec(d).compile(&wrong_mapping,&wrong).unwrap();
+                    let mut bad=$session::connect(options.clone(),wrong.clone()).await.unwrap();
+                    assert_eq!(bad.execute_compiled_read(&wrong,&wrong_mapping,compiled).await.unwrap_err(),ExecutionError::Decode);
+                    assert_eq!(bad.recorder.calls.len(),1);assert!(!bad.is_available());
+                    let compiled=read_spec(d).compile(&wrong_mapping,&wrong).unwrap();
+                    assert_eq!(bad.execute_compiled_read(&wrong,&wrong_mapping,compiled).await.unwrap_err(),ExecutionError::SessionUnavailable);
+                    assert_eq!(bad.recorder.calls.len(),1);
+                    let before=reads.recorder.calls.len();
+                    for variant in 1..=9 {
+                        let changed=context_variant(d,11,"subject",vec![],variant);
+                        let compiled=read_spec(d).compile(&mapping,&c).unwrap();
+                        assert_eq!(reads.execute_compiled_read(&changed,&mapping,compiled).await.unwrap_err(),ExecutionError::ContextMismatch);
+                    }
+                    let changed=context(d,22,"subject",vec![]);
+                    let compiled=read_spec(d).compile(&mapping,&c).unwrap();
+                    assert_eq!(reads.execute_compiled_read(&changed,&mapping,compiled).await.unwrap_err(),ExecutionError::ContextMismatch);
+                    let changed_mapping=spec_mapping(&changed,d);
+                    let compiled=read_spec(d).compile(&mapping,&c).unwrap();
+                    assert_eq!(reads.execute_compiled_read(&c,&changed_mapping,compiled).await.unwrap_err(),ExecutionError::ContextMismatch);
+                    assert_eq!(reads.recorder.calls.len(),before);
+                    // Typed NULL/NOT remain partial scope analysis, never execution authority.
+                    let mut wire=read_spec(d).sensitive_source().clone();
+                    wire["filter"]=serde_json::json!({"op":"not","arg":{"op":"is_null","field":"optional"}});
+                    let partial=crate::operation_spec::SpecSource::parse(&serde_json::to_vec(&wire).unwrap()).unwrap().compile(&mapping,&c).unwrap();
+                    assert!(matches!(reads.execute_compiled_read(&c,&mapping,partial).await,Err(ExecutionError::RiskRefused|ExecutionError::Incomplete)));
+                    assert_eq!(reads.recorder.calls.len(),before);
+                    let compiled=read_spec(d).compile(&mapping,&c).unwrap();
+                    drop(reads.execute_compiled_read(&c,&mapping,compiled));
+                    assert_eq!(reads.recorder.calls.len(),before);
+                    println!("QT-AI-06 typed {:?}: identical record allocation/SQL/ordered args, native+NULL rows, 1 send; context/mapping/high refusals and unpolled future 0 sends",d);
                 }
                 // PR2 uses the real production dispatcher, separate finite recorder.
                 let mut delayed = $session::connect(options.clone(), c.clone()).await.unwrap();
@@ -928,12 +1025,12 @@ fn expiry_and_bounded_original_input_are_pure_and_exact() {
             check_expiry(&h, now + Duration::from_nanos(1)),
             Err(ExecutionError::Expired)
         );
-        assert!(recheck(&h, &identity, &c, &c, &op).is_ok());
+        assert!(recheck(&h, &identity, &c, &c, Some(&op)).is_ok());
         let gigantic = select(d)
             .filter(Predicate::And(vec![filter(1); 1025]))
             .freeze();
         assert_eq!(
-            recheck(&h, &identity, &c, &c, &gigantic),
+            recheck(&h, &identity, &c, &c, Some(&gigantic)),
             Err(ExecutionError::OperationMismatch)
         );
         let write_op = Draft::update(
@@ -966,7 +1063,7 @@ fn expiry_and_bounded_original_input_are_pure_and_exact() {
         ] {
             let different = Draft::update(table(), inputs).filter(filter(1)).freeze();
             assert_eq!(
-                recheck(&write_h, &identity, &c, &c, &different),
+                recheck(&write_h, &identity, &c, &c, Some(&different)),
                 Err(ExecutionError::OperationMismatch)
             );
         }

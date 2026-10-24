@@ -69,6 +69,7 @@ impl MysqlSession {
         })
     }
     immediate_dispatch!(MySql, Mysql, MysqlFoundRows);
+    compiled_dispatch!(Mysql);
     atomic_dispatch!(MySql, Mysql, BorrowedMysqlTransaction);
 }
 fn bind<'q>(

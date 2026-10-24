@@ -468,10 +468,85 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "spec serialize {carrier}: {diagnostic}"
         );
     }
-    assert_eq!(controls.get(), 7, "compiling positive controls");
+    let output = run(
+        "async fn control(s:&mut PostgresSession,c:&DatabaseContext,m:&quent::operation_spec::TypedModelContract,bytes:&[u8]) {use quent::operation_spec::*;let r=SpecSource::parse(bytes).unwrap().compile(m,c).unwrap();let _=r.inspect();let _=r.public_view().to_json();let _=s.execute_compiled_read(c,m,r).await;}",
+    );
+    assert!(
+        output.status.success(),
+        "typed positive control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for carrier in [
+        "CompiledRead",
+        "TypedModelContract",
+        "TypedColumn",
+        "TypedDiagnostic",
+    ] {
+        let output = run(&format!(
+            "fn f() {{let _:quent::operation_spec::{carrier}=serde_json::from_str(\"{{}}\").unwrap();}}"
+        ));
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains("error[E0277]")
+        );
+    }
+    for carrier in ["CompiledRead", "TypedModelContract", "TypedColumn"] {
+        let output = run(&format!(
+            "fn f(s:&quent::operation_spec::{carrier}) {{let _=serde_json::to_string(s);}}"
+        ));
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains("error[E0277]")
+        );
+    }
+    for target in [
+        "quent_core::Operation",
+        "quent_core::DatabaseContext",
+        "quent_core::PolicyPreparation",
+        "quent::ValidatedOperation",
+        "quent::ValidatedAtomicOperation",
+    ] {
+        let output = run(&format!(
+            "fn f(s:quent::operation_spec::CompiledRead) {{let _:{target}=s.into();}}"
+        ));
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains("error[E0277]")
+        );
+    }
+    for (body, code) in [
+        (
+            "fn f(r:quent::operation_spec::CompiledRead){let _=r.clone();}",
+            "E0599",
+        ),
+        (
+            "fn take(_:quent::operation_spec::CompiledRead){} fn f(r:quent::operation_spec::CompiledRead){take(r);take(r);}",
+            "E0382",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,m:&quent::operation_spec::TypedModelContract,r:quent_core::PlanView){let _=s.execute_compiled_read(c,m,r).await;}",
+            "E0308",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,m:&quent::operation_spec::TypedModelContract,r:quent_core::Operation){let _=s.execute_compiled_read(c,m,r).await;}",
+            "E0308",
+        ),
+        (
+            "fn f(r:&mut quent::operation_spec::CompiledRead){r.prepared=todo!();}",
+            "E0616",
+        ),
+    ] {
+        let output = run(body);
+        assert!(
+            !output.status.success() && String::from_utf8_lossy(&output.stderr).contains(code),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert_eq!(controls.get(), 8, "compiling positive controls");
     assert_eq!(
         runs.get() - controls.get(),
-        153,
+        170,
         "diagnostic-checked negatives (127 retained)"
     );
 }

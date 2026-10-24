@@ -80,7 +80,7 @@ fn recheck(
     session: &Arc<()>,
     bound: &DatabaseContext,
     current: &DatabaseContext,
-    operation: &Operation,
+    operation: Option<&Operation>,
 ) -> Result<()> {
     let source = handle.prepared.sensitive_source();
     if !Arc::ptr_eq(&handle.session, session)
@@ -91,7 +91,7 @@ fn recheck(
     }
     if !source
         .original_operation()
-        .same_bounded_input(operation)
+        .same_bounded_input(operation.unwrap_or_else(|| source.original_operation()))
         .map_err(|_| ExecutionError::OperationMismatch)?
     {
         return Err(ExecutionError::OperationMismatch);
@@ -231,6 +231,25 @@ fn prepare(
         .prepare()
         .prepare_operation(operation)
         .map_err(ExecutionError::Policy)?;
+    check_prepared(bound, current, &p, dialect)?;
+    Ok(p)
+}
+// Shared by ordinary validation and compiled reads; a typed verdict never skips it.
+fn check_prepared(
+    bound: &DatabaseContext,
+    current: &DatabaseContext,
+    p: &PolicyPreparation,
+    dialect: Dialect,
+) -> Result<()> {
+    if !bound.same_snapshot(current)
+        || !p.sensitive_source().context().same_snapshot(current)
+        || current.sensitive_source().target().3 != dialect
+    {
+        return Err(ExecutionError::ContextMismatch);
+    }
+    if current.sensitive_source().subject().is_none() {
+        return Err(ExecutionError::MissingSubject);
+    }
     let inspection = p.inspect();
     if matches!(
         inspection.risk(),
@@ -243,7 +262,7 @@ fn prepare(
     {
         return Err(ExecutionError::Incomplete);
     }
-    Ok(p)
+    Ok(())
 }
 fn check_result_size(row: &[Value], used: &mut usize) -> Result<()> {
     for v in row {
@@ -280,6 +299,7 @@ enum AtomicFault {
 #[derive(Default)]
 struct Recorder {
     calls: Vec<(String, Vec<Value>)>,
+    sql_addresses: Vec<usize>,
     events: Vec<&'static str>,
     live: Arc<std::sync::Mutex<Vec<&'static str>>>,
 }
@@ -301,6 +321,7 @@ impl Recorder {
             "finite dispatcher observation budget"
         );
         self.event("send");
+        self.sql_addresses.push(sql.as_ptr() as usize);
         self.calls.push((sql.to_owned(), args.to_vec()));
     }
 }
@@ -362,6 +383,15 @@ macro_rules! immediate_dispatch {
             &mut self,
             current: &DatabaseContext,
             operation: &Operation,
+            handle: ValidatedOperation,
+        ) -> Result<ExecutionResult> {
+            self.dispatch_prepared(current, Some(operation), handle)
+                .await
+        }
+        async fn dispatch_prepared(
+            &mut self,
+            current: &DatabaseContext,
+            operation: Option<&Operation>,
             handle: ValidatedOperation,
         ) -> Result<ExecutionResult> {
             quiet(async {
@@ -503,6 +533,35 @@ macro_rules! immediate_dispatch {
     };
 }
 
+macro_rules! compiled_dispatch {
+    ($dialect:ident) => {
+        /// Application-only explicit read, using the compile-time sealed record.
+        /// Current mapping/context are borrowed for the complete dispatch future.
+        #[cfg(feature = "operation-spec")]
+        pub async fn execute_compiled_read(
+            &mut self,
+            current: &DatabaseContext,
+            mapping: &crate::operation_spec::TypedModelContract,
+            compiled: crate::operation_spec::CompiledRead,
+        ) -> Result<ExecutionResult> {
+            if !self.available {
+                return Err(ExecutionError::SessionUnavailable);
+            }
+            let expires = deadline(Instant::now(), MAX_TTL)?;
+            let prepared = compiled
+                .into_prepared(current, mapping)
+                .map_err(|_| ExecutionError::ContextMismatch)?;
+            check_prepared(&self.context, current, &prepared, Dialect::$dialect)?;
+            let handle = ValidatedOperation {
+                prepared,
+                session: self.identity.clone(),
+                expires,
+            };
+            self.dispatch_prepared(current, None, handle).await
+        }
+    };
+}
+
 // A finite owned transaction is one checked business operation. No public commit,
 // callback, raw executor, savepoint or partially validated transaction is exposed.
 macro_rules! atomic_dispatch {
@@ -554,7 +613,7 @@ macro_rules! atomic_dispatch {
                     &self.identity,
                     &self.context,
                     current,
-                    operation,
+                    Some(operation),
                 )
                 .map_err(before)?;
                 check_expiry(&handle.operation, Instant::now()).map_err(before)?;

@@ -69,6 +69,7 @@ impl PostgresSession {
         })
     }
     immediate_dispatch!(Postgres, Postgres, PostgresMatched);
+    compiled_dispatch!(Postgres);
     atomic_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
 }
 fn bind<'q>(

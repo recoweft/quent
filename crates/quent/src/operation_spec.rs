@@ -36,6 +36,9 @@ macro_rules! redacted {
         }
     })+};
 }
+mod typed;
+pub use typed::*;
+
 /// Private immutable bounded source. Parsing proves syntax and native ranges only.
 pub struct SpecSource {
     tree: Value,
