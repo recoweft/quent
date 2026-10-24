@@ -32,3 +32,17 @@ mod execution;
     any(feature = "postgres", feature = "mysql")
 ))]
 pub use execution::*;
+
+/// Explicit local-only output. Never an input/execution interface.
+#[cfg(feature = "local-details")]
+pub mod local_details;
+/// Closed public tracing emissions; installs no subscriber or SQL logger.
+#[cfg(feature = "output-tracing")]
+pub mod output_tracing;
+
+#[cfg(all(test, feature = "output-tracing"))]
+extern crate self as quent;
+
+#[cfg(all(test, feature = "output-tracing"))]
+#[path = "../tests/output_capture/mod.rs"]
+mod output_capture;

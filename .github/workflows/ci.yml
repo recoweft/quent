@@ -35,6 +35,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/check-features.sh
+  output-features:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        features: ["local-details", "output-tracing", "local-details,output-tracing"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test -p quent --no-default-features --features "${{ matrix.features }}" --locked
+      - run: cargo clippy -p quent --all-targets --no-default-features --features "${{ matrix.features }}" --locked -- -D warnings
   live-databases:
     name: Required PostgreSQL and MySQL dispatch
     runs-on: ubuntu-latest

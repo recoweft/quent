@@ -1,3 +1,5 @@
+#[cfg(feature = "output-tracing")]
+use crate::output_capture;
 async fn poll_once<F: std::future::Future>(
     mut f: std::pin::Pin<&mut F>,
 ) -> std::task::Poll<F::Output> {
@@ -228,6 +230,7 @@ macro_rules! atomic_cases {
         let op=make(1);
         // Public display mutation cannot change the private shared/atomic gate.
         let prep=c.prepare().prepare_operation(&op).unwrap();
+        #[cfg(all(feature="local-details",target_os="linux"))] export_does_not_change_gate(&prep);
         let mut public=prep.public_view(); public.risk=ViewRisk::Blocked;
         public.scope=Scope::Unknown; public.completeness=Completeness::Unknown;
         let _=public.to_json(); let _=format!("{public:?} {public}");
@@ -245,6 +248,7 @@ macro_rules! atomic_cases {
         let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
         let r=s.execute_atomic(c,&op,one,h).await.unwrap();
         assert_eq!(r.state(),ResultState::Committed);
+        #[cfg(feature="output-tracing")] output_capture::check(&r.public_view(),&r.public_view().to_json());
         let mut view=r.public_view(); assert_eq!(view.state,ViewState::Committed);
         view.state=ViewState::OutcomeUnknown; let _=view.to_json();
         assert_eq!(r.state(),ResultState::Committed);
@@ -369,6 +373,7 @@ macro_rules! atomic_cases {
             let h=faulted.validate_atomic(c,&op,expected,MAX_TTL).unwrap(); faulted.atomic_fault=Some(fault);
             let e=faulted.execute_atomic(c,&op,expected,h).await.unwrap_err();
             assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert_eq!(e.public_view().state,Some(ViewState::OutcomeUnknown)); assert!(!faulted.is_available());
+            #[cfg(feature="output-tracing")] output_capture::check(&e.public_view(),&e.public_view().to_json());
             assert!(std::error::Error::source(&e).is_none());
             assert_eq!(faulted.execute(c,op).await.unwrap_err(),ExecutionError::SessionUnavailable);
             assert!(faulted.recorder.calls.len()<=1);
@@ -489,15 +494,42 @@ macro_rules! live_suite {
             let dsn = std::env::var($dsn).expect("explicit dedicated DB DSN required");
             let options: $options = dsn.parse().expect("invalid dedicated test DSN");
             let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            // Observe actual product connect/dispatch/Tx/error emissions too, not only
+            // explicit view emission. Nested view checks use their own recorder.
+            #[cfg(feature="output-tracing")] let lifetime_capture=output_capture::Capture::default();
             // Setup is deliberately separate raw SQL, never counted as dispatch.
             runtime.block_on(async {
                 let mut setup = <$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
                 sqlx::query($create).execute(&mut setup).await.unwrap();
                 sqlx::query($seed).execute(&mut setup).await.unwrap();
             });
+            #[cfg(feature="output-tracing")] let subscriber=tracing::subscriber::set_default(lifetime_capture.clone());
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||runtime.block_on(async {
                 let d = $dialect; let c = context(d,11,"subject",vec![]);
                 let mut session = $session::connect(options.clone(),c.clone()).await.unwrap();
+                #[cfg(feature="output-tracing")]
+                if d==Dialect::Postgres {
+                    // Deliberately hostile physical side effect, solely an output
+                    // probe, NOT support evidence for trigger-backed table semantics.
+                    let mut raw=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+                    sqlx::query("CREATE FUNCTION quent_dispatch_test.output_canary() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE NOTICE 'CANARY_SQL_name_tenant_subject_reason_source_/CANARY/path'; RAISE EXCEPTION 'CANARY_ARBITRARY_DRIVER_CAUSE'; RETURN NEW; END $$").execute(&mut raw).await.unwrap();
+                    sqlx::query("CREATE TRIGGER output_canary BEFORE UPDATE ON quent_dispatch_test.items FOR EACH ROW EXECUTE FUNCTION quent_dispatch_test.output_canary()").execute(&mut raw).await.unwrap();
+                    let mut probe=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let e=probe.execute(&c,Draft::update(table(),write(Value::Text("CANARY_VALUE".into()),changed())).filter(filter(1)).freeze()).await.unwrap_err();
+                    assert_eq!(e,ExecutionError::OutcomeUnknown);assert!(std::error::Error::source(&e).is_none());
+                    assert!(!format!("{e} {e:?}").contains("CANARY"));
+                    output_capture::check(&e.public_view(),&e.public_view().to_json());
+                    // Positive control: the real driver would expose this notice
+                    // through an application-owned raw query without Quent's scope.
+                    let raw_capture=output_capture::Capture::default();
+                    {
+                        let _raw_subscriber=tracing::subscriber::set_default(raw_capture.clone());
+                        assert!(sqlx::query("UPDATE quent_dispatch_test.items SET txt=txt WHERE tenant=11 AND id=1").execute(&mut raw).await.is_err());
+                    }
+                    assert!(raw_capture.0.lock().unwrap().iter().any(|s|s.contains("CANARY_SQL_name_tenant_subject_reason_source")),"driver notice positive control missing");
+                    sqlx::query("DROP TRIGGER output_canary ON quent_dispatch_test.items").execute(&mut raw).await.unwrap();
+                    sqlx::query("DROP FUNCTION quent_dispatch_test.output_canary()").execute(&mut raw).await.unwrap();
+                }
                 // PR2 uses the real production dispatcher, separate finite recorder.
                 let mut delayed = $session::connect(options.clone(), c.clone()).await.unwrap();
                 let op = select(d).filter(filter(1)).freeze();
@@ -773,12 +805,15 @@ macro_rules! live_suite {
                 assert_eq!(session.execute(&c,select(d).freeze()).await.unwrap_err(),ExecutionError::SessionUnavailable);
                 assert_eq!(session.recorder.calls.len(),n+1);
                 assert!(!format!("{session:?} {e:?} {e}").contains("canary_value"));
+                #[cfg(feature="output-tracing")] output_capture::check(&e.public_view(),&e.public_view().to_json());
                 assert!(std::error::Error::source(&e).is_none());
             })));
+            #[cfg(feature="output-tracing")] drop(subscriber);
             // Cleanup executes even after an assertion panic. Container wrapper also
             // removes its dedicated servers on command failure.
             runtime.block_on(async { let mut setup=<$connection>::connect_with(&options.disable_statement_logging()).await.unwrap(); sqlx::query("DROP TABLE IF EXISTS quent_dispatch_test.items").execute(&mut setup).await.unwrap(); });
             if let Err(panic) = result { std::panic::resume_unwind(panic); }
+            #[cfg(feature="output-tracing")] lifetime_capture.assert_safe(0);
         }
     }
 }
@@ -844,6 +879,8 @@ fn redacted_results_errors_and_limits() {
             cause: ExecutionError::Decode,
             disposition,
         };
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&e.public_view(), &e.public_view().to_json());
         assert!(std::error::Error::source(&e).is_none());
         assert!(!format!("{e:?} {e}").contains("CANARY"));
     }
@@ -853,6 +890,8 @@ fn redacted_results_errors_and_limits() {
         ExecutionError::Decode,
         ExecutionError::OutcomeUnknown,
     ] {
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&e.public_view(), &e.public_view().to_json());
         assert!(std::error::Error::source(&e).is_none());
         assert!(!format!("{e} {e:?}").contains("CANARY"));
     }
@@ -952,6 +991,8 @@ fn public_result_and_atomic_failure_preserve_states_without_values() {
             affected: Some(AffectedRows::MysqlFoundRows(987654321)),
         };
         let v = r.public_view();
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&v, &v.to_json());
         assert_eq!(
             serde_json::from_str::<Json>(&v.to_json()).unwrap(),
             json!({"kind":"quent_result_view","version":1,"state":wire})
@@ -969,6 +1010,8 @@ fn public_result_and_atomic_failure_preserve_states_without_values() {
             disposition,
         };
         let v = e.public_view();
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&v, &v.to_json());
         assert_eq!(
             serde_json::from_str::<Json>(&v.to_json()).unwrap(),
             json!({"kind":"quent_diagnostic_view","version":1,"code":"execution_conflict","state":wire})
@@ -1013,6 +1056,8 @@ fn complete_execution_diagnostic_register_matches_wire_codes() {
     ];
     for (e, wire) in mappings {
         let v = e.public_view();
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&v, &v.to_json());
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&v.to_json()).unwrap(),
             serde_json::json!({"kind":"quent_diagnostic_view","version":1,"code":wire,"state":null})
@@ -1023,4 +1068,40 @@ fn complete_execution_diagnostic_register_matches_wire_codes() {
         ExecutionError::Policy(PolicyError::InvalidPlan(PlanError::Missing)).public_view(),
         PlanError::Missing.public_view()
     );
+}
+
+#[cfg(all(feature = "local-details", target_os = "linux"))]
+fn export_does_not_change_gate(prep: &PolicyPreparation) {
+    use crate::local_details::*;
+    use std::os::unix::fs::DirBuilderExt;
+    let dir = std::env::temp_dir().join(format!(
+        "quent-gate-export-{}-{:?}",
+        std::process::id(),
+        prep.sensitive_source().final_source().dialect()
+    ));
+    std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+    let _cleanup = Cleanup(dir.clone());
+    let path = dir.join("new");
+    let before = prep.public_view().to_json();
+    let r = create_new(
+        LocalOptIn::acknowledge_sensitive_local_file(),
+        Surface::LocalApplication,
+        &path,
+        prep.sensitive_source().final_source(),
+    );
+    if std::env::var_os("CI").is_some() || std::env::var_os("GITHUB_ACTIONS").is_some() {
+        assert_eq!(r.unwrap_err(), DetailError::EnvironmentDenied);
+        assert!(!path.exists());
+    } else {
+        r.unwrap();
+        let j: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(j["sql"] == prep.sensitive_source().final_source().sql());
+    }
+    assert_eq!(before, prep.public_view().to_json());
 }

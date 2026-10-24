@@ -16,11 +16,18 @@ sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 futures-util = { version = "=0.3.34", default-features = false, features = ["std"], optional = true }
 
+tracing = { version = "=0.1.44", default-features = false, features = ["std"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "=1.1.4", default-features = false, features = ["std", "fs", "process"], optional = true }
+
 [features]
 default = []
+local-details = ["dep:rustix"]
+output-tracing = ["dep:tracing"]
 postgres = ["dep:sqlx", "sqlx/postgres"]
 mysql = ["dep:sqlx", "sqlx/mysql"]
-runtime-tokio = ["dep:futures-util", "dep:tokio", "tokio/rt", "sqlx?/runtime-tokio"]
+runtime-tokio = ["dep:tracing", "dep:futures-util", "dep:tokio", "tokio/rt", "sqlx?/runtime-tokio"]
 tls-rustls = ["sqlx?/tls-rustls-ring-webpki"]
 
 [dev-dependencies]

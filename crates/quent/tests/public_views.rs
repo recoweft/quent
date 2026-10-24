@@ -85,6 +85,8 @@ fn context_tenant(d: Dialect, t: Option<i64>) -> DatabaseContext {
     .unwrap()
 }
 fn safe(v: &PlanView) -> Json {
+    #[cfg(feature = "output-tracing")]
+    output_capture::check(v, &v.to_json());
     let s = v.to_json();
     assert_eq!(s, v.to_json());
     assert_eq!(s, v.to_string());
@@ -454,4 +456,143 @@ fn complete_core_diagnostic_register_matches_wire_codes() {
         assert_eq!(v.to_json(), v.to_string());
         assert!(std::error::Error::source(&v).is_none());
     }
+}
+
+#[cfg(feature = "output-tracing")]
+mod output_capture;
+#[cfg(feature = "output-tracing")]
+#[test]
+fn actual_source_views_enter_closed_production_tracing() {
+    let capture = output_capture::Capture::default();
+    tracing::subscriber::with_default(capture.clone(), || {
+        for d in [Dialect::Postgres, Dialect::Mysql] {
+            let op = Draft::update(
+                table(),
+                vec![(
+                    text(),
+                    Input::Value(Value::Text(
+                        "CANARY\n\r\u{1b}SQL_reason_/secret/path".into(),
+                    )),
+                )],
+            )
+            .filter(eq(987654321))
+            .freeze();
+            let plan = op.finalize(d).unwrap();
+            let before = plan.sensitive_source().sql().to_owned();
+            quent::output_tracing::emit(&plan.public_view());
+            let facts = facts(d, TableContext::OrdinaryBaseTableWithoutEffects);
+            quent::output_tracing::emit(&plan.inspect(Some(&facts)).public_view());
+            let prepared = context(d).prepare().prepare_operation(&op).unwrap();
+            quent::output_tracing::emit(&prepared.public_view());
+            let error = context_tenant(d, Some(1))
+                .prepare()
+                .prepare_operation(
+                    &Draft::update(
+                        table(),
+                        vec![(tenant(), Input::Value(Value::I64(987654321)))],
+                    )
+                    .filter(eq(1))
+                    .freeze(),
+                )
+                .unwrap_err();
+            quent::output_tracing::emit(&error.public_view());
+            assert!(std::error::Error::source(&error).is_none());
+            assert_eq!(before, plan.sensitive_source().sql());
+        }
+    });
+    capture.assert_safe(8);
+}
+
+#[cfg(all(feature = "local-details", target_os = "linux"))]
+#[test]
+fn exact_retained_inspection_and_policy_source_files_preserve_block_and_projection() {
+    use quent::local_details::*;
+    use std::os::unix::fs::DirBuilderExt;
+    let dir = std::env::temp_dir().join(format!("quent-retained-{}", std::process::id()));
+    std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            if self.0.exists() {
+                std::fs::remove_dir_all(&self.0).unwrap();
+            }
+        }
+    }
+    let _cleanup = Cleanup(dir.clone());
+    for d in [Dialect::Postgres, Dialect::Mysql] {
+        let op = Draft::update(
+            table(),
+            vec![(
+                text(),
+                Input::Value(Value::Text("CANARY\n\u{1b}reason".into())),
+            )],
+        )
+        .optimistic_version(version(), Value::I32(-7))
+        .unwrap();
+        let op = if d == Dialect::Postgres {
+            op.returning(vec![Projection::new(text(), Some(id("canary_alias")))])
+        } else {
+            op
+        }
+        .freeze();
+        let c = context_tenant(d, Some(987654321));
+        let prepared = c.prepare().prepare_operation(&op).unwrap();
+        let before = prepared.public_view().to_json();
+        assert_eq!(prepared.inspect().risk(), Risk::Blocked);
+        let inspection = prepared.inspect();
+        for (i, source) in [
+            inspection.sensitive_source(),
+            prepared.sensitive_source().final_source(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let path = dir.join(format!("{d:?}-{i}"));
+            let result = create_new(
+                LocalOptIn::acknowledge_sensitive_local_file(),
+                Surface::LocalApplication,
+                &path,
+                source,
+            );
+            if std::env::var_os("CI").is_some() || std::env::var_os("GITHUB_ACTIONS").is_some() {
+                assert_eq!(result.unwrap_err(), DetailError::EnvironmentDenied);
+                assert!(!path.exists());
+                continue;
+            }
+            result.unwrap();
+            let j: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            assert!(j["sql"] == prepared.sensitive_source().final_source().sql());
+            // Finalizer order: text assignment, successor, automatic tenant, expected version.
+            assert!(
+                j["args"]
+                    == json!([{"type":"text","value":"CANARY\n\u{1b}reason"},{"type":"i32","value":"-6"},{"type":"i64","value":"987654321"},{"type":"i32","value":"-7"}])
+            );
+            let m = &j["metadata"];
+            let table_json = json!({"path":["canary_schema","canary_table"],"alias":null});
+            let text_col =
+                json!({"table":table_json,"name":"canary_text","type":"text","nullable":true});
+            let version_col =
+                json!({"table":table_json,"name":"canary_version","type":"i32","nullable":false});
+            let tenant_col =
+                json!({"table":table_json,"name":"canary_tenant","type":"i64","nullable":false});
+            assert!(
+                *m == json!({"table":table_json,"family":"update","projection":if d==Dialect::Postgres {json!([{"column":text_col,"alias":"canary_alias"}])}else{Json::Null},"predicate":{"op":"and","children":[{"op":"eq","column":tenant_col,"value":{"type":"i64","value":"987654321"}}]},"write_data":[{"column":text_col,"input":{"type":"text","value":"CANARY\n\u{1b}reason"}},{"column":version_col,"input":{"type":"i32","value":"-6"}}],"order":[],"limit":null,"version":{"column":version_col,"expected":{"type":"i32","value":"-7"}},"caller_missing_where":true})
+            );
+            for forbidden in [
+                "context",
+                "subject",
+                "handle",
+                "permit",
+                "credential",
+                "executor",
+                "policy",
+            ] {
+                assert!(j.get(forbidden).is_none());
+            }
+        }
+        assert_eq!(prepared.public_view().to_json(), before);
+        assert_eq!(prepared.inspect().risk(), Risk::Blocked);
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+    assert!(!dir.exists());
 }

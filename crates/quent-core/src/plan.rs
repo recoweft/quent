@@ -373,6 +373,50 @@ impl SensitiveSource<'_> {
         self.record.dialect
     }
 }
+// Explicit borrowed structural access for application-local inspection/export.
+impl Ident {
+    pub fn sensitive_text(&self) -> &str {
+        &self.0
+    }
+}
+impl Table {
+    pub fn sensitive_path(&self) -> &[Ident] {
+        &self.path
+    }
+    pub fn sensitive_alias(&self) -> Option<&Ident> {
+        self.alias.as_ref()
+    }
+}
+impl Column {
+    pub fn sensitive_table(&self) -> &Table {
+        &self.table
+    }
+    pub fn sensitive_name(&self) -> &Ident {
+        &self.name
+    }
+    pub fn sql_type(&self) -> SqlType {
+        self.sql_type
+    }
+    pub fn nullable(&self) -> bool {
+        self.nullable
+    }
+}
+impl Projection {
+    pub fn sensitive_column(&self) -> &Column {
+        &self.column
+    }
+    pub fn sensitive_alias(&self) -> Option<&Ident> {
+        self.alias.as_ref()
+    }
+}
+impl SensitiveSource<'_> {
+    pub fn sensitive_table(&self) -> &Table {
+        &self.record.metadata.operation.0.table
+    }
+    pub fn caller_missing_where(&self) -> bool {
+        self.record.caller_missing_where
+    }
+}
 redacted!(
     Ident,
     Value,

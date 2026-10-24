@@ -49,7 +49,7 @@ impl PostgresSession {
             return Err(ExecutionError::ContextMismatch);
         }
         let options = options.disable_statement_logging();
-        let connection = PgConnection::connect_with(&options)
+        let connection = quiet(PgConnection::connect_with(&options))
             .await
             .map_err(|_| ExecutionError::Connect)?;
         Ok(Self {

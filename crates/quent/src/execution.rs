@@ -1,5 +1,9 @@
 //! One gate and a closed adapter set. No raw SQL/Plan/source execution input.
+// Never forward SQLx protocol notices/type-resolution fields to the application's
+// tracing subscriber. Statement/slow logging stays disabled independently.
+mod quiet_driver;
 use quent_core::*;
+use quiet_driver::quiet;
 use std::{
     fmt,
     sync::Arc,
@@ -360,137 +364,141 @@ macro_rules! immediate_dispatch {
             operation: &Operation,
             handle: ValidatedOperation,
         ) -> Result<ExecutionResult> {
-            if !self.available {
-                return Err(ExecutionError::SessionUnavailable);
-            }
-            recheck(&handle, &self.identity, &self.context, current, operation)?;
-            check_expiry(&handle, Instant::now())?;
-            let prepared = &handle.prepared;
-            let source = prepared.sensitive_source();
-            let record = source.final_source();
-            let family = record.metadata().family();
-            let columns = record.result_columns();
-            if !matches!(
-                family,
-                Family::Select | Family::Count | Family::Update | Family::Delete
-            ) {
-                return Err(ExecutionError::Unsupported);
-            }
-            // SQLx 0.9 requires the safe AssertSqlSafe marker for dynamic SQL.
-            // Only the sole Core renderer produced this exact immutable SQL; identifiers
-            // were validated/quoted and all values remain native bound arguments.
-            // Finite capability and encoding matrix, completed before any query send.
-            let mut query = sqlx::query::<$driver>(sqlx::AssertSqlSafe(record.sql()));
-            for value in record.args() {
-                bind(&mut query, value)?;
-            }
-            // No application await occurs between this exact check and the SQLx send.
-            // &mut self and immutable current/operation borrows exclude app substitution.
-            #[cfg(test)]
-            if let Some(barrier) = self.final_barrier.take() {
-                barrier.notified().await;
-            }
-            recheck(&handle, &self.identity, &self.context, current, operation)?;
-            // Sample the clock AFTER bounded input/context comparison, never before it.
-            #[cfg(test)]
-            let now = self.final_now.take().unwrap_or_else(Instant::now);
-            #[cfg(not(test))]
-            let now = Instant::now();
-            check_expiry(&handle, now)?;
-            self.available = false; // cancellation/error leaves this session unusable
-            #[cfg(test)]
-            self.recorder.sent(record.sql(), record.args());
-            let state = self.result_state;
-            let result = if matches!(family, Family::Update | Family::Delete) && columns.is_empty()
-            {
-                query
-                    .execute(self.connection.native())
-                    .await
-                    .map(|r| ExecutionResult {
-                        state,
-                        rows: vec![],
-                        count: None,
-                        affected: Some(AffectedRows::$affected(r.rows_affected())),
-                    })
-                    .map_err(|_| ExecutionError::OutcomeUnknown)
-            } else if matches!(family, Family::Select | Family::Count) || !columns.is_empty() {
-                let mut stream = query.fetch(self.connection.native());
-                let mut rows = Vec::new();
-                let mut count = None;
-                let mut used = 0;
-                let mut failure = None;
-                loop {
-                    let row = match stream.try_next().await {
-                        Ok(Some(row)) => row,
-                        Ok(None) => break,
-                        Err(_) => {
-                            failure = Some(ExecutionError::ReadFailed);
-                            break;
-                        }
-                    };
-                    if family == Family::Count {
-                        if count.is_some() || row.len() != 1 {
-                            failure = Some(ExecutionError::Decode);
-                            break;
-                        }
-                        match decode_count(&row) {
-                            Ok(v) => count = Some(v),
-                            Err(e) => {
-                                failure = Some(e);
+            quiet(async {
+                if !self.available {
+                    return Err(ExecutionError::SessionUnavailable);
+                }
+                recheck(&handle, &self.identity, &self.context, current, operation)?;
+                check_expiry(&handle, Instant::now())?;
+                let prepared = &handle.prepared;
+                let source = prepared.sensitive_source();
+                let record = source.final_source();
+                let family = record.metadata().family();
+                let columns = record.result_columns();
+                if !matches!(
+                    family,
+                    Family::Select | Family::Count | Family::Update | Family::Delete
+                ) {
+                    return Err(ExecutionError::Unsupported);
+                }
+                // SQLx 0.9 requires the safe AssertSqlSafe marker for dynamic SQL.
+                // Only the sole Core renderer produced this exact immutable SQL; identifiers
+                // were validated/quoted and all values remain native bound arguments.
+                // Finite capability and encoding matrix, completed before any query send.
+                let mut query = sqlx::query::<$driver>(sqlx::AssertSqlSafe(record.sql()));
+                for value in record.args() {
+                    bind(&mut query, value)?;
+                }
+                // No application await occurs between this exact check and the SQLx send.
+                // &mut self and immutable current/operation borrows exclude app substitution.
+                #[cfg(test)]
+                if let Some(barrier) = self.final_barrier.take() {
+                    barrier.notified().await;
+                }
+                recheck(&handle, &self.identity, &self.context, current, operation)?;
+                // Sample the clock AFTER bounded input/context comparison, never before it.
+                #[cfg(test)]
+                let now = self.final_now.take().unwrap_or_else(Instant::now);
+                #[cfg(not(test))]
+                let now = Instant::now();
+                check_expiry(&handle, now)?;
+                self.available = false; // cancellation/error leaves this session unusable
+                #[cfg(test)]
+                self.recorder.sent(record.sql(), record.args());
+                let state = self.result_state;
+                let result = if matches!(family, Family::Update | Family::Delete)
+                    && columns.is_empty()
+                {
+                    query
+                        .execute(self.connection.native())
+                        .await
+                        .map(|r| ExecutionResult {
+                            state,
+                            rows: vec![],
+                            count: None,
+                            affected: Some(AffectedRows::$affected(r.rows_affected())),
+                        })
+                        .map_err(|_| ExecutionError::OutcomeUnknown)
+                } else if matches!(family, Family::Select | Family::Count) || !columns.is_empty() {
+                    let mut stream = query.fetch(self.connection.native());
+                    let mut rows = Vec::new();
+                    let mut count = None;
+                    let mut used = 0;
+                    let mut failure = None;
+                    loop {
+                        let row = match stream.try_next().await {
+                            Ok(Some(row)) => row,
+                            Ok(None) => break,
+                            Err(_) => {
+                                failure = Some(ExecutionError::ReadFailed);
                                 break;
                             }
-                        }
-                    } else {
-                        if rows.len() == MAX_ROWS {
-                            failure = Some(ExecutionError::ResultLimit);
-                            break;
-                        }
-                        match decode_row(&row, &columns).and_then(|r| {
-                            check_result_size(&r, &mut used)?;
-                            Ok(r)
-                        }) {
-                            Ok(r) => {
-                                #[cfg(test)]
-                                self.recorder.event("row_decoded");
-                                rows.push(r)
-                            }
-                            Err(e) => {
-                                failure = Some(e);
+                        };
+                        if family == Family::Count {
+                            if count.is_some() || row.len() != 1 {
+                                failure = Some(ExecutionError::Decode);
                                 break;
+                            }
+                            match decode_count(&row) {
+                                Ok(v) => count = Some(v),
+                                Err(e) => {
+                                    failure = Some(e);
+                                    break;
+                                }
+                            }
+                        } else {
+                            if rows.len() == MAX_ROWS {
+                                failure = Some(ExecutionError::ResultLimit);
+                                break;
+                            }
+                            match decode_row(&row, &columns).and_then(|r| {
+                                check_result_size(&r, &mut used)?;
+                                Ok(r)
+                            }) {
+                                Ok(r) => {
+                                    #[cfg(test)]
+                                    self.recorder.event("row_decoded");
+                                    rows.push(r)
+                                }
+                                Err(e) => {
+                                    failure = Some(e);
+                                    break;
+                                }
                             }
                         }
                     }
-                }
-                if let Some(e) = failure {
-                    Err(e)
-                } else if family == Family::Count && count.is_none() {
-                    Err(ExecutionError::Decode)
-                } else {
-                    let affected = if matches!(family, Family::Update | Family::Delete) {
-                        Some(AffectedRows::$affected(rows.len() as u64))
+                    if let Some(e) = failure {
+                        Err(e)
+                    } else if family == Family::Count && count.is_none() {
+                        Err(ExecutionError::Decode)
                     } else {
-                        None
-                    };
-                    Ok(ExecutionResult {
-                        state,
-                        rows,
-                        count,
-                        affected,
-                    })
+                        let affected = if matches!(family, Family::Update | Family::Delete) {
+                            Some(AffectedRows::$affected(rows.len() as u64))
+                        } else {
+                            None
+                        };
+                        Ok(ExecutionResult {
+                            state,
+                            rows,
+                            count,
+                            affected,
+                        })
+                    }
+                } else {
+                    Err(ExecutionError::Unsupported)
+                };
+                #[cfg(test)]
+                self.recorder.event(if result.is_ok() {
+                    "decoded"
+                } else {
+                    "decode_or_driver_error"
+                });
+                if result.is_ok() {
+                    self.available = true;
                 }
-            } else {
-                Err(ExecutionError::Unsupported)
-            };
-            #[cfg(test)]
-            self.recorder.event(if result.is_ok() {
-                "decoded"
-            } else {
-                "decode_or_driver_error"
-            });
-            if result.is_ok() {
-                self.available = true;
-            }
-            result
+                result
+            })
+            .await
         }
     };
 }
@@ -530,140 +538,145 @@ macro_rules! atomic_dispatch {
             expected: ExpectedRows,
             handle: ValidatedAtomicOperation,
         ) -> std::result::Result<ExecutionResult, AtomicFailure> {
-            let before = |cause| AtomicFailure {
-                cause,
-                disposition: AtomicDisposition::NotStarted,
-            };
-            if !self.available {
-                return Err(before(ExecutionError::SessionUnavailable));
-            }
-            if handle.expected != expected {
-                return Err(before(ExecutionError::OperationMismatch));
-            }
-            recheck(
-                &handle.operation,
-                &self.identity,
-                &self.context,
-                current,
-                operation,
-            )
-            .map_err(before)?;
-            check_expiry(&handle.operation, Instant::now()).map_err(before)?;
-            let version = handle
-                .operation
-                .prepared
-                .sensitive_source()
-                .final_source()
-                .metadata()
-                .optimistic_version();
-            self.available = false;
-            #[cfg(test)]
-            self.recorder.event("begin");
-            #[cfg(test)]
-            let fault = self.atomic_fault.take();
-            #[cfg(test)]
-            let tx = if fault == Some(AtomicFault::Begin) {
-                Err(sqlx::Error::PoolClosed)
-            } else {
-                self.connection.begin().await
-            };
-            #[cfg(not(test))]
-            let tx = self.connection.begin().await;
-            let mut tx = tx.map_err(|_| AtomicFailure {
-                cause: ExecutionError::OutcomeUnknown,
-                disposition: AtomicDisposition::OutcomeUnknown,
-            })?;
-            #[cfg(test)]
-            self.recorder.event("begun");
-            // Transaction holds the exact connection borrow. It has no independently
-            // exposed validation/executor identity. Recheck includes the begin await.
-            let mut runner =
-                $runner::internal(tx.as_mut(), self.context.clone(), self.identity.clone());
-            #[cfg(test)]
-            {
-                runner.recorder.live = self.recorder.live.clone();
-                runner.final_now = self.final_now.take();
-                runner.final_barrier = self.final_barrier.take();
-            }
-            let result = runner
-                .execute_validated(current, operation, handle.operation)
-                .await;
-            #[cfg(test)]
-            {
-                self.recorder.calls.append(&mut runner.recorder.calls);
-                self.recorder.events.append(&mut runner.recorder.events);
-            }
-            drop(runner);
-            let checked = result.and_then(|result| {
-                let actual = match result.affected {
-                    Some(AffectedRows::PostgresMatched(n) | AffectedRows::MysqlFoundRows(n)) => n,
-                    None => return Err(ExecutionError::Unsupported),
+            quiet(async {
+                let before = |cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
                 };
-                if actual != u64::from(expected.0) {
-                    return Err(if version && actual == 0 {
-                        ExecutionError::Conflict
-                    } else {
-                        ExecutionError::ExpectationMismatch
-                    });
+                if !self.available {
+                    return Err(before(ExecutionError::SessionUnavailable));
                 }
-                Ok(result)
-            });
-            #[cfg(test)]
-            self.recorder.event("expectation");
-            match checked {
-                Ok(mut result) => {
-                    #[cfg(test)]
-                    self.recorder.event("commit");
-                    #[cfg(test)]
-                    let completion = match fault {
-                        Some(AtomicFault::Commit) => {
-                            drop(tx);
-                            Err(sqlx::Error::PoolClosed)
-                        }
-                        Some(AtomicFault::CommitReplyLost) => {
-                            tx.commit().await.and(Err(sqlx::Error::PoolClosed))
-                        }
-                        _ => tx.commit().await,
+                if handle.expected != expected {
+                    return Err(before(ExecutionError::OperationMismatch));
+                }
+                recheck(
+                    &handle.operation,
+                    &self.identity,
+                    &self.context,
+                    current,
+                    operation,
+                )
+                .map_err(before)?;
+                check_expiry(&handle.operation, Instant::now()).map_err(before)?;
+                let version = handle
+                    .operation
+                    .prepared
+                    .sensitive_source()
+                    .final_source()
+                    .metadata()
+                    .optimistic_version();
+                self.available = false;
+                #[cfg(test)]
+                self.recorder.event("begin");
+                #[cfg(test)]
+                let fault = self.atomic_fault.take();
+                #[cfg(test)]
+                let tx = if fault == Some(AtomicFault::Begin) {
+                    Err(sqlx::Error::PoolClosed)
+                } else {
+                    self.connection.begin().await
+                };
+                #[cfg(not(test))]
+                let tx = self.connection.begin().await;
+                let mut tx = tx.map_err(|_| AtomicFailure {
+                    cause: ExecutionError::OutcomeUnknown,
+                    disposition: AtomicDisposition::OutcomeUnknown,
+                })?;
+                #[cfg(test)]
+                self.recorder.event("begun");
+                // Transaction holds the exact connection borrow. It has no independently
+                // exposed validation/executor identity. Recheck includes the begin await.
+                let mut runner =
+                    $runner::internal(tx.as_mut(), self.context.clone(), self.identity.clone());
+                #[cfg(test)]
+                {
+                    runner.recorder.live = self.recorder.live.clone();
+                    runner.final_now = self.final_now.take();
+                    runner.final_barrier = self.final_barrier.take();
+                }
+                let result = runner
+                    .execute_validated(current, operation, handle.operation)
+                    .await;
+                #[cfg(test)]
+                {
+                    self.recorder.calls.append(&mut runner.recorder.calls);
+                    self.recorder.events.append(&mut runner.recorder.events);
+                }
+                drop(runner);
+                let checked = result.and_then(|result| {
+                    let actual = match result.affected {
+                        Some(
+                            AffectedRows::PostgresMatched(n) | AffectedRows::MysqlFoundRows(n),
+                        ) => n,
+                        None => return Err(ExecutionError::Unsupported),
                     };
-                    #[cfg(not(test))]
-                    let completion = tx.commit().await;
-                    completion.map_err(|_| AtomicFailure {
-                        cause: ExecutionError::OutcomeUnknown,
-                        disposition: AtomicDisposition::OutcomeUnknown,
-                    })?;
-                    #[cfg(test)]
-                    self.recorder.event("committed");
-                    self.available = true;
-                    result.state = ResultState::Committed;
+                    if actual != u64::from(expected.0) {
+                        return Err(if version && actual == 0 {
+                            ExecutionError::Conflict
+                        } else {
+                            ExecutionError::ExpectationMismatch
+                        });
+                    }
                     Ok(result)
-                }
-                Err(cause) => {
-                    #[cfg(test)]
-                    self.recorder.event("rollback");
-                    #[cfg(test)]
-                    let rollback = match fault {
-                        Some(AtomicFault::Rollback) => {
-                            drop(tx);
-                            Err(sqlx::Error::PoolClosed)
-                        }
-                        Some(AtomicFault::RollbackReplyLost) => {
-                            tx.rollback().await.and(Err(sqlx::Error::PoolClosed))
-                        }
-                        _ => tx.rollback().await,
-                    };
-                    #[cfg(not(test))]
-                    let rollback = tx.rollback().await;
-                    let disposition = if rollback.is_ok() {
+                });
+                #[cfg(test)]
+                self.recorder.event("expectation");
+                match checked {
+                    Ok(mut result) => {
                         #[cfg(test)]
-                        self.recorder.event("rolled_back");
+                        self.recorder.event("commit");
+                        #[cfg(test)]
+                        let completion = match fault {
+                            Some(AtomicFault::Commit) => {
+                                drop(tx);
+                                Err(sqlx::Error::PoolClosed)
+                            }
+                            Some(AtomicFault::CommitReplyLost) => {
+                                tx.commit().await.and(Err(sqlx::Error::PoolClosed))
+                            }
+                            _ => tx.commit().await,
+                        };
+                        #[cfg(not(test))]
+                        let completion = tx.commit().await;
+                        completion.map_err(|_| AtomicFailure {
+                            cause: ExecutionError::OutcomeUnknown,
+                            disposition: AtomicDisposition::OutcomeUnknown,
+                        })?;
+                        #[cfg(test)]
+                        self.recorder.event("committed");
                         self.available = true;
-                        AtomicDisposition::RolledBack
-                    } else {
-                        AtomicDisposition::OutcomeUnknown
-                    };
-                    Err(AtomicFailure { cause, disposition })
+                        result.state = ResultState::Committed;
+                        Ok(result)
+                    }
+                    Err(cause) => {
+                        #[cfg(test)]
+                        self.recorder.event("rollback");
+                        #[cfg(test)]
+                        let rollback = match fault {
+                            Some(AtomicFault::Rollback) => {
+                                drop(tx);
+                                Err(sqlx::Error::PoolClosed)
+                            }
+                            Some(AtomicFault::RollbackReplyLost) => {
+                                tx.rollback().await.and(Err(sqlx::Error::PoolClosed))
+                            }
+                            _ => tx.rollback().await,
+                        };
+                        #[cfg(not(test))]
+                        let rollback = tx.rollback().await;
+                        let disposition = if rollback.is_ok() {
+                            #[cfg(test)]
+                            self.recorder.event("rolled_back");
+                            self.available = true;
+                            AtomicDisposition::RolledBack
+                        } else {
+                            AtomicDisposition::OutcomeUnknown
+                        };
+                        Err(AtomicFailure { cause, disposition })
+                    }
                 }
-            }
+            })
+            .await
         }
     };
 }

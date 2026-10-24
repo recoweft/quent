@@ -1,3 +1,6 @@
+Current PR2 integration: [output boundaries v1](output-boundaries-v1.md). PR1-specific
+absence statements below describe that historical baseline; the v1 register/schema is unchanged.
+
 # QT-AI-04 planned PR1: public output v1
 
 `Plan::public_view()`, `Inspection::public_view()` and

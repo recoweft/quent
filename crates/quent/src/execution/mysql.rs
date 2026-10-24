@@ -49,7 +49,7 @@ impl MysqlSession {
             return Err(ExecutionError::ContextMismatch);
         }
         let options = options.disable_statement_logging();
-        let connection = MySqlConnection::connect_with(&options)
+        let connection = quiet(MySqlConnection::connect_with(&options))
             .await
             .map_err(|_| ExecutionError::Connect)?;
         Ok(Self {

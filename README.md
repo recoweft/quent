@@ -2,13 +2,14 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: output-only public views (QT-AI-04 planned PR1), atop finite owned atomic execution.**
+**Status: safe output boundaries (QT-AI-04 planned PR2), atop finite owned atomic execution.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
 Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/provider-free. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
 
+- [Output surfaces, local file protections, CLI and CI/MCP limits](specs/output-boundaries-v1.md)
 - [Public view schema, code register, information boundary and evidence](specs/public-views-v1.md)
 - [Owned atomic results, borrowed Tx boundaries and failure/guarantee tables](specs/atomic-results-v1.md)
 - [Consumed handles, exact current binding, expiry and cancellation stages](specs/owned-validation-v1.md)
@@ -96,5 +97,12 @@ are separate from the still-pending full case responsibilities; see the dispatch
 
 Plan/Inspection/PolicyPreparation now expose finite `public_view()` copies and
 allowlist-only `to_json()`/Display. Raw Plans remain unevaluated/unknown. These
-outputs cannot restore execution authority; CLI/tracing/local exports remain future
-work. See the public view guide for precise conditional meanings and remaining work.
+outputs cannot restore execution authority. Optional `output-tracing` emits only sealed
+public views and installs no global subscriber/logger. Runtime execution scopes SQLx
+tracing privately during driver poll/drop, including protocol notices. Optional `local-details` provides
+application-only `local_details::create_new`: explicit opt-in, local surface, absolute
+new path and real SensitiveSource. Linux ext4/tmpfs owner/0600/new-file protection is
+checked before secret writes; all other OS/filesystems fail closed (Windows ACL export
+is unsupported). CI/MCP/remote refuse; environment detection does not authenticate an
+application. Files are output-only and cannot restore execution authority. See the
+output guide for exact conditional guarantees and CLI non-success behavior.
