@@ -1,0 +1,19 @@
+[workspace]
+members = ["crates/quent-core", "crates/quent", "crates/quent-cli"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+repository = "https://github.com/recoweft/quent"
+publish = false
+
+[workspace.dependencies]
+quent-core = { path = "crates/quent-core" }
+sqlx = { version = "=0.9.0", default-features = false }
+tokio = { version = "=1.54.1", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

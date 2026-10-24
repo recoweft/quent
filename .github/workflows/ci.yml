@@ -1,0 +1,29 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  workspace:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - run: cargo fmt --all -- --check
+      - run: cargo build --workspace --locked
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: cargo doc --workspace --all-features --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo tree -p quent-core --locked
+  adapters:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        features: ["postgres,runtime-tokio,tls-rustls", "mysql,runtime-tokio,tls-rustls"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo check -p quent --no-default-features --features "${{ matrix.features }}" --locked
