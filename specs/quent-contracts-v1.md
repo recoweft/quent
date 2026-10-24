@@ -5,7 +5,7 @@
 対象: recoweft/quent / base main
 RelayWeft: quent（project ID 8f174e78-f969-4bf8-b173-f73c57c17bd4）
 管理ID: QT-AI-00〜QT-AI-14 / 15 Issue・33 planned PR
-本書は製品仕様ベースライン。revision 2でQT-AI-00 PR1の実装が許可された。merge/release・後続PRは対象外。
+本書は製品仕様ベースライン。運用履歴: 先行work revision 2はPR1のみを許可した。PR1 (#16) 統合後、work 7b3e9b95-154c-4f1c-bac6-4bf4a980c741 revision 1はPR2実装・push・PR作成を許可する。旧段階の待機文は後続の明示依頼を制限しない。merge/releaseは今回も対象外。
 
 ## 1. コンセプトと仕様の根拠
 
@@ -211,12 +211,12 @@ Compile-failでは「別key/modelの混在」「handle再使用/複製」「view
 - 1 work = 1 planned PR。実PR番号は作成後に記録し、PR1等の計画番号と混同しない。
 - 各PRの報告はhead SHA、差分、実行した検証、skip/fail、両DBのversion/設定、受入case、残る制限を含める。
 - workerが報告しただけでIssue完了/merge済みとしない。Issue全体ACとmain統合を別途確認。
-- 実装時に未確定事項が保証やscopeを変えるなら仕様相談と次版へ。版登録と実装起動は別。revision 2はPR1の実装起動である。
+- 実装時に未確定事項が保証やscopeを変えるなら仕様相談と次版へ。版登録と実装起動は別。先行work revision 2はPR1の実装起動だった（運用履歴）。
 
 ## 11. 共通worker指示
 
-対象はrecoweft/quentのみ。Goquentは参照資料であり変更しない。base main。下記の指定Issue・planned PR・branchだけを実装する。依存を確認し、未mergeなら着手しない。revision 2ではPR1に限りこの指示を実行する。
+対象はrecoweft/quentのみ。Goquentは参照資料であり変更しない。base main。下記の指定Issue・planned PR・branchだけを実装する。依存を確認し、未mergeなら着手しない。実行範囲は現在の明示依頼で指定されたplanned PRに限る。
 
 実装開始時はAGENTS.mdと依存固定値を確認し、Issue本文・本仕様・前PRのmain結果を読み直す。公開APIを増やす前に共通IR/gate/出力境界へ接続する。partial/unsupportedを成功へ変えない。通常CRUDとtyped/specの別実行経路を作らない。テストは該当caseと両DBの必要範囲、compile-fail、feature/doc checksを実行する。結果を偽らずskipの理由を報告する。
 
-Issue作成とwork登録は実行ではない。今回の実装はwork 6b291980-36b5-48b1-8e9f-eff4bc3aed65 revision 2で許可されたPR1に限定する。公開release、crates.io publish、無関係repo変更は含まない。
+Issue作成とwork登録は実行ではない。先行実装work 6b291980-36b5-48b1-8e9f-eff4bc3aed65 revision 2はPR1に限定されていた（運用履歴）。公開release、crates.io publish、無関係repo変更は含まない。
