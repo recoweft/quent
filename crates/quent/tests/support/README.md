@@ -184,3 +184,12 @@ Core separately tests single INSERT, PII/soft-delete/RequiredFilter/protected wr
 A/B snapshots, budgets and redaction. All full runtime_pending markers stay intact.
 No dispatcher/provider/Tx/database effects or recorder refusal/rollback are measured.
 See [current finite capabilities](../../../../specs/policy-preparation-v1.md).
+
+## QT-AI-03 PR1 live evidence
+
+The independent cfg(test) recorder at the actual production dispatcher and both
+live suites now live in `src/execution/tests.rs`; the scripted recorder here retains
+its support-only role. Use `bash scripts/test-dispatch.sh` from the repository root.
+[The dispatch guide](../../../../specs/sqlx-dispatch-v1.md) records pins, cleanup,
+settings, limitations and case responsibilities. No fixture expectation or
+runtime_pending marker was rewritten as a measured success.

@@ -14,12 +14,13 @@ workspace = true
 quent-core.workspace = true
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
+futures-util = { version = "=0.3.34", default-features = false, features = ["std"], optional = true }
 
 [features]
 default = []
 postgres = ["dep:sqlx", "sqlx/postgres"]
 mysql = ["dep:sqlx", "sqlx/mysql"]
-runtime-tokio = ["dep:tokio", "tokio/rt", "sqlx?/runtime-tokio"]
+runtime-tokio = ["dep:futures-util", "dep:tokio", "tokio/rt", "sqlx?/runtime-tokio"]
 tls-rustls = ["sqlx?/tls-rustls-ring-webpki"]
 
 [dev-dependencies]

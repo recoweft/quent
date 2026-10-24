@@ -156,3 +156,13 @@ remain with their owning issues. Runtime acceptance cannot be cleared by these t
 Rust 1.94.0/edition 2024, Core no dependencies, default driver/runtime independence,
 exact dependency pins and publish=false are unchanged. Local verification commands
 and actual hosted CI observations are recorded in the PR and RelayWeft report.
+
+## QT-AI-03 PR1 runtime boundary
+
+[Immediate SQLx dispatcher](sqlx-dispatch-v1.md) adds the current shared Strict gate,
+owned-session context binding, finite native adapters and bounded redacted results.
+Its support/refusal and evidence tables supersede historical statements above about
+the absence of execution. Raw Plan/source/preparation remain non-executable inputs.
+INSERT remains InsertUnverified/High and is refused without a provider. All full
+runtime_pending markers remain: limited live PR1 evidence is recorded separately
+from PR2 handles, PR3 Tx/atomicity and QT-AI-09 authorization responsibilities.
