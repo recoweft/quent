@@ -226,11 +226,27 @@ macro_rules! atomic_cases {
         let observe= "SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1";
         let mut s=$session::connect(options.clone(),c.clone()).await.unwrap();
         let op=make(1);
+        // Public display mutation cannot change the private shared/atomic gate.
+        let prep=c.prepare().prepare_operation(&op).unwrap();
+        let mut public=prep.public_view(); public.risk=ViewRisk::Blocked;
+        public.scope=Scope::Unknown; public.completeness=Completeness::Unknown;
+        let _=public.to_json(); let _=format!("{public:?} {public}");
+        assert!(s.recorder.calls.is_empty()); assert!(s.recorder.events.is_empty());
+        assert_eq!(prep.inspect().risk(),Risk::Low);
+        let blocked=Draft::delete(table()).freeze();
+        let mut fake=c.prepare().prepare_operation(&blocked).unwrap().public_view();
+        fake.risk=ViewRisk::Low; fake.scope=Scope::Single; fake.completeness=Completeness::Complete;
+        let _=fake.to_json();
+        assert_eq!(s.validate_atomic(c,&blocked,one,MAX_TTL).unwrap_err(),ExecutionError::RiskRefused);
+        assert!(s.recorder.calls.is_empty()); assert!(s.recorder.events.is_empty());
         let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
         drop(s.execute_atomic(c,&op,one,h));
         assert!(s.is_available()); assert!(s.recorder.events.is_empty());
         let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
         let r=s.execute_atomic(c,&op,one,h).await.unwrap();
+        assert_eq!(r.state(),ResultState::Committed);
+        let mut view=r.public_view(); assert_eq!(view.state,ViewState::Committed);
+        view.state=ViewState::OutcomeUnknown; let _=view.to_json();
         assert_eq!(r.state(),ResultState::Committed);
         assert_eq!(s.recorder.events, ["begin","begun","send","decoded","expectation","commit","committed"]);
         assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"atomic");
@@ -251,6 +267,7 @@ macro_rules! atomic_cases {
             let h=s.validate_atomic(c,&op,expected,MAX_TTL).unwrap();
             let e=s.execute_atomic(c,&op,expected,h).await.unwrap_err();
             assert_eq!(e,AtomicFailure{cause:ExecutionError::ExpectationMismatch,disposition:AtomicDisposition::RolledBack});
+            assert_eq!(e.public_view(), DiagnosticView { code:DiagnosticCode::ExecutionExpectationMismatch, state:Some(ViewState::RolledBack) });
             assert_eq!(s.recorder.events,["begin","begun","send","decoded","expectation","rollback","rolled_back"]);
             assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
         }
@@ -295,6 +312,7 @@ macro_rules! atomic_cases {
         assert_eq!(borrowed.validate_atomic(c,&op,one,MAX_TTL).unwrap_err(),ExecutionError::Unsupported);
         assert!(borrowed.recorder.calls.is_empty()); assert!(borrowed.recorder.events.is_empty());
         let r=borrowed.execute(c,op.clone()).await.unwrap(); assert_eq!(r.state(),ResultState::Uncommitted);
+        assert_eq!(r.public_view().state,ViewState::Uncommitted);
         assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
         let stale=borrowed.validate(c,&op,MAX_TTL).unwrap();
         drop(borrowed); tx.rollback().await.unwrap();
@@ -350,7 +368,7 @@ macro_rules! atomic_cases {
             let op=make(1); let expected=if matches!(fault,AtomicFault::Rollback|AtomicFault::RollbackReplyLost){zero}else{one};
             let h=faulted.validate_atomic(c,&op,expected,MAX_TTL).unwrap(); faulted.atomic_fault=Some(fault);
             let e=faulted.execute_atomic(c,&op,expected,h).await.unwrap_err();
-            assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert!(!faulted.is_available());
+            assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert_eq!(e.public_view().state,Some(ViewState::OutcomeUnknown)); assert!(!faulted.is_available());
             assert!(std::error::Error::source(&e).is_none());
             assert_eq!(faulted.execute(c,op).await.unwrap_err(),ExecutionError::SessionUnavailable);
             assert!(faulted.recorder.calls.len()<=1);
@@ -394,7 +412,7 @@ macro_rules! atomic_cases {
                     sqlx::query(sqlx::AssertSqlSafe(format!("KILL CONNECTION {connection_id}"))).execute(&mut *observer).await.unwrap();
                 }
                 let e=tokio::time::timeout(Duration::from_secs(10),f.as_mut()).await.unwrap().unwrap_err();
-                assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown);
+                assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert_eq!(e.public_view().state,Some(ViewState::OutcomeUnknown));
             } else if mode==1 {assert!(tokio::time::timeout(Duration::from_millis(1),f.as_mut()).await.is_err());}
             drop(f); assert!(!canceled.is_available());
             assert!(!trace.lock().unwrap().contains(&"commit")); assert!(!trace.lock().unwrap().contains(&"rolled_back"));
@@ -914,4 +932,95 @@ fn expiry_and_bounded_original_input_are_pure_and_exact() {
             );
         }
     }
+}
+
+#[test]
+fn public_result_and_atomic_failure_preserve_states_without_values() {
+    use serde_json::{Value as Json, json};
+    for (state, wire) in [
+        (ResultState::Observed, "observed"),
+        (ResultState::Uncommitted, "uncommitted"),
+        (ResultState::Committed, "committed"),
+    ] {
+        let r = ExecutionResult {
+            state,
+            rows: vec![vec![
+                Value::Text("CANARY_SQL_alias_tenant_subject_reason_source_/tmp/path".into()),
+                Value::Null(SqlType::Text),
+            ]],
+            count: Some(Value::I64(987654321)),
+            affected: Some(AffectedRows::MysqlFoundRows(987654321)),
+        };
+        let v = r.public_view();
+        assert_eq!(
+            serde_json::from_str::<Json>(&v.to_json()).unwrap(),
+            json!({"kind":"quent_result_view","version":1,"state":wire})
+        );
+        assert_eq!(v.to_json(), v.to_string());
+        assert!(!format!("{v:?} {v}").contains("CANARY"));
+    }
+    for (disposition, wire) in [
+        (AtomicDisposition::NotStarted, "not_started"),
+        (AtomicDisposition::RolledBack, "rolled_back"),
+        (AtomicDisposition::OutcomeUnknown, "outcome_unknown"),
+    ] {
+        let e = AtomicFailure {
+            cause: ExecutionError::Conflict,
+            disposition,
+        };
+        let v = e.public_view();
+        assert_eq!(
+            serde_json::from_str::<Json>(&v.to_json()).unwrap(),
+            json!({"kind":"quent_diagnostic_view","version":1,"code":"execution_conflict","state":wire})
+        );
+        assert!(std::error::Error::source(&v).is_none());
+        assert_eq!(v.to_json(), v.to_string());
+    }
+}
+
+#[test]
+fn complete_execution_diagnostic_register_matches_wire_codes() {
+    let mappings = [
+        (
+            ExecutionError::ContextMismatch,
+            "execution_context_mismatch",
+        ),
+        (
+            ExecutionError::OperationMismatch,
+            "execution_operation_mismatch",
+        ),
+        (ExecutionError::InvalidTtl, "execution_invalid_ttl"),
+        (ExecutionError::Expired, "execution_expired"),
+        (ExecutionError::MissingSubject, "execution_missing_subject"),
+        (ExecutionError::RiskRefused, "execution_risk_refused"),
+        (ExecutionError::Incomplete, "execution_incomplete"),
+        (ExecutionError::Unsupported, "execution_unsupported"),
+        (ExecutionError::Encode, "execution_encode"),
+        (ExecutionError::Connect, "execution_connect"),
+        (ExecutionError::ReadFailed, "execution_read_failed"),
+        (ExecutionError::Decode, "execution_decode"),
+        (ExecutionError::ResultLimit, "execution_result_limit"),
+        (ExecutionError::OutcomeUnknown, "execution_outcome_unknown"),
+        (
+            ExecutionError::SessionUnavailable,
+            "execution_session_unavailable",
+        ),
+        (
+            ExecutionError::ExpectationMismatch,
+            "execution_expectation_mismatch",
+        ),
+        (ExecutionError::Conflict, "execution_conflict"),
+    ];
+    for (e, wire) in mappings {
+        let v = e.public_view();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&v.to_json()).unwrap(),
+            serde_json::json!({"kind":"quent_diagnostic_view","version":1,"code":wire,"state":null})
+        );
+        assert!(std::error::Error::source(&v).is_none());
+    }
+    assert_eq!(
+        ExecutionError::Policy(PolicyError::InvalidPlan(PlanError::Missing)).public_view(),
+        PlanError::Missing.public_view()
+    );
 }

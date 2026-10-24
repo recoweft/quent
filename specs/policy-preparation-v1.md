@@ -175,3 +175,12 @@ from PR2 handles, PR3 Tx/atomicity and QT-AI-09 authorization responsibilities.
 context/session/deadline checks, ownership and async stage contract. This adds finite
 QT-C12/C13/C14 evidence through the same production dispatcher without changing
 Core planning, PR1 refusal/native gates or any full runtime_pending marker.
+
+## QT-AI-04 PR1 output boundary
+
+[Public views v1](public-views-v1.md) adds output-only finite projections of the
+current retained record/inspection/preparation and fixed errors/result states.
+Historical statements above deferring public views describe their named baseline.
+No public JSON or copied display classification is execution authority. Sensitive
+getters and the complete private gate remain unchanged; CLI/tracing/export remain
+with PR2/owning issues. All 24 full runtime_pending markers remain.

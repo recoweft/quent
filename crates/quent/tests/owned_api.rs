@@ -57,6 +57,63 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         "atomic/borrowed positive control: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let output = run(
+        "fn control(p:&quent_core::Plan,i:&quent_core::Inspection<'_>,p2:&quent_core::PolicyPreparation,e:quent_core::PlanError,x:quent::ExecutionError,r:&quent::ExecutionResult){let v=p.public_view();let _:quent_core::PlanView=i.public_view();let _=p2.public_view();let _:serde_json::Value=serde_json::from_str(&v.to_json()).unwrap();let _=e.public_view().to_string();let _=x.public_view();let _=r.public_view();}",
+    );
+    assert!(
+        output.status.success(),
+        "view control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // Cross every output representation with every authority carrier. E0277 is
+    // the missing conversion trait, not a missing type, import or method.
+    for output in [
+        "quent_core::PlanView",
+        "quent_core::DiagnosticView",
+        "String",
+        "serde_json::Value",
+        "quent::ResultView",
+    ] {
+        for authority in [
+            "Operation",
+            "quent_core::PolicyPreparation",
+            "DatabaseContext",
+            "ValidatedOperation",
+            "ValidatedAtomicOperation",
+        ] {
+            let result = run(&format!("fn f(v:{output}){{let _:{authority}=v.into();}}"));
+            let diagnostic = String::from_utf8_lossy(&result.stderr);
+            assert!(
+                !result.status.success() && diagnostic.contains("error[E0277]"),
+                "{output} -> {authority}: {diagnostic}"
+            );
+            assert!(!diagnostic.contains("E0432") && !diagnostic.contains("E0433"));
+        }
+    }
+    for body in [
+        "fn f(s:&mut PostgresSession,c:&DatabaseContext,v:quent_core::PlanView){let _=s.execute(c,v);}",
+        "fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,v:quent_core::PlanView){let _=s.execute_validated(c,o,v);}",
+        "fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,v:quent_core::DiagnosticView){let _=s.execute_atomic(c,o,ExpectedRows::exactly(1).unwrap(),v);}",
+    ] {
+        let result = run(body);
+        let diagnostic = String::from_utf8_lossy(&result.stderr);
+        assert!(
+            !result.status.success() && diagnostic.contains("error[E0308]"),
+            "{diagnostic}"
+        );
+    }
+    for body in [
+        "fn f(){let _:quent_core::PlanView=serde_json::from_str(\"{}\").unwrap();}",
+        "fn f(){let _:quent_core::DiagnosticView=serde_json::from_str(\"{}\").unwrap();}",
+        "fn f(e:&dyn std::error::Error){let _:quent_core::DiagnosticView=e.into();}",
+    ] {
+        let result = run(body);
+        let diagnostic = String::from_utf8_lossy(&result.stderr);
+        assert!(
+            !result.status.success() && diagnostic.contains("error[E0277]"),
+            "{diagnostic}"
+        );
+    }
     for (name, body, code) in [
         (
             "borrowed_atomic_execution",

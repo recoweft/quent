@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Quent output-only public views v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "precision",
+        "risk",
+        "scope",
+        "scope_upper_bound",
+        "completeness",
+        "assumptions",
+        "evidence",
+        "findings",
+        "family",
+        "projection",
+        "projection_count",
+        "write_count",
+        "order_count",
+        "returning_count",
+        "versioned",
+        "caller_missing_where",
+        "has_limit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_plan_view"
+        },
+        "version": {
+          "const": 1
+        },
+        "precision": {
+          "enum": [
+            "unevaluated",
+            "conditional_conservative",
+            "unknown"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "unevaluated",
+            "low",
+            "medium",
+            "high",
+            "destructive",
+            "blocked"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "zero",
+            "single",
+            "finite_bound",
+            "broad",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "scope_upper_bound": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "completeness": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        },
+        "assumptions": {
+          "enum": [
+            "none",
+            "application_asserted"
+          ]
+        },
+        "evidence": {
+          "enum": [
+            null,
+            "missing_facts",
+            "inconsistent_facts",
+            "unsupported_context",
+            "unsupported_key",
+            "analysis_budget",
+            "empty_truth_set",
+            "complete_key_tuples",
+            "unbounded_predicate",
+            "unsupported_predicate",
+            "no_predicate",
+            "insert_shape"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "missing_where",
+              "unknown_proof",
+              "bulk_write",
+              "weak_predicate",
+              "read_without_limit",
+              "read_projection",
+              "insert_unverified"
+            ]
+          }
+        },
+        "family": {
+          "enum": [
+            "select",
+            "count",
+            "insert",
+            "update",
+            "delete"
+          ]
+        },
+        "projection": {
+          "enum": [
+            "columns",
+            "count",
+            "none"
+          ]
+        },
+        "projection_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "write_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "order_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "returning_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "versioned": {
+          "type": "boolean"
+        },
+        "caller_missing_where": {
+          "type": "boolean"
+        },
+        "has_limit": {
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "code",
+        "state"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_diagnostic_view"
+        },
+        "version": {
+          "const": 1
+        },
+        "code": {
+          "enum": [
+            "plan_identifier",
+            "plan_shape",
+            "plan_type",
+            "plan_missing",
+            "plan_unsupported",
+            "plan_budget",
+            "context_identity",
+            "context_generation",
+            "context_binding",
+            "context_policy",
+            "context_type",
+            "context_unsupported",
+            "context_budget",
+            "policy_missing_schema",
+            "policy_identity",
+            "policy_coverage",
+            "policy_unsupported",
+            "policy_missing_tenant",
+            "policy_tenant_mismatch",
+            "policy_tenant_predicate",
+            "policy_tenant_write",
+            "policy_pii_access",
+            "policy_required_filter",
+            "policy_protected_write",
+            "policy_budget",
+            "execution_context_mismatch",
+            "execution_operation_mismatch",
+            "execution_invalid_ttl",
+            "execution_expired",
+            "execution_missing_subject",
+            "execution_risk_refused",
+            "execution_incomplete",
+            "execution_unsupported",
+            "execution_encode",
+            "execution_connect",
+            "execution_read_failed",
+            "execution_decode",
+            "execution_result_limit",
+            "execution_outcome_unknown",
+            "execution_session_unavailable",
+            "execution_expectation_mismatch",
+            "execution_conflict"
+          ]
+        },
+        "state": {
+          "enum": [
+            null,
+            "observed",
+            "uncommitted",
+            "committed",
+            "not_started",
+            "rolled_back",
+            "outcome_unknown"
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "state"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_result_view"
+        },
+        "version": {
+          "const": 1
+        },
+        "state": {
+          "enum": [
+            "observed",
+            "uncommitted",
+            "committed",
+            "not_started",
+            "rolled_back",
+            "outcome_unknown"
+          ]
+        }
+      }
+    }
+  ]
+}
