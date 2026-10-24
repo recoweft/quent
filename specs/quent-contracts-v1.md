@@ -239,3 +239,12 @@ remains ApplicationAsserted; Plan/inspect retain the same private finalized reco
 All full runtime_pending markers stay pending. Real executor/Tx binding and immediate
 pre-dispatch revalidation belong to QT-AI-03+, tenant/column enforcement to QT-AI-02
 PR2. No runtime dispatch/refusal/rollback or live database results are claimed.
+
+## QT-AI-04 PR1 output boundary
+
+[Public views v1](public-views-v1.md) adds output-only finite projections of the
+current retained record/inspection/preparation and fixed errors/result states.
+Historical statements above deferring public views describe their named baseline.
+No public JSON or copied display classification is execution authority. Sensitive
+getters and the complete private gate remain unchanged; CLI/tracing/export remain
+with PR2/owning issues. All 24 full runtime_pending markers remain.

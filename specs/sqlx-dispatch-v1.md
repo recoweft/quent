@@ -176,3 +176,12 @@ SQLx =0.9.0, Tokio =1.54.1, Rust1.94.0/edition2024/publish=false are unchanged.
 runs both DBs and fails on missing setup/config; DB-free all-feature CI explicitly
 uses `--skip live_`, never counts those exclusions as DB acceptance. Repository
 branch protection is separately administered; adding a CI job does not change it.
+
+## QT-AI-04 PR1 output boundary
+
+[Public views v1](public-views-v1.md) adds output-only finite projections of the
+current retained record/inspection/preparation and fixed errors/result states.
+Historical statements above deferring public views describe their named baseline.
+No public JSON or copied display classification is execution authority. Sensitive
+getters and the complete private gate remain unchanged; CLI/tracing/export remain
+with PR2/owning issues. All 24 full runtime_pending markers remain.

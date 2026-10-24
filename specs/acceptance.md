@@ -113,3 +113,12 @@ projection checks. Original 87 tests remain, with four Core IR tests added; the 
 harness has two compiling controls and 29 checked negative programs. This does not
 clear any of the 24 full runtime_pending markers or establish provider/command
 responsibilities. Local and hosted measurements are reported separately.
+
+## QT-AI-04 PR1 finite output evidence
+
+[Public view schema, registers, tests and remaining responsibilities](public-views-v1.md)
+records QT-C15 production output canaries/schema/restoration rejection, with
+C01/C08/C12/C13/C14/C16 supporting structural and live gate regression evidence.
+The existing fixture is unchanged: its exact/low expectations are documentary,
+not promoted to live/authorization claims. All 24 runtime_pending markers remain.
+CLI/tracing/SARIF/MCP and detailed export/Windows ACL are not covered by PR1.

@@ -743,3 +743,69 @@ mod mysql;
 pub use mysql::{BorrowedMysqlTransaction, MysqlSession};
 #[cfg(test)]
 mod tests;
+
+impl ExecutionError {
+    pub fn public_view(&self) -> DiagnosticView {
+        let code = match self {
+            Self::Policy(e) => return e.public_view(),
+            Self::ContextMismatch => DiagnosticCode::ExecutionContextMismatch,
+            Self::OperationMismatch => DiagnosticCode::ExecutionOperationMismatch,
+            Self::InvalidTtl => DiagnosticCode::ExecutionInvalidTtl,
+            Self::Expired => DiagnosticCode::ExecutionExpired,
+            Self::MissingSubject => DiagnosticCode::ExecutionMissingSubject,
+            Self::RiskRefused => DiagnosticCode::ExecutionRiskRefused,
+            Self::Incomplete => DiagnosticCode::ExecutionIncomplete,
+            Self::Unsupported => DiagnosticCode::ExecutionUnsupported,
+            Self::Encode => DiagnosticCode::ExecutionEncode,
+            Self::Connect => DiagnosticCode::ExecutionConnect,
+            Self::ReadFailed => DiagnosticCode::ExecutionReadFailed,
+            Self::Decode => DiagnosticCode::ExecutionDecode,
+            Self::ResultLimit => DiagnosticCode::ExecutionResultLimit,
+            Self::OutcomeUnknown => DiagnosticCode::ExecutionOutcomeUnknown,
+            Self::SessionUnavailable => DiagnosticCode::ExecutionSessionUnavailable,
+            Self::ExpectationMismatch => DiagnosticCode::ExecutionExpectationMismatch,
+            Self::Conflict => DiagnosticCode::ExecutionConflict,
+        };
+        DiagnosticView { code, state: None }
+    }
+}
+impl AtomicFailure {
+    pub fn public_view(&self) -> DiagnosticView {
+        let mut v = self.cause.public_view();
+        v.state = Some(match self.disposition {
+            AtomicDisposition::NotStarted => ViewState::NotStarted,
+            AtomicDisposition::RolledBack => ViewState::RolledBack,
+            AtomicDisposition::OutcomeUnknown => ViewState::OutcomeUnknown,
+        });
+        v
+    }
+}
+/// Output-only result state; contains no SQL result, COUNT value or affected rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResultView {
+    pub state: ViewState,
+}
+impl ResultView {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"kind\":\"quent_result_view\",\"version\":1,\"state\":\"{}\"}}",
+            self.state.code()
+        )
+    }
+}
+impl fmt::Display for ResultView {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_json())
+    }
+}
+impl ExecutionResult {
+    pub fn public_view(&self) -> ResultView {
+        ResultView {
+            state: match self.state {
+                ResultState::Observed => ViewState::Observed,
+                ResultState::Uncommitted => ViewState::Uncommitted,
+                ResultState::Committed => ViewState::Committed,
+            },
+        }
+    }
+}

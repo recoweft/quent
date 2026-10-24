@@ -202,3 +202,12 @@ exclusive expiry, exact connection binding and real server-observed cancellation
 `tests/owned_api.rs` checks actual compiler diagnostics with a successful control;
 this support recorder remains synthetic and is never substituted for DB evidence.
 Full fixture runtime_pending markers are unchanged.
+
+## QT-AI-04 PR1 finite output evidence
+
+[Public view schema, registers, tests and remaining responsibilities](../../../../specs/public-views-v1.md)
+records QT-C15 production output canaries/schema/restoration rejection, with
+C01/C08/C12/C13/C14/C16 supporting structural and live gate regression evidence.
+The existing fixture is unchanged: its exact/low expectations are documentary,
+not promoted to live/authorization claims. All 24 runtime_pending markers remain.
+CLI/tracing/SARIF/MCP and detailed export/Windows ACL are not covered by PR1.

@@ -2,13 +2,14 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: finite owned atomic results and borrowed transactions (QT-AI-03 planned PR3).**
+**Status: output-only public views (QT-AI-04 planned PR1), atop finite owned atomic execution.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
 Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/provider-free. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
 
+- [Public view schema, code register, information boundary and evidence](specs/public-views-v1.md)
 - [Owned atomic results, borrowed Tx boundaries and failure/guarantee tables](specs/atomic-results-v1.md)
 - [Consumed handles, exact current binding, expiry and cancellation stages](specs/owned-validation-v1.md)
 - [SQLx execution, Strict gate/refusals, native matrix and real DB test procedure](specs/sqlx-dispatch-v1.md)
@@ -92,3 +93,8 @@ cargo test --workspace --all-features --locked -- --skip live_
 Live tests fail without dedicated DB opt-in; they never silently pass on missing env.
 The required live-databases CI job runs them on both engines. Limited PR1 measurements
 are separate from the still-pending full case responsibilities; see the dispatch guide.
+
+Plan/Inspection/PolicyPreparation now expose finite `public_view()` copies and
+allowlist-only `to_json()`/Display. Raw Plans remain unevaluated/unknown. These
+outputs cannot restore execution authority; CLI/tracing/local exports remain future
+work. See the public view guide for precise conditional meanings and remaining work.
