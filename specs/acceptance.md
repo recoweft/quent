@@ -122,3 +122,16 @@ C01/C08/C12/C13/C14/C16 supporting structural and live gate regression evidence.
 The existing fixture is unchanged: its exact/low expectations are documentary,
 not promoted to live/authorization claims. All 24 runtime_pending markers remain.
 CLI/tracing/SARIF/MCP and detailed export/Windows ACL are not covered by PR1.
+
+## QT-AI-04 PR2 finite output integration
+
+[Output boundaries v1](output-boundaries-v1.md) inventories every current public
+surface and distinguishes application-local SensitiveSource export from public JSON,
+sealed tracing and the non-success CLI. QT-C15 adds actual source/newfile/typed-data,
+owner/mode, no-overwrite/race and refusal evidence. C01/C02/C08/C12–16 retain complete
+private gate/handle/atomic regression; display/export never supplies permission.
+Windows export is unsupported/fail-closed, not an ACL guarantee. Native CI protection
+primitive tests are isolated from the product CI refusal. MCP tools, SARIF/review/
+manifest parsers and remote application authentication remain owning-issue duties.
+All 24 full runtime_pending markers and original documentary fixture expectations
+remain unchanged. Local and hosted measurements are recorded separately.

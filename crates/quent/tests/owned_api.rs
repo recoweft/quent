@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -65,6 +65,54 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         "view control: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let output = run(
+        "fn control(p:&quent_core::Plan,i:&quent_core::Inspection<'_>,q:&quent_core::PolicyPreparation,path:&std::path::Path){use quent::local_details::*;let _=create_new(LocalOptIn::acknowledge_sensitive_local_file(),Surface::LocalApplication,path,p.sensitive_source());let _=create_new(LocalOptIn::acknowledge_sensitive_local_file(),Surface::LocalApplication,path,i.sensitive_source());let _=create_new(LocalOptIn::acknowledge_sensitive_local_file(),Surface::LocalApplication,path,q.sensitive_source().final_source());quent::output_tracing::emit(&p.public_view());}",
+    );
+    assert!(
+        output.status.success(),
+        "detail/trace control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (body, code) in [
+        ("fn f(s:String){quent::output_tracing::emit(&s);}", "E0277"),
+        (
+            "fn f(e:&dyn std::error::Error){quent::output_tracing::emit(&e);}",
+            "E0277",
+        ),
+        (
+            "fn f(h:ValidatedOperation){quent::output_tracing::emit(&h);}",
+            "E0277",
+        ),
+        (
+            "fn f(p:&quent_core::Plan,path:&std::path::Path){quent::local_details::create_new(true,quent::local_details::Surface::LocalApplication,path,p.sensitive_source());}",
+            "E0308",
+        ),
+        (
+            "fn f(p:quent_core::PlanView,path:&std::path::Path){use quent::local_details::*;create_new(LocalOptIn::acknowledge_sensitive_local_file(),Surface::LocalApplication,path,p);}",
+            "E0308",
+        ),
+    ] {
+        let r = run(body);
+        let d = String::from_utf8_lossy(&r.stderr);
+        assert!(
+            !r.status.success() && d.contains(&format!("error[{code}]")),
+            "{d}"
+        );
+    }
+    for authority in [
+        "Operation",
+        "DatabaseContext",
+        "quent_core::PolicyPreparation",
+        "ValidatedOperation",
+        "ValidatedAtomicOperation",
+        "String",
+    ] {
+        let r = run(&format!(
+            "fn f(v:quent::local_details::CreatedLocalDetail){{let _:{authority}=v.into();}}"
+        ));
+        let d = String::from_utf8_lossy(&r.stderr);
+        assert!(!r.status.success() && d.contains("error[E0277]"), "{d}");
+    }
     // Cross every output representation with every authority carrier. E0277 is
     // the missing conversion trait, not a missing type, import or method.
     for output in [

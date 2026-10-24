@@ -1,3 +1,6 @@
+#[cfg(feature = "output-tracing")]
+#[path = "../../tests/output_capture/mod.rs"]
+mod output_capture;
 async fn poll_once<F: std::future::Future>(
     mut f: std::pin::Pin<&mut F>,
 ) -> std::task::Poll<F::Output> {
@@ -228,6 +231,7 @@ macro_rules! atomic_cases {
         let op=make(1);
         // Public display mutation cannot change the private shared/atomic gate.
         let prep=c.prepare().prepare_operation(&op).unwrap();
+        #[cfg(all(feature="local-details",target_os="linux"))] export_does_not_change_gate(&prep);
         let mut public=prep.public_view(); public.risk=ViewRisk::Blocked;
         public.scope=Scope::Unknown; public.completeness=Completeness::Unknown;
         let _=public.to_json(); let _=format!("{public:?} {public}");
@@ -245,6 +249,7 @@ macro_rules! atomic_cases {
         let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
         let r=s.execute_atomic(c,&op,one,h).await.unwrap();
         assert_eq!(r.state(),ResultState::Committed);
+        #[cfg(feature="output-tracing")] output_capture::check(&r.public_view(),&r.public_view().to_json());
         let mut view=r.public_view(); assert_eq!(view.state,ViewState::Committed);
         view.state=ViewState::OutcomeUnknown; let _=view.to_json();
         assert_eq!(r.state(),ResultState::Committed);
@@ -369,6 +374,7 @@ macro_rules! atomic_cases {
             let h=faulted.validate_atomic(c,&op,expected,MAX_TTL).unwrap(); faulted.atomic_fault=Some(fault);
             let e=faulted.execute_atomic(c,&op,expected,h).await.unwrap_err();
             assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert_eq!(e.public_view().state,Some(ViewState::OutcomeUnknown)); assert!(!faulted.is_available());
+            #[cfg(feature="output-tracing")] output_capture::check(&e.public_view(),&e.public_view().to_json());
             assert!(std::error::Error::source(&e).is_none());
             assert_eq!(faulted.execute(c,op).await.unwrap_err(),ExecutionError::SessionUnavailable);
             assert!(faulted.recorder.calls.len()<=1);
@@ -773,6 +779,7 @@ macro_rules! live_suite {
                 assert_eq!(session.execute(&c,select(d).freeze()).await.unwrap_err(),ExecutionError::SessionUnavailable);
                 assert_eq!(session.recorder.calls.len(),n+1);
                 assert!(!format!("{session:?} {e:?} {e}").contains("canary_value"));
+                #[cfg(feature="output-tracing")] output_capture::check(&e.public_view(),&e.public_view().to_json());
                 assert!(std::error::Error::source(&e).is_none());
             })));
             // Cleanup executes even after an assertion panic. Container wrapper also
@@ -844,6 +851,8 @@ fn redacted_results_errors_and_limits() {
             cause: ExecutionError::Decode,
             disposition,
         };
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&e.public_view(), &e.public_view().to_json());
         assert!(std::error::Error::source(&e).is_none());
         assert!(!format!("{e:?} {e}").contains("CANARY"));
     }
@@ -853,6 +862,8 @@ fn redacted_results_errors_and_limits() {
         ExecutionError::Decode,
         ExecutionError::OutcomeUnknown,
     ] {
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&e.public_view(), &e.public_view().to_json());
         assert!(std::error::Error::source(&e).is_none());
         assert!(!format!("{e} {e:?}").contains("CANARY"));
     }
@@ -952,6 +963,8 @@ fn public_result_and_atomic_failure_preserve_states_without_values() {
             affected: Some(AffectedRows::MysqlFoundRows(987654321)),
         };
         let v = r.public_view();
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&v, &v.to_json());
         assert_eq!(
             serde_json::from_str::<Json>(&v.to_json()).unwrap(),
             json!({"kind":"quent_result_view","version":1,"state":wire})
@@ -969,6 +982,8 @@ fn public_result_and_atomic_failure_preserve_states_without_values() {
             disposition,
         };
         let v = e.public_view();
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&v, &v.to_json());
         assert_eq!(
             serde_json::from_str::<Json>(&v.to_json()).unwrap(),
             json!({"kind":"quent_diagnostic_view","version":1,"code":"execution_conflict","state":wire})
@@ -1013,6 +1028,8 @@ fn complete_execution_diagnostic_register_matches_wire_codes() {
     ];
     for (e, wire) in mappings {
         let v = e.public_view();
+        #[cfg(feature = "output-tracing")]
+        output_capture::check(&v, &v.to_json());
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&v.to_json()).unwrap(),
             serde_json::json!({"kind":"quent_diagnostic_view","version":1,"code":wire,"state":null})
@@ -1023,4 +1040,40 @@ fn complete_execution_diagnostic_register_matches_wire_codes() {
         ExecutionError::Policy(PolicyError::InvalidPlan(PlanError::Missing)).public_view(),
         PlanError::Missing.public_view()
     );
+}
+
+#[cfg(all(feature = "local-details", target_os = "linux"))]
+fn export_does_not_change_gate(prep: &PolicyPreparation) {
+    use crate::local_details::*;
+    use std::os::unix::fs::DirBuilderExt;
+    let dir = std::env::temp_dir().join(format!(
+        "quent-gate-export-{}-{:?}",
+        std::process::id(),
+        prep.sensitive_source().final_source().dialect()
+    ));
+    std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+    let _cleanup = Cleanup(dir.clone());
+    let path = dir.join("new");
+    let before = prep.public_view().to_json();
+    let r = create_new(
+        LocalOptIn::acknowledge_sensitive_local_file(),
+        Surface::LocalApplication,
+        &path,
+        prep.sensitive_source().final_source(),
+    );
+    if std::env::var_os("CI").is_some() || std::env::var_os("GITHUB_ACTIONS").is_some() {
+        assert_eq!(r.unwrap_err(), DetailError::EnvironmentDenied);
+        assert!(!path.exists());
+    } else {
+        r.unwrap();
+        let j: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(j["sql"] == prep.sensitive_source().final_source().sql());
+    }
+    assert_eq!(before, prep.public_view().to_json());
 }
