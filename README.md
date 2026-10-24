@@ -2,13 +2,14 @@
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: immediate Strict PostgreSQL/MySQL dispatch (QT-AI-03 planned PR1).**
+**Status: consumed validation and Strict PostgreSQL/MySQL dispatch (QT-AI-03 planned PR2).**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Transactions,
 models/codegen, manifests, review, migration, commands and MCP are future work.
 The CLI currently exits unsuccessfully with the fixed code `QUENT_NOT_IMPLEMENTED`.
-Plan/compile/inspect and the CLI contact no database/provider. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
+Plan/compile/inspect and the CLI contact no database/provider. Validation is DB/provider-free. Only explicit session connect/execute APIs perform I/O. No release or crates.io publication is provided.
 
+- [Consumed handles, exact current binding, expiry and cancellation stages](specs/owned-validation-v1.md)
 - [SQLx execution, Strict gate/refusals, native matrix and real DB test procedure](specs/sqlx-dispatch-v1.md)
 - [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
 - [Finite policy enforcement, support/refusal table and acceptance limits](specs/policy-preparation-v1.md)
@@ -76,7 +77,7 @@ limited DB-free evidence and remaining runtime/Tx/authorization responsibilities
 QT-AI-03 PR1 adds owned immediate sessions, the private shared dispatcher, finite
 native binding/decoding and redacted bounded results. The app supplies authenticated
 current context and authoritative database semantics; routing key equality does not
-authenticate a physical DB. No delayed handle/Tx/provider permit is implemented.
+authenticate a physical DB. PR2 adds consumed delayed handles with exact current-operation/context/session checks and an exclusive monotonic deadline. Tx/provider permits remain future work.
 
 Run both real DB acceptance suites against freshly created digest-pinned containers:
 

@@ -11,8 +11,15 @@ cleanup() {
   result=$?
   trap - EXIT
   for container in "${created[@]}"; do
+    # Observe only volumes owned by this run, never prune unrelated Docker data.
+    volume_names=$(docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$container") || result=1
     docker rm --force --volumes "$container" >/dev/null || result=1
+    if docker container inspect "$container" >/dev/null 2>&1; then result=1; fi
+    for volume in $volume_names; do
+      if docker volume inspect "$volume" >/dev/null 2>&1; then result=1; fi
+    done
   done
+  if (( result == 0 )); then echo 'Dedicated containers and their volumes removed and absence verified'; fi
   exit "$result"
 }
 trap cleanup EXIT
@@ -29,7 +36,7 @@ done
 if ! "$ready"; then echo 'Dedicated DB readiness failed (no skip)' >&2; exit 1; fi
 # Only these disposable DBs; the application/test role has no global privileges.
 docker exec "$pg_container" psql -v ON_ERROR_STOP=1 -U postgres -d quent_dispatch_test -c 'CREATE ROLE quent_test LOGIN; ALTER DATABASE quent_dispatch_test OWNER TO quent_test; CREATE SCHEMA quent_dispatch_test AUTHORIZATION quent_test;' >/dev/null
-docker exec "$my_container" mysql -e "CREATE USER 'quent_test'@'%' IDENTIFIED BY ''; GRANT ALL ON quent_dispatch_test.* TO 'quent_test'@'%';" >/dev/null
+docker exec "$my_container" mysql -e "CREATE USER 'quent_test'@'%' IDENTIFIED BY ''; GRANT ALL ON quent_dispatch_test.* TO 'quent_test'@'%'; GRANT SELECT ON performance_schema.data_lock_waits TO 'quent_test'@'%'; GRANT SELECT ON performance_schema.threads TO 'quent_test'@'%';" >/dev/null
 docker exec "$pg_container" psql -U postgres -d quent_dispatch_test -Atc "SELECT version(), current_setting('TimeZone'), current_setting('transaction_isolation'), current_setting('server_encoding'), datcollate FROM pg_database WHERE datname=current_database();"
 docker exec "$my_container" mysql -N -e 'SELECT VERSION(), @@sql_mode, @@time_zone, @@transaction_isolation, @@character_set_server, @@collation_server;'
 pg_port=$(docker port "$pg_container" 5432/tcp)
@@ -37,4 +44,4 @@ my_port=$(docker port "$my_container" 3306/tcp)
 export QUENT_TEST_DISPOSABLE=quent_dispatch_test
 export QUENT_TEST_POSTGRES_DSN="postgres://quent_test@${pg_port}/quent_dispatch_test"
 export QUENT_TEST_MYSQL_DSN="mysql://quent_test@${my_port}/quent_dispatch_test"
-if (( $# )); then "$@"; else cargo test -p quent --all-features --lib live_ --locked -- --test-threads=1; fi
+if (( $# )); then timeout 240s "$@"; else timeout 240s cargo test -p quent --all-features --lib live_ --locked -- --test-threads=1 --nocapture; fi

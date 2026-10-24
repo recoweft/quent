@@ -1,3 +1,8 @@
+async fn poll_once<F: std::future::Future>(
+    mut f: std::pin::Pin<&mut F>,
+) -> std::task::Poll<F::Output> {
+    std::future::poll_fn(|cx| std::task::Poll::Ready(f.as_mut().poll(cx))).await
+}
 use super::*;
 fn id(s: &str) -> Ident {
     Ident::new(s).unwrap()
@@ -45,9 +50,28 @@ fn fields(d: Dialect) -> Vec<Column> {
     cs
 }
 fn context(d: Dialect, t: i64, subject: &str, extras: Vec<PolicyDeclaration>) -> DatabaseContext {
+    context_variant(d, t, subject, extras, 0)
+}
+fn context_variant(
+    d: Dialect,
+    t: i64,
+    subject: &str,
+    extras: Vec<PolicyDeclaration>,
+    variant: u8,
+) -> DatabaseContext {
     let binding = DatabaseBinding::application_supplied(
-        DatabaseIdentity::new("dedicated_test").unwrap(),
-        TargetAddress::new("dedicated_loopback").unwrap(),
+        DatabaseIdentity::new(if variant == 1 {
+            "other_db"
+        } else {
+            "dedicated_test"
+        })
+        .unwrap(),
+        TargetAddress::new(if variant == 2 {
+            "other_route"
+        } else {
+            "dedicated_loopback"
+        })
+        .unwrap(),
         id("quent_dispatch_test"),
         d,
     );
@@ -55,7 +79,13 @@ fn context(d: Dialect, t: i64, subject: &str, extras: Vec<PolicyDeclaration>) ->
     let facts = ScopeFacts::application_asserted(
         table(),
         d,
-        fields(d),
+        {
+            let mut cs = fields(d);
+            if variant == 3 {
+                cs.reverse();
+            }
+            cs
+        },
         vec![Key::Primary(vec![tenant(), key()])],
         TableContext::OrdinaryBaseTableWithoutEffects,
     )
@@ -65,12 +95,30 @@ fn context(d: Dialect, t: i64, subject: &str, extras: Vec<PolicyDeclaration>) ->
     DatabaseContext::new(
         Settings::new(
             binding.clone(),
-            SettingsIdentity::new("settings").unwrap(),
-            g,
+            SettingsIdentity::new(if variant == 4 {
+                "other_settings"
+            } else {
+                "settings"
+            })
+            .unwrap(),
+            if variant == 5 {
+                Generation::new(2).unwrap()
+            } else {
+                g
+            },
             PolicySet::new(
                 binding.clone(),
-                PolicyIdentity::new("policy").unwrap(),
-                g,
+                PolicyIdentity::new(if variant == 6 {
+                    "other_policy"
+                } else {
+                    "policy"
+                })
+                .unwrap(),
+                if variant == 7 {
+                    Generation::new(2).unwrap()
+                } else {
+                    g
+                },
                 policies,
             )
             .unwrap(),
@@ -81,8 +129,17 @@ fn context(d: Dialect, t: i64, subject: &str, extras: Vec<PolicyDeclaration>) ->
             Some(
                 SchemaSnapshot::application_supplied(
                     binding.clone(),
-                    SchemaIdentity::new("schema").unwrap(),
-                    g,
+                    SchemaIdentity::new(if variant == 8 {
+                        "other_schema"
+                    } else {
+                        "schema"
+                    })
+                    .unwrap(),
+                    if variant == 9 {
+                        Generation::new(2).unwrap()
+                    } else {
+                        g
+                    },
                     vec![facts],
                 )
                 .unwrap(),
@@ -166,6 +223,137 @@ macro_rules! live_suite {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||runtime.block_on(async {
                 let d = $dialect; let c = context(d,11,"subject",vec![]);
                 let mut session = $session::connect(options.clone(),c.clone()).await.unwrap();
+                // PR2 uses the real production dispatcher, separate finite recorder.
+                let mut delayed = $session::connect(options.clone(), c.clone()).await.unwrap();
+                let op = select(d).filter(filter(1)).freeze();
+                for ttl in [Duration::ZERO, MAX_TTL + Duration::from_nanos(1), Duration::MAX] {
+                    assert_eq!(delayed.validate(&c, &op, ttl).unwrap_err(), ExecutionError::InvalidTtl);
+                }
+                let h = delayed.validate(&c, &op, MAX_TTL).unwrap();
+                assert_eq!(format!("{h:?}"), "ValidatedOperation([REDACTED])");
+                drop(delayed.execute_validated(&c, &op, h));
+                assert!(delayed.recorder.calls.is_empty());
+                let mut mutations = vec![
+                    select(d).filter(filter(2)).freeze(),
+                    select(d).filter(Predicate::And(vec![filter(1)])).freeze(),
+                    select(d).filter(eq(col("id",SqlType::I32,false),Value::I32(1))).freeze(),
+                    select(d).filter(eq(key(),Value::Null(SqlType::I64))).freeze(),
+                    select(d).filter(filter(1)).limit(1).freeze(),
+                    select(d).filter(filter(1)).order(vec![Order{column:key(),direction:Direction::Desc}]).freeze(),
+                    Draft::select(table(),vec![Projection::new(key(),None)]).filter(filter(1)).freeze(),
+                    Draft::update(table(),vec![(changed(),Input::Missing)]).filter(filter(1)).freeze(),
+                    Draft::delete(table()).filter(filter(1)).freeze(),
+                    select(d).filter(Predicate::And(vec![filter(1);257])).freeze(),
+                ];
+                let mut deep=filter(1); for _ in 0..18 { deep=Predicate::Not(Box::new(deep)); }
+                mutations.push(select(d).filter(deep).freeze());
+                for changed in mutations {
+                    let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                    assert_eq!(delayed.execute_validated(&c,&changed,h).await.unwrap_err(),ExecutionError::OperationMismatch);
+                }
+                let write_original=Draft::update(table(),vec![(changed(),Input::Value(Value::Text("original".into()))),(col("normal",SqlType::I32,true),Input::Value(Value::I32(1)))]).filter(filter(1)).freeze();
+                for pairs in [
+                    vec![(changed(),Input::Value(Value::Text("different".into()))),(col("normal",SqlType::I32,true),Input::Value(Value::I32(1)))],
+                    vec![(col("normal",SqlType::I32,true),Input::Value(Value::I32(1))),(changed(),Input::Value(Value::Text("original".into())))],
+                    vec![(changed(),Input::Missing)], vec![(changed(),Input::Value(Value::Null(SqlType::Text)))]
+                ] {
+                    let h=delayed.validate(&c,&write_original,MAX_TTL).unwrap();
+                    let changed_write=Draft::update(table(),pairs).filter(filter(1)).freeze();
+                    assert_eq!(delayed.execute_validated(&c,&changed_write,h).await.unwrap_err(),ExecutionError::OperationMismatch);
+                }
+                for current in (1..=9).map(|v|context_variant(d,11,"subject",vec![],v)).chain([
+                    context(d,22,"subject",vec![]), context(d,11,"other",vec![]),
+                    context(d,11,"subject",vec![PolicyDeclaration::Readonly(changed())]),
+                    context(if d==Dialect::Postgres {Dialect::Mysql} else {Dialect::Postgres},11,"subject",vec![])
+                ]) {
+                    let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                    assert_eq!(delayed.execute_validated(&current,&op,h).await.unwrap_err(),ExecutionError::ContextMismatch);
+                }
+                let mut other=$session::connect(options.clone(),c.clone()).await.unwrap();
+                let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                assert_eq!(other.execute_validated(&c,&op,h).await.unwrap_err(),ExecutionError::ContextMismatch);
+                assert!(other.recorder.calls.is_empty());
+                drop(other);
+                let mut reconnected=$session::connect(options.clone(),c.clone()).await.unwrap();
+                let original=$session::connect(options.clone(),c.clone()).await.unwrap();
+                let h=original.validate(&c,&op,MAX_TTL).unwrap();
+                drop(original);
+                assert_eq!(reconnected.execute_validated(&c,&op,h).await.unwrap_err(),ExecutionError::ContextMismatch);
+                assert!(reconnected.recorder.calls.is_empty());
+                let mut expired=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                expired.expires=Instant::now(); // test-only expired-before-entry case
+                assert_eq!(delayed.execute_validated(&c,&op,expired).await.unwrap_err(),ExecutionError::Expired);
+                // First gate passes in real time; a test-only finite barrier at the
+                // actual final gate deterministically advances to exclusive expiry.
+                for offset in [0,1] {
+                    let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                    delayed.final_now=Some(h.expires+Duration::from_nanos(offset));
+                    let barrier=Arc::new(tokio::sync::Notify::new());
+                    delayed.final_barrier=Some(barrier.clone());
+                    let mut f=Box::pin(delayed.execute_validated(&c,&op,h));
+                    assert!(poll_once(f.as_mut()).await.is_pending());
+                    barrier.notify_one();
+                    assert_eq!(f.await.unwrap_err(),ExecutionError::Expired);
+                }
+                // Polled cancellation BEFORE final gate preserves session availability.
+                let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                delayed.final_barrier=Some(Arc::new(tokio::sync::Notify::new()));
+                let mut f=Box::pin(delayed.execute_validated(&c,&op,h));
+                assert!(poll_once(f.as_mut()).await.is_pending()); drop(f);
+                assert!(delayed.recorder.calls.is_empty());
+                let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                delayed.final_now=Some(h.expires-Duration::from_nanos(1));
+                delayed.execute_validated(&c,&op,h).await.unwrap();
+                assert_eq!(delayed.recorder.calls.len(),1);
+                // Exact original record is retained rather than rendered again.
+                let h=delayed.validate(&c,&op,MAX_TTL).unwrap();
+                let source=h.prepared.sensitive_source(); let final_source=source.final_source();
+                let expected=(final_source.sql().to_owned(), final_source.args().to_vec());
+                delayed.execute_validated(&c,&op,h).await.unwrap();
+                assert_eq!(delayed.recorder.calls[1],expected);
+                for refused in [Draft::delete(table()).freeze(),Draft::delete(table()).filter(eq(tenant(),Value::I64(11))).freeze(),select(d).filter(Predicate::Not(Box::new(filter(1)))).freeze()] {
+                    assert!(delayed.validate(&c,&refused,MAX_TTL).is_err());
+                }
+                assert_eq!(delayed.recorder.calls.len(),2);
+                // Dedicated lock setup is not a business dispatch. Observe the
+                // server waiting before dropping/timing out the real send future.
+                for timeout in [false,true] {
+                    let mut locker=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+                    let mut observer=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+                    let mut tx=locker.begin().await.unwrap();
+                    sqlx::query("UPDATE quent_dispatch_test.items SET txt=txt WHERE tenant=11 AND id=1").execute(&mut *tx).await.unwrap();
+                    let mut canceled=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let connection_id=canceled.test_connection_id().await;
+                    let op=Draft::update(table(),write(Value::Text("canceled_attempt".into()),changed())).filter(filter(1)).freeze();
+                    let h=canceled.validate(&c,&op,MAX_TTL).unwrap();
+                    let mut f=Box::pin(canceled.execute_validated(&c,&op,h));
+                    let waiting=if d==Dialect::Postgres {
+                        "SELECT COUNT(*) FROM pg_stat_activity WHERE pid=$1 AND usename=current_user AND wait_event_type='Lock' AND query LIKE 'UPDATE %'"
+                    } else { "SELECT COUNT(*) FROM performance_schema.data_lock_waits w JOIN performance_schema.threads t ON t.THREAD_ID=w.REQUESTING_THREAD_ID WHERE t.PROCESSLIST_ID=?" };
+                    tokio::time::timeout(Duration::from_secs(10),async {
+                        loop {
+                            assert!(poll_once(f.as_mut()).await.is_pending());
+                            let row=sqlx::query(sqlx::AssertSqlSafe(waiting.to_owned())).bind(connection_id).fetch_one(&mut observer).await.unwrap();
+                            if row.get::<i64,_>(0)>0 {break;}
+                            tokio::task::yield_now().await;
+                        }
+                    }).await.expect("business UPDATE was not observed waiting on dedicated row lock");
+                    if timeout {
+                        assert!(tokio::time::timeout(Duration::from_millis(1),f.as_mut()).await.is_err());
+                    }
+                    drop(f);
+                    assert_eq!(canceled.recorder.calls.len(),1);
+                    assert_eq!(canceled.execute(&c,select(d).freeze()).await.unwrap_err(),ExecutionError::SessionUnavailable);
+                    assert_eq!(canceled.recorder.calls.len(),1);
+                    // Cancellation returns no Result and makes no rollback promise.
+                    drop(canceled);
+                    tx.rollback().await.unwrap(); // only the explicit SET txt=txt setup
+                    println!("PR2 {:?}: server lock wait observed; {} consumed one dispatch; session unavailable; business write outcome unconfirmed",d,if timeout {"timeout"} else {"drop"});
+                }
+                // Reset only dedicated setup data; no rollback inference about cancel.
+                let mut reset=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+                sqlx::query("UPDATE quent_dispatch_test.items SET txt='' WHERE tenant=11 AND id=1").execute(&mut reset).await.unwrap();
+                println!("PR2 {:?}: delayed exact sends=2; mismatch/expiry/unpolled/pre-send cancel sends=0",d);
                 // Positive projection, signed extrema/zero/false/empty/typed NULL.
                 let r = session.execute(&c,select(d).filter(filter(1)).freeze()).await.unwrap();
                 assert_eq!(r.sensitive_rows().len(),1);
@@ -295,8 +483,12 @@ macro_rules! live_suite {
                 let mut failed_write=$session::connect(options.clone(),c.clone()).await.unwrap();
                 // Type mismatch fails redacted; no success truncation of results.
                 let bad=select(d).filter(filter(1)).freeze();
+                let write_op=Draft::update(table(),write(Value::Text("x".into()),changed())).filter(filter(1)).freeze();
+                let failed_handle=failed_write.validate(&c,&write_op,MAX_TTL).unwrap();
+                let subsequent=failed_write.validate(&c,&write_op,MAX_TTL).unwrap();
                 sqlx::query("DROP TABLE quent_dispatch_test.items").execute(&mut observer).await.unwrap();
-                assert_eq!(failed_write.execute(&c,Draft::update(table(),write(Value::Text("x".into()),changed())).filter(filter(1)).freeze()).await.unwrap_err(),ExecutionError::OutcomeUnknown);
+                assert_eq!(failed_write.execute_validated(&c,&write_op,failed_handle).await.unwrap_err(),ExecutionError::OutcomeUnknown);
+                assert_eq!(failed_write.execute_validated(&c,&write_op,subsequent).await.unwrap_err(),ExecutionError::SessionUnavailable);
                 assert_eq!(failed_write.recorder.calls.len(),1);
                 let n=session.recorder.calls.len();
                 let e=session.execute(&c,bad).await.unwrap_err();
@@ -361,4 +553,75 @@ fn redacted_results_errors_and_limits() {
         check_result_size(r.sensitive_rows()[0].as_slice(), &mut used).unwrap_err(),
         ExecutionError::ResultLimit
     );
+}
+
+#[test]
+fn expiry_and_bounded_original_input_are_pure_and_exact() {
+    let now = Instant::now();
+    for ttl in [
+        Duration::ZERO,
+        MAX_TTL + Duration::from_nanos(1),
+        Duration::MAX,
+    ] {
+        assert_eq!(deadline(now, ttl), Err(ExecutionError::InvalidTtl));
+    }
+    assert_eq!(deadline(now, MAX_TTL).unwrap(), now + MAX_TTL);
+    for d in [Dialect::Postgres, Dialect::Mysql] {
+        let c = context(d, 11, "subject", vec![]);
+        let op = select(d).filter(filter(1)).freeze();
+        let identity = Arc::new(());
+        let h = ValidatedOperation {
+            prepared: prepare(&c, &c, &op, d).unwrap(),
+            session: identity.clone(),
+            expires: now,
+        };
+        assert!(check_expiry(&h, now - Duration::from_nanos(1)).is_ok());
+        assert_eq!(check_expiry(&h, now), Err(ExecutionError::Expired));
+        assert_eq!(
+            check_expiry(&h, now + Duration::from_nanos(1)),
+            Err(ExecutionError::Expired)
+        );
+        assert!(recheck(&h, &identity, &c, &c, &op).is_ok());
+        let gigantic = select(d)
+            .filter(Predicate::And(vec![filter(1); 1025]))
+            .freeze();
+        assert_eq!(
+            recheck(&h, &identity, &c, &c, &gigantic),
+            Err(ExecutionError::OperationMismatch)
+        );
+        let write_op = Draft::update(
+            table(),
+            vec![
+                (changed(), Input::Value(Value::Text("secret".into()))),
+                (
+                    col("normal", SqlType::I32, true),
+                    Input::Value(Value::I32(1)),
+                ),
+            ],
+        )
+        .filter(filter(1))
+        .freeze();
+        let write_h = ValidatedOperation {
+            prepared: prepare(&c, &c, &write_op, d).unwrap(),
+            session: identity.clone(),
+            expires: now,
+        };
+        for inputs in [
+            vec![
+                (
+                    col("normal", SqlType::I32, true),
+                    Input::Value(Value::I32(1)),
+                ),
+                (changed(), Input::Value(Value::Text("secret".into()))),
+            ],
+            vec![(changed(), Input::Missing)],
+            vec![(changed(), Input::Value(Value::Null(SqlType::Text)))],
+        ] {
+            let different = Draft::update(table(), inputs).filter(filter(1)).freeze();
+            assert_eq!(
+                recheck(&write_h, &identity, &c, &c, &different),
+                Err(ExecutionError::OperationMismatch)
+            );
+        }
+    }
 }

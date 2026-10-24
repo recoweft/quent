@@ -154,3 +154,10 @@ the absence of execution. Raw Plan/source/preparation remain non-executable inpu
 INSERT remains InsertUnverified/High and is refused without a provider. All full
 runtime_pending markers remain: limited live PR1 evidence is recorded separately
 from PR2 handles, PR3 Tx/atomicity and QT-AI-09 authorization responsibilities.
+
+## QT-AI-03 PR2 boundary
+
+[Consumed validation](owned-validation-v1.md) records the current exact-operation/
+context/session/deadline checks, ownership and async stage contract. This adds finite
+QT-C12/C13/C14 evidence through the same production dispatcher without changing
+Core planning, PR1 refusal/native gates or any full runtime_pending marker.

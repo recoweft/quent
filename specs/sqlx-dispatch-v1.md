@@ -1,3 +1,7 @@
+Current PR2 behavior: [consumed validation, current input/session binding, expiry
+and cancellation stages](owned-validation-v1.md). The PR1 baseline below remains
+historical where it defers delayed handles; its finite gate/native matrix is preserved.
+
 # QT-AI-03 planned PR1: immediate SQLx dispatch
 
 Only `PostgresSession` (`postgres,runtime-tokio`) and `MysqlSession`
