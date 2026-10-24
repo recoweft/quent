@@ -161,3 +161,11 @@ reader matrix for supported defaults/privileges and PG/MySQL snapshot difference
 Existing CRUD/validated/atomic gates are unchanged. All 24 full runtime_pending
 markers remain. Only actually executed commands and measured subcases in the PR
 and execution report are evidence; the fixture expectations are unchanged.
+
+Revision 2 C24/C15 input-boundary evidence adds real product subprocess tests for
+writerless Unix FIFO in all three verify inputs, special-file/final-symlink refusal,
+opened-file replacement races, exact byte limits and a detecting TCP positive
+control for config rejection before connect. Five-second watchdogs kill/wait and
+fail on hangs. Unix NONBLOCK is a FIFO-open guarantee, not an OS/filesystem deadline.
+Windows file regressions run in hosted CI; Unix FIFO and local WSL evidence do not
+establish Windows live support. No full runtime_pending marker is cleared.

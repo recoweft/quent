@@ -178,6 +178,32 @@ quent-cli manifest verify --live SOURCE CONNECTION_CONFIG
 Exactly these positional arguments; unknown/extra/missing arguments refuse before
 file reads. Source files are regular files, <=65,536 bytes, strict production
 ManifestSource parser, finite read of max+1 bytes. Paths <=4096 encoded bytes.
+All three input positions share the same opened-handle regular-file check before
+reading. Unix uses pinned optional rustix 1.1.4 with RDONLY | NONBLOCK | NOFOLLOW |
+CLOEXEC: a writerless FIFO opens nonblocking and is immediately rejected as
+QUENT_VERIFY_INVALID (2), without any writer or read. Directories/devices also
+refuse. A final-component symlink refuses with QUENT_VERIFY_IO (8); intermediate
+symlinks may resolve, but only the actual opened regular file is read. An atomic
+path replacement after open cannot replace that descriptor. This is not a promise
+that the path continues to name the same object, that file contents cannot change
+in place, or that the selected file is authenticated. Concurrent regular-file
+writes may yield a bounded parse failure or a valid captured input, not a snapshot.
+Windows opens the final reparse point itself (FILE_FLAG_OPEN_REPARSE_POINT), rejects
+reparse/device attributes and requires regular-file metadata on that same handle.
+Directory/open/metadata failures use fixed Invalid/IO diagnostics. Windows ordinary
+file paths retain support; Windows live behavior and special-device behavior need
+separate measurement, and Unix FIFO tests are Unix-only. Other OSes refuse with
+Unsupported (4). This does not change Windows local-details UnsupportedOs.
+The Unix dependency is target-isolated and enabled only by CLI manifest; Core,
+default CLI and manifest-only driver/runtime boundaries remain unchanged.
+
+These are byte/structure budgets, **not OS open/read timeouts**. NONBLOCK explicitly
+fixes writerless Unix FIFO open; it does not bound kernel/filesystem faults, regular
+file I/O stalls or network filesystem response time. DB timeouts start later and
+are not input I/O deadlines. Source/config errors never format the input path,
+contents or OS error. Parent file validation finishes before spawning a live
+worker; no connection/query can start on a rejected input.
+
 Offline opens only the two explicitly named source files and never connects.
 Offline success means complete supported schema, Complete finite source coverage
 for every other present artifact, and full exact source canonical equality, labelled OfflineConsistent with live Unverified; it verifies no code,
@@ -303,3 +329,28 @@ CARGO_PROFILE_DEV_DEBUG=0 and CARGO_PROFILE_TEST_DEBUG=0. No host/network/global
 setting or dependency pin was changed to force a pass. Hosted Ubuntu/Windows and
 same-head CI results are separate evidence recorded in the PR/execution report;
 local Windows/live TLS/physical identity/concurrent-DDL guarantees remain unverified.
+
+### Revision 2 input-boundary regression
+
+The product subprocess suite now covers writerless FIFO in SOURCE, offline
+COMPARISON and (with driver/runtime) live CONNECTION_CONFIG, directory/device
+refusal, final symlink refusal, atomic replacement among regular/FIFO/symlink,
+ordinary files and exact 65,536/8,192-byte limits with max+1 rejection. Every CLI
+subprocess has a five-second watchdog that kills and reaps a hung child and fails;
+no FIFO writer is used. A DB-free PostgreSQL TCP listener positive control detects
+a real connect from a valid 8KiB config, followed by a handshake timeout; the same
+listener sees no connect for oversized/FIFO configs. Fixed empty stdout and exact
+safe stderr are checked for refusals. This is input-boundary evidence, not a new
+catalog, Windows live, filesystem-wide timeout or physical-server guarantee.
+Revision-specific command results and CI belong to the PR/execution report; the
+prior-head measurements above are historical and are not reused as new-head CI.
+
+WSL Ubuntu revision-2 full regression passed 135 tests (131 retained + four new
+Unix/input-boundary tests), zero failed/ignored/filtered, on new dedicated pinned
+PostgreSQL/MySQL databases; container and anonymous-volume absence was checked.
+The old blocking-open mutation was also measured: its FIFO subprocess hit the
+five-second watchdog, was killed/reaped, and failed as expected; restored code
+passes. Development-only failures included sandbox loopback bind denial, correcting
+the detecting control's timeout expectation to Stale/6, and an overlapping cargo
+build replacing the CLI binary during a test run. The final full run was sequential
+and passed; no such failed run is presented as acceptance evidence.

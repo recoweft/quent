@@ -11,7 +11,10 @@ Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unk
 models/codegen, review, migration, commands and MCP are future work.
 CLI `manifest verify --offline SOURCE COMPARISON` is DB-free; `--live SOURCE CONFIG`
 explicitly runs a bounded read-only catalog observation with optional driver/runtime
-features. Other CLI routes retain fixed non-success refusal.
+features. Inputs must be explicitly named regular files; Unix FIFO inputs refuse
+without waiting for a writer. Opened-handle checks and byte limits do not guarantee
+OS/filesystem I/O deadlines; see the verification specification for symlink and OS
+conditions. Other CLI routes retain fixed non-success refusal.
 Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
 connect/execute and dedicated catalog-reader APIs perform I/O. No release or crates.io publication is provided.
 
