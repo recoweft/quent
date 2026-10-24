@@ -137,3 +137,14 @@ primitive tests are isolated from the product CI refusal. MCP tools, SARIF/revie
 manifest parsers and remote application authentication remain owning-issue duties.
 All 24 full runtime_pending markers and original documentary fixture expectations
 remain unchanged. Local and hosted measurements are recorded separately.
+
+## QT-AI-05 planned PR1 manifest boundary
+
+[Manifest source v1](schema-manifest-v1.md) adds optional DB-free finite source/wire,
+independent domain canonical/fingerprint and offline evidence. C19/C24 have bounded
+production API positive/negative evidence, with C01/C07/C08/C12/C15 boundary coverage.
+Source parsing/equality never supplies live catalog/authorization or trusted facts;
+existing Strict/context/validated/atomic gates remain unchanged. Full runtime_pending
+stays on all 24 fixture cases. PR2 owns explicit live catalog, drift and CLI verify;
+codegen and business authority remain with their owning Issues. Measured commands,
+exact head and CI/DB regressions are recorded in the execution/PR report.

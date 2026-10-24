@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -73,6 +73,50 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         "detail/trace control: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let output = run(
+        "fn control(bytes:&[u8]) { use quent::manifest::*; let s=ManifestSource::parse(bytes).unwrap(); let _:ManifestSummary=s.public_view(); let source=s.sensitive_source(); let _=source.canonical_source(); let _=source.fingerprint(ArtifactKind::Schema); let _=s.compare_offline(&s).public_view().to_json(); }",
+    );
+    assert!(
+        output.status.success(),
+        "manifest control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for carrier in [
+        "quent::manifest::ManifestSource",
+        "quent::manifest::SensitiveManifestSource<'_>",
+        "quent::manifest::ManifestSummary",
+        "quent::manifest::Fingerprint",
+        "quent::manifest::OfflineComparison",
+    ] {
+        for authority in [
+            "quent_core::ApplicationContext",
+            "quent_core::SchemaSnapshot",
+            "DatabaseContext",
+            "ValidatedOperation",
+            "ValidatedAtomicOperation",
+        ] {
+            let r = run(&format!("fn f(v:{carrier}){{let _:{authority}=v.into();}}"));
+            let d = String::from_utf8_lossy(&r.stderr);
+            assert!(
+                !r.status.success() && d.contains("error[E0277]"),
+                "{carrier} -> {authority}: {d}"
+            );
+            assert!(!d.contains("E0432") && !d.contains("E0433"));
+        }
+    }
+    for body in [
+        "fn f(){let _:quent::manifest::ManifestSource=serde_json::from_str(\"{}\").unwrap();}",
+        "fn f(){let _:quent::manifest::ManifestSummary=serde_json::from_str(\"{}\").unwrap();}",
+        "fn f(s:quent::manifest::ManifestSource){quent::output_tracing::emit(&s);}",
+    ] {
+        let r = run(body);
+        let d = String::from_utf8_lossy(&r.stderr);
+        assert!(!r.status.success() && d.contains("error[E0277]"), "{d}");
+    }
+    let r = run(
+        "fn f(s:quent::manifest::ManifestSource,path:&std::path::Path){use quent::local_details::*;let _=create_new(LocalOptIn::acknowledge_sensitive_local_file(),Surface::LocalApplication,path,s.sensitive_source());}",
+    );
+    assert!(!r.status.success() && String::from_utf8_lossy(&r.stderr).contains("error[E0308]"));
     for (body, code) in [
         ("fn f(s:String){quent::output_tracing::emit(&s);}", "E0277"),
         (

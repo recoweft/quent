@@ -219,3 +219,9 @@ The standard tracing log-compat fallback is suppressed by the scoped dispatcher;
 no global log max-level/logger configuration is changed. Known direct SQLx MySQL
 cleartext-password warnings are fixed driver text, not SQL/credentials; they are not
 Quent public summary events. Real TLS/certificate-diagnostic behavior remains unverified.
+
+QT-AI-05 PR1 adds a separate optional production `manifest` source parser and
+output-only `quent_manifest_summary` kind; see [manifest v1](schema-manifest-v1.md).
+Earlier no-parser statements above describe QT-AI-04. Source parsing is never
+public-view deserialization or authority restoration. No tracing or detail exporter
+accepts the new sensitive carrier; CLI manifest remains unsupported.
