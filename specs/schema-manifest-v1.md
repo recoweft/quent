@@ -1,3 +1,6 @@
+Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](manifest-verify-v1.md).
+Earlier PR-specific absence statements below describe their historical baseline.
+
 # QT-AI-05 planned PR1: DB-free manifest source v1
 
 `quent/manifest` is an optional, driver/runtime-free feature. `ManifestSource::parse`

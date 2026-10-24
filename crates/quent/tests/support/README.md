@@ -1,3 +1,6 @@
+Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](../../../../specs/manifest-verify-v1.md).
+Earlier PR-specific absence statements below describe their historical baseline.
+
 # Contract fixture and recorder support (test-only)
 
 `cargo test -p quent --test contracts --locked` runs the source validator,

@@ -23,6 +23,11 @@ impl std::error::Error for ManifestError {}
 macro_rules! redacted { ($($t:ty),+) => {$ (impl fmt::Debug for $t {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(concat!(stringify!($t), "([REDACTED])")) }
 })+}; }
+#[cfg(all(
+    feature = "runtime-tokio",
+    any(feature = "postgres", feature = "mysql")
+))]
+pub mod live;
 /// Independent domain/version, never a schema-only digest for every artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArtifactKind {

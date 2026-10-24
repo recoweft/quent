@@ -10,16 +10,17 @@ created=()
 cleanup() {
   result=$?
   trap - EXIT
+  cleanup_result=0
   for container in "${created[@]}"; do
     # Observe only volumes owned by this run, never prune unrelated Docker data.
-    volume_names=$(docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$container") || result=1
-    docker rm --force --volumes "$container" >/dev/null || result=1
-    if docker container inspect "$container" >/dev/null 2>&1; then result=1; fi
+    volume_names=$(docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$container") || { result=1; cleanup_result=1; }
+    docker rm --force --volumes "$container" >/dev/null || { result=1; cleanup_result=1; }
+    if docker container inspect "$container" >/dev/null 2>&1; then result=1; cleanup_result=1; fi
     for volume in $volume_names; do
-      if docker volume inspect "$volume" >/dev/null 2>&1; then result=1; fi
+      if docker volume inspect "$volume" >/dev/null 2>&1; then result=1; cleanup_result=1; fi
     done
   done
-  if (( result == 0 )); then echo 'Dedicated containers and their volumes removed and absence verified'; fi
+  if (( cleanup_result == 0 )); then echo 'Dedicated containers and their volumes removed and absence verified'; fi
   exit "$result"
 }
 trap cleanup EXIT
@@ -35,8 +36,14 @@ for attempt in {1..60}; do
 done
 if ! "$ready"; then echo 'Dedicated DB readiness failed (no skip)' >&2; exit 1; fi
 # Only these disposable DBs; the application/test role has no global privileges.
-docker exec "$pg_container" psql -v ON_ERROR_STOP=1 -U postgres -d quent_dispatch_test -c 'CREATE ROLE quent_test LOGIN; ALTER DATABASE quent_dispatch_test OWNER TO quent_test; CREATE SCHEMA quent_dispatch_test AUTHORIZATION quent_test;' >/dev/null
-docker exec "$my_container" mysql -e "CREATE USER 'quent_test'@'%' IDENTIFIED BY ''; GRANT ALL ON quent_dispatch_test.* TO 'quent_test'@'%'; GRANT SELECT ON performance_schema.data_lock_waits TO 'quent_test'@'%'; GRANT SELECT ON performance_schema.threads TO 'quent_test'@'%';" >/dev/null
+docker exec "$pg_container" psql -v ON_ERROR_STOP=1 -U postgres -d quent_dispatch_test -c 'CREATE ROLE quent_test LOGIN; CREATE ROLE quent_manifest_hidden LOGIN; ALTER DATABASE quent_dispatch_test OWNER TO quent_test; CREATE SCHEMA quent_dispatch_test AUTHORIZATION quent_test;' >/dev/null
+docker exec "$my_container" mysql -e "CREATE USER 'quent_test'@'%' IDENTIFIED BY ''; CREATE USER 'quent_manifest_hidden'@'%' IDENTIFIED BY ''; GRANT SELECT ON quent_dispatch_test.* TO 'quent_manifest_hidden'@'%'; GRANT ALL ON quent_dispatch_test.* TO 'quent_test'@'%'; GRANT SELECT ON performance_schema.data_lock_waits TO 'quent_test'@'%'; GRANT SELECT ON performance_schema.threads TO 'quent_test'@'%';" >/dev/null
+# Distinct physical namespaces/catalogs with the same basename and changed default.
+docker exec "$pg_container" psql -v ON_ERROR_STOP=1 -U postgres -d quent_dispatch_test -c 'CREATE SCHEMA manifest_other AUTHORIZATION quent_test; SET ROLE quent_test; CREATE TABLE manifest_other.manifest_probe(a bigint NOT NULL DEFAULT 0,b integer NOT NULL DEFAULT 8,PRIMARY KEY(a,b));' >/dev/null
+docker exec "$my_container" mysql -e "CREATE DATABASE quent_manifest_other; GRANT ALL ON quent_manifest_other.* TO 'quent_test'@'%'; CREATE TABLE quent_manifest_other.manifest_probe(a bigint NOT NULL DEFAULT 0,b integer NOT NULL DEFAULT 8,PRIMARY KEY(a,b));" >/dev/null
+# MySQL binary logging requires admin for trigger fixture creation. The reader
+# keeps the limited quent_test role; no SUPER grant or global setting is changed.
+docker exec "$my_container" mysql quent_dispatch_test -e "CREATE TABLE manifest_trigger_probe(a bigint NOT NULL,b int NOT NULL DEFAULT 7,PRIMARY KEY(a,b)); CREATE TRIGGER manifest_trigger_probe_guard BEFORE INSERT ON manifest_trigger_probe FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='CANARY_default_must_not_execute';" >/dev/null
 docker exec "$pg_container" psql -U postgres -d quent_dispatch_test -Atc "SELECT version(), current_setting('TimeZone'), current_setting('transaction_isolation'), current_setting('server_encoding'), datcollate FROM pg_database WHERE datname=current_database();"
 docker exec "$my_container" mysql -N -e 'SELECT VERSION(), @@sql_mode, @@time_zone, @@transaction_isolation, @@character_set_server, @@collation_server;'
 pg_port=$(docker port "$pg_container" 5432/tcp)

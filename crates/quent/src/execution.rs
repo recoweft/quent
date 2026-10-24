@@ -1,7 +1,7 @@
 //! One gate and a closed adapter set. No raw SQL/Plan/source execution input.
 // Never forward SQLx protocol notices/type-resolution fields to the application's
 // tracing subscriber. Statement/slow logging stays disabled independently.
-mod quiet_driver;
+pub(crate) mod quiet_driver;
 use quent_core::*;
 use quiet_driver::quiet;
 use std::{

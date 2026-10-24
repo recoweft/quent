@@ -30,7 +30,7 @@ local-details = ["dep:rustix"]
 output-tracing = ["dep:tracing"]
 postgres = ["dep:sqlx", "sqlx/postgres"]
 mysql = ["dep:sqlx", "sqlx/mysql"]
-runtime-tokio = ["dep:tracing", "dep:futures-util", "dep:tokio", "tokio/rt", "sqlx?/runtime-tokio"]
+runtime-tokio = ["dep:tracing", "dep:futures-util", "dep:tokio", "tokio/rt", "tokio/time", "sqlx?/runtime-tokio"]
 tls-rustls = ["sqlx?/tls-rustls-ring-webpki"]
 
 [dev-dependencies]

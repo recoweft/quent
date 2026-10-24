@@ -711,7 +711,12 @@ dependencies = [
 name = "quent-cli"
 version = "0.1.0"
 dependencies = [
+ "quent",
  "quent-core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]
