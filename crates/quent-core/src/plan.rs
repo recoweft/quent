@@ -668,6 +668,13 @@ mod context;
 pub use context::*;
 
 impl Operation {
+    /// Compare exact immutable input only after both inputs pass finite budgets.
+    /// This is structural correspondence, not authorization or DB validation.
+    pub fn same_bounded_input(&self, other: &Self) -> Result<bool> {
+        self.check_budget()?;
+        other.check_budget()?;
+        Ok(self == other)
+    }
     fn check_budget(&self) -> Result<()> {
         let d = &self.0;
         let mut args = usize::from(d.limit.is_some());

@@ -193,3 +193,12 @@ its support-only role. Use `bash scripts/test-dispatch.sh` from the repository r
 [The dispatch guide](../../../../specs/sqlx-dispatch-v1.md) records pins, cleanup,
 settings, limitations and case responsibilities. No fixture expectation or
 runtime_pending marker was rewritten as a measured success.
+
+## QT-AI-03 PR2 consumption evidence
+
+[Owned validation and measurements](../../../../specs/owned-validation-v1.md)
+records production-dispatch evidence for C12/C13/C14, current input budgets,
+exclusive expiry, exact connection binding and real server-observed cancellation.
+`tests/owned_api.rs` checks actual compiler diagnostics with a successful control;
+this support recorder remains synthetic and is never substituted for DB evidence.
+Full fixture runtime_pending markers are unchanged.

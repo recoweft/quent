@@ -6,7 +6,8 @@ use sqlx::{
 };
 
 /// Owns a connection and its full immutable application snapshot. No raw executor
-/// getter, callbacks, pool routing, delayed handle or transaction API is exposed.
+/// getter, callbacks, pool routing or transaction API is exposed. Delayed handles
+/// are private-record consumers bound to this exact connection lifetime.
 /// Construction authenticates neither the application context nor physical DB.
 /// ```compile_fail
 /// fn bypass(s: &mut quent::MysqlSession, c: &quent_core::DatabaseContext, p: quent_core::Plan) { s.execute(c, p); }
@@ -24,6 +25,11 @@ pub struct MysqlSession {
     connection: MySqlConnection,
     context: DatabaseContext,
     available: bool,
+    identity: Arc<()>,
+    #[cfg(test)]
+    pub(super) final_now: Option<Instant>,
+    #[cfg(test)]
+    pub(super) final_barrier: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
     pub(super) recorder: Recorder,
 }
@@ -46,6 +52,11 @@ impl MysqlSession {
             connection,
             context,
             available: true,
+            identity: Arc::new(()),
+            #[cfg(test)]
+            final_now: None,
+            #[cfg(test)]
+            final_barrier: None,
             #[cfg(test)]
             recorder: Recorder::default(),
         })
