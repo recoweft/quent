@@ -42,3 +42,11 @@ CLI/MCP/tracingへの詳細公開、production IR/planner/gate/SQLx dispatchは�
 | QT-C22 | migration未対応/古いpreflight/DDL失敗 | 拒否/限界表示、MySQL完全rollbackを装わない | QT-AI-11 | documented / fixture_validated / runtime_pending |
 | QT-C23 | MCP write/raw/apply/permit要求 | tool不存在または拒否、DB/provider呼出し0 | QT-AI-13 | documented / fixture_validated / runtime_pending |
 | QT-C24 | 不正JSON/未知version/巨大入力 | 有界に拒否、旧receiver/低risk既定へフォールバックしない | QT-AI-05, QT-AI-06, QT-AI-13 | documented / fixture_validated / runtime_pending |
+
+## QT-AI-01 PR1 plan-only evidence
+
+[Plan IR v1](plan-ir-v1.md) adds production planner tests for five families in both
+dialects, with source-linked QT-C01/QT-C07 SQL/ordered args/metadata comparisons.
+The recorder observes no calls; Core has no provider/DB dependencies or endpoint.
+This is plan-only evidence, not dispatcher/Tx/risk/tenant acceptance. QT-C02–05
+proof remains PR2 work, and every full runtime_pending marker stays unchanged.

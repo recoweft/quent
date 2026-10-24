@@ -13,7 +13,7 @@ jobs:
       - run: rustup show
       - run: cargo fmt --all -- --check
       - run: cargo build --workspace --locked
-      - name: Workspace tests (fixture validation and recorder; runtime acceptance pending)
+      - name: Workspace tests (DB-free plans, fixtures and recorder; execution pending)
         run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo doc --workspace --all-features --no-deps --locked

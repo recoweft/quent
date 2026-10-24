@@ -398,3 +398,177 @@ fn recorder_reset_clears_active_state_and_clone_has_independent_tx() {
     assert_eq!(b.record(Event::Rollback), Reply::Unit);
     assert_eq!(b.verify(&script), Ok(()));
 }
+
+// Deliberately finite test-source bridge, not a production JSON/OperationSpec reader.
+// Fixture expectations never become risk/authorization or dispatch decisions.
+fn plan_value(input: &Input) -> Result<quent_core::Value, quent_core::PlanError> {
+    use quent_core::{PlanError as E, SqlType as T, Value as V};
+    Ok(match input {
+        Input::Signed { bits, lexeme } => match bits.as_str() {
+            "8" => V::I8(lexeme.parse().map_err(|_| E::Type)?),
+            "16" => V::I16(lexeme.parse().map_err(|_| E::Type)?),
+            "32" => V::I32(lexeme.parse().map_err(|_| E::Type)?),
+            "64" => V::I64(lexeme.parse().map_err(|_| E::Type)?),
+            _ => return Err(E::Unsupported),
+        },
+        Input::Unsigned { bits, lexeme } => match bits.as_str() {
+            "8" => V::U8(lexeme.parse().map_err(|_| E::Type)?),
+            "16" => V::U16(lexeme.parse().map_err(|_| E::Type)?),
+            "32" => V::U32(lexeme.parse().map_err(|_| E::Type)?),
+            "64" => V::U64(lexeme.parse().map_err(|_| E::Type)?),
+            _ => return Err(E::Unsupported),
+        },
+        Input::Null { sql_type } => V::Null(match sql_type.as_str() {
+            "i64" => T::I64,
+            "text" => T::Text,
+            "bool" => T::Bool,
+            _ => return Err(E::Unsupported),
+        }),
+        Input::Text { value } => V::Text(value.clone()),
+        Input::Bool { value } => V::Bool(*value),
+        Input::Missing { .. } => return Err(E::Missing),
+        Input::Decimal { .. } => return Err(E::Unsupported),
+    })
+}
+fn plan_column(table: &quent_core::Table, schema: &Schema, name: &str) -> quent_core::Column {
+    use quent_core::{Ident, SqlType};
+    let source = schema.columns.iter().find(|c| c.name == name).unwrap();
+    let (prefix, name) = name.split_once('.').unwrap();
+    assert_eq!(prefix, "items");
+    let ty = match source.sql_type.as_str() {
+        "i64" => SqlType::I64,
+        "text" => SqlType::Text,
+        "bool" => SqlType::Bool,
+        _ => panic!("unsupported test column"),
+    };
+    table.column(Ident::new(name).unwrap(), ty, source.nullable)
+}
+fn plan_filter(
+    table: &quent_core::Table,
+    schema: &Schema,
+    filter: &Filter,
+) -> Option<quent_core::Predicate> {
+    use quent_core::{Compare, Predicate as P};
+    let c = |name: &str| plan_column(table, schema, name);
+    Some(match filter {
+        Filter::Absent => return None,
+        Filter::And { children } => P::And(
+            children
+                .iter()
+                .map(|f| plan_filter(table, schema, f).unwrap())
+                .collect(),
+        ),
+        Filter::Or { children } => P::Or(
+            children
+                .iter()
+                .map(|f| plan_filter(table, schema, f).unwrap())
+                .collect(),
+        ),
+        Filter::Not { child } => P::Not(Box::new(plan_filter(table, schema, child).unwrap())),
+        Filter::Eq { column, value } => {
+            P::Compare(c(column), Compare::Eq, plan_value(value).unwrap())
+        }
+        Filter::Gt { column, value } => {
+            P::Compare(c(column), Compare::Gt, plan_value(value).unwrap())
+        }
+        Filter::In { column, values } => P::In(
+            c(column),
+            values.iter().map(|v| plan_value(v).unwrap()).collect(),
+        ),
+        Filter::IsNull { column } => P::IsNull(c(column)),
+    })
+}
+#[test]
+fn production_plan_consumes_c01_c07_source_without_db_or_provider() {
+    use quent_core::{Dialect as D, Draft, Ident, Projection, Table, Value};
+    let register = register();
+    for (case, pg, args) in [
+        (
+            "QT-C01",
+            "SELECT \"items\".\"id\" FROM \"items\" WHERE ((\"items\".\"tenant_id\" = $1) AND (\"items\".\"id\" = $2))",
+            vec![Value::I64(1), Value::I64(1)],
+        ),
+        (
+            "QT-C07",
+            "SELECT \"items\".\"id\" FROM \"items\" WHERE ((NOT (\"items\".\"email\" = $1)) AND (1 = 0) AND (\"items\".\"email\" IS NULL))",
+            vec![Value::Null(quent_core::SqlType::Text)],
+        ),
+    ] {
+        let case = register.cases.iter().find(|c| c.id == case).unwrap();
+        let source = &case.scenarios[0].shape;
+        let table = Table::new(vec![Ident::new("items").unwrap()], None).unwrap();
+        let projection = source
+            .projection
+            .iter()
+            .map(|n| Projection::new(plan_column(&table, &case.preconditions.schemas[0], n), None))
+            .collect();
+        let predicate =
+            plan_filter(&table, &case.preconditions.schemas[0], &source.filter).unwrap();
+        let operation = Draft::select(table, projection)
+            .filter(predicate.clone())
+            .freeze();
+        for d in [D::Postgres, D::Mysql] {
+            // There is no endpoint to attach this recorder or a provider to finalize.
+            // Empty observations support DB-free design; they do not test a dispatcher.
+            let recorder = Recorder::new(vec![]);
+            let plan = operation.finalize(d).unwrap();
+            let source = plan.sensitive_source();
+            let sql = if d == D::Postgres {
+                pg.into()
+            } else {
+                pg.replace('"', "`").replace("$1", "?").replace("$2", "?")
+            };
+            assert_eq!(source.sql(), sql);
+            assert_eq!(source.args(), args);
+            assert_eq!(source.metadata().predicate(), Some(&predicate));
+            assert_eq!(plan, operation.finalize(d).unwrap());
+            assert_eq!(recorder.call_count(), 0);
+            recorder.verify(&[]).unwrap();
+        }
+        assert!(case.evidence.contains(&"runtime_pending".into()));
+    }
+}
+#[test]
+fn production_plan_fixture_values_refuse_decimal_missing_and_overflow() {
+    use quent_core::{PlanError as E, Value};
+    let r = register();
+    let case = r.cases.iter().find(|c| c.id == "QT-C07").unwrap();
+    let row = &case
+        .scenarios
+        .iter()
+        .find(|s| s.name == "lossless-values")
+        .unwrap()
+        .shape
+        .rows[0];
+    assert_eq!(plan_value(&row[0]), Ok(Value::I64(i64::MIN)));
+    assert_eq!(plan_value(&row[1]), Ok(Value::U64(u64::MAX)));
+    assert_eq!(plan_value(&row[2]), Err(E::Unsupported));
+    assert_eq!(plan_value(&row[3]), Err(E::Missing));
+    assert_eq!(
+        plan_value(&row[4]),
+        Ok(Value::Null(quent_core::SqlType::Text))
+    );
+    assert_eq!(plan_value(&row[5]), Ok(Value::Text(String::new())));
+    assert_eq!(plan_value(&row[6]), Ok(Value::I64(0))); // native semantic value; source lexeme is documentary
+    assert_eq!(plan_value(&row[7]), Ok(Value::Bool(false)));
+    assert_eq!(
+        plan_value(&Input::Signed {
+            bits: "8".into(),
+            lexeme: "128".into()
+        }),
+        Err(E::Type)
+    );
+    assert_eq!(
+        plan_value(&Input::Unsigned {
+            bits: "64".into(),
+            lexeme: "18446744073709551616".into()
+        }),
+        Err(E::Type)
+    );
+    assert_eq!(
+        plan_value(&Input::Null {
+            sql_type: "text); DROP".into()
+        }),
+        Err(E::Unsupported)
+    );
+}

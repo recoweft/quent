@@ -132,3 +132,12 @@ the lock diff only attaches serde/serde_json to quent. Compilation on pinned
 Rust 1.94.0 passed. Core still has no dependencies and the default normal
 workspace tree has neither SQLx/Tokio nor serde. No production dependency,
 workspace member, toolchain, default feature or publish=false setting changed.
+
+## QT-AI-01 PR1 addition
+
+The production planner now consumes selected QT-C01/QT-C07 inputs in `contracts.rs`
+through an explicit test-only finite bridge. Independent SQL/args expectations
+are checked for both dialects; decimal/missing/overflow are refused. No fixture
+verdict becomes risk/authority. Recorder observations remain empty because core
+has no DB/provider endpoint. This is plan evidence only; full runtime acceptance
+stays pending. See [capabilities](../../../../specs/plan-ir-v1.md).
