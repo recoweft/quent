@@ -9,6 +9,8 @@ for ((mask=0; mask<16; mask++)); do
   joined=$(IFS=,; echo "${selected[*]}")
   cargo check -p quent --no-default-features --features "$joined" --locked "$@"
   cargo check -p quent --no-default-features --features "${joined:+$joined,}manifest" --locked "$@"
+  cargo check -p quent --no-default-features --features "${joined:+$joined,}operation-spec" --locked "$@"
+  cargo check -p quent --no-default-features --features "${joined:+$joined,}manifest,operation-spec" --locked "$@"
   cargo check -p quent-cli --no-default-features --features "${joined:+$joined,}manifest" --locked "$@"
 done
 

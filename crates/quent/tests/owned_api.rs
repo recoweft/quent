@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -414,10 +414,64 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "{name}: missing API/dependency: {diagnostic}"
         );
     }
-    assert_eq!(controls.get(), 6, "compiling positive controls");
+    let output = run(
+        "fn control(bytes:&[u8],c:&DatabaseContext) {use quent::operation_spec::*;let s=SpecSource::parse(bytes).unwrap();let _=s.public_view().to_json();let _=s.sensitive_source();let m=ModelContract::application_asserted(\"items\",vec![(\"id\".into(),ColumnRole::Ordinary,true)],c).unwrap();let r=s.check_roles(m,c).unwrap();let _=r.matches_snapshot(c);let _=r.public_view().to_json();}",
+    );
+    assert!(
+        output.status.success(),
+        "spec API positive control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for source in ["SpecSource", "RoleCheckedSource", "SpecSummary"] {
+        for target in [
+            "quent_core::Operation",
+            "quent_core::DatabaseContext",
+            "quent_core::PolicyPreparation",
+            "quent::ValidatedOperation",
+            "quent::ValidatedAtomicOperation",
+            "quent::manifest::live::Observation",
+        ] {
+            let body =
+                format!("fn f(s:quent::operation_spec::{source}) {{let _:{target}=s.into();}}");
+            let output = run(&body);
+            let diagnostic = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success() && diagnostic.contains("error[E0277]"),
+                "{source} to {target}: {diagnostic}"
+            );
+            assert!(!diagnostic.contains("E0432") && !diagnostic.contains("E0433"));
+        }
+    }
+    for carrier in [
+        "SpecSource",
+        "RoleCheckedSource",
+        "ModelContract",
+        "SpecSummary",
+        "SpecDiagnostic",
+    ] {
+        let output = run(&format!(
+            "fn f() {{let _:quent::operation_spec::{carrier}=serde_json::from_str(\"{{}}\").unwrap();}}"
+        ));
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && diagnostic.contains("error[E0277]"),
+            "spec deserialize {carrier}: {diagnostic}"
+        );
+    }
+    for carrier in ["SpecSource", "RoleCheckedSource", "ModelContract"] {
+        let output = run(&format!(
+            "fn f(s:&quent::operation_spec::{carrier}) {{let _=serde_json::to_string(s);}}"
+        ));
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && diagnostic.contains("error[E0277]"),
+            "spec serialize {carrier}: {diagnostic}"
+        );
+    }
+    assert_eq!(controls.get(), 7, "compiling positive controls");
     assert_eq!(
         runs.get() - controls.get(),
-        127,
-        "diagnostic-checked negatives (100 retained)"
+        153,
+        "diagnostic-checked negatives (127 retained)"
     );
 }

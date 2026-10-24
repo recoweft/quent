@@ -169,3 +169,12 @@ control for config rejection before connect. Five-second watchdogs kill/wait and
 fail on hangs. Unix NONBLOCK is a FIFO-open guarantee, not an OS/filesystem deadline.
 Windows file regressions run in hosted CI; Unix FIFO and local WSL evidence do not
 establish Windows live support. No full runtime_pending marker is cleared.
+
+## QT-AI-06 PR1 bounded source boundary
+
+[OperationSpec v1](operation-spec-v1.md) defines C01/C24 production syntax/range
+validation and C07/C08/C11/C12/C15 finite NULL/native/role/snapshot/output
+subcases. Source and role-checked source cannot become operations, context or
+validated/atomic/observation handles through public conversion or JSON. No typed
+compiler or execution connection is implemented. All 24 full runtime_pending
+markers remain unchanged; command/exact-head CI measurements belong to the report.

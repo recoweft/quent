@@ -40,7 +40,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        features: ["local-details", "output-tracing", "local-details,output-tracing", "manifest", "manifest,local-details", "manifest,output-tracing", "manifest,local-details,output-tracing"]
+        features: ["local-details", "output-tracing", "local-details,output-tracing", "manifest", "manifest,local-details", "manifest,output-tracing", "manifest,local-details,output-tracing", "operation-spec", "operation-spec,manifest", "operation-spec,local-details", "operation-spec,output-tracing", "operation-spec,manifest,local-details,output-tracing"]
     steps:
       - uses: actions/checkout@v4
       - run: cargo test -p quent --no-default-features --features "${{ matrix.features }}" --locked
