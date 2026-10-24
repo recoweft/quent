@@ -15,7 +15,7 @@ Neither is execution input, permission, a freshness proof or a recoverable handl
 | ExecutionResult / AtomicFailure / ExecutionError | Existing redacted result Debug and fixed errors; source is None. ResultView omits values/COUNT/affected counts; atomic diagnostics retain disposition |
 | Serialization | Only explicit closed public `to_json()`; no production serde, general error/Display conversion, input parser or restoration interface |
 | `output-tracing` facade feature | `output_tracing::emit(&impl PublicSummary)`, sealed to PlanView/DiagnosticView and feature-gated ResultView. One INFO event, literal target `quent::public`, only `public_view` field containing exact public JSON. No message, dynamic target, source Debug, arbitrary Display/Error/callback or span creation/recording |
-| SQLx owned connection | Both statement and slow logging remain disabled before connect. No subscriber or alternative detailed logger is installed |
+| SQLx owned connection | Both statement and slow logging remain disabled before connect. Private per-poll/drop tracing suppression also blocks protocol notices/type-resolution fields. No global subscriber/logger is installed |
 | Borrowed external SQLx connection | Caller must disable its statement/slow logs; Quent cannot reconfigure already created external connections or sanitize application subscribers/spans |
 | CLI stdout/stderr | No args, help/version, unknown flag/command, review/manifest/MCP requests, malformed/huge stdin and secret paths all return exit 1, empty stdout, exactly `QUENT_NOT_IMPLEMENTED\n` stderr |
 | CLI panic / output I/O | Fixed panic hook `QUENT_PANIC`, no payload/location/backtrace. stderr write errors are discarded and exit remains failure. Arguments and stdin are never read; no file open from user paths |
@@ -122,7 +122,8 @@ surfaces must select their denied surface and preserve this boundary.
 
 Core stays dependency-free, default facade driver/runtime-free. Rust 1.94.0,
 edition 2024, publish=false, SQLx=0.9.0, Tokio=1.54.1 and futures-util=0.3.34 are unchanged.
-`output-tracing` optionally adds exact tracing=0.1.44, defaults off + std, already
+Exact tracing=0.1.44 is optional through `output-tracing` OR `runtime-tokio`: the
+latter protects driver poll/drop even when public emission is disabled. Defaults are off + std, already
 locked transitively; no subscriber/attributes dependency added by this feature.
 `local-details` adds exact rustix=1.1.4, Linux target only, defaults off + std/fs/process:
 safe wrappers for effective UID, descriptor traversal, exclusive creation, fstat and
@@ -168,11 +169,11 @@ and RelayWeft report. CI job presence does not establish branch protection.
 
 Rust 1.94.0. Default workspace: 81 tests passed including doctests. Full workspace
 on the existing digest-pinned disposable PostgreSQL 16.14 / MySQL 8.4.8 fixtures:
-114 passed, no failures/ignored/filtered (99 previous unique tests + 15 additions,
+115 passed, no failures/ignored/filtered (99 previous unique tests + 16 additions,
 including the two subprocess entry tests whose actual child branches are invoked
 by their parent tests). The checked API harness retains 60 negative + 3 controls
 and adds 11 negative + 1 control, total 71 + 4. DB-free all-feature selection:
-111 passed, three excluded by `--skip live_`; both DB suites are covered by the
+112 passed, three excluded by `--skip live_`; both DB suites are covered by the
 full run, and the accidentally matching Core context test is covered both there
 and by a separate five-test all-feature Core context run. No skip is DB evidence.
 
@@ -195,3 +196,26 @@ Real TLS handshake and actual network completion faults remain unverified.
 Local Windows execution/ACLs were not attempted or verified. Native hosted Windows
 CI tests product CI refusal plus the private unsupported backend, never an ACL
 success claim. Hosted CI results must be checked on the actual PR head separately.
+
+
+Driver suppression uses a private boxed/pinned Future with a scoped NoSubscriber
+only during each poll and inner drop; no thread-local guard crosses Pending and no
+application logger/subscriber is globally replaced. It wraps owned connect, validated
+and atomic execution (including the shared borrowed execution adapter), independent
+of opting into public tracing. It never converts driver text to a public event.
+A pending/drop hostile-emission test checks suppression plus restoration for unrelated
+public events, with a recorder positive control. The real PostgreSQL output-only
+probe installs a disposable canary NOTICE/exception trigger: raw driver control sees
+the canary, production execution exposes only fixed OutcomeUnknown/no source and the
+outer subscriber sees no driver event. This deliberately false physical no-effects
+assertion is solely an output test; trigger-backed DB semantics are still unsupported.
+
+Applications remain responsible for external SQLx options parsing/pgpass/raw queries,
+application spans/loggers, and downstream feature unification that explicitly enables
+third-party detailed logging (in particular tracing/log-always, absent from this
+workspace's pinned feature matrix). A library cannot sanitize independently installed
+application loggers or prevent an application from logging its sensitive getters.
+The standard tracing log-compat fallback is suppressed by the scoped dispatcher;
+no global log max-level/logger configuration is changed. Known direct SQLx MySQL
+cleartext-password warnings are fixed driver text, not SQL/credentials; they are not
+Quent public summary events. Real TLS/certificate-diagnostic behavior remains unverified.

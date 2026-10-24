@@ -98,7 +98,8 @@ are separate from the still-pending full case responsibilities; see the dispatch
 Plan/Inspection/PolicyPreparation now expose finite `public_view()` copies and
 allowlist-only `to_json()`/Display. Raw Plans remain unevaluated/unknown. These
 outputs cannot restore execution authority. Optional `output-tracing` emits only sealed
-public views and installs no subscriber/logger. Optional `local-details` provides
+public views and installs no global subscriber/logger. Runtime execution scopes SQLx
+tracing privately during driver poll/drop, including protocol notices. Optional `local-details` provides
 application-only `local_details::create_new`: explicit opt-in, local surface, absolute
 new path and real SensitiveSource. Linux ext4/tmpfs owner/0600/new-file protection is
 checked before secret writes; all other OS/filesystems fail closed (Windows ACL export

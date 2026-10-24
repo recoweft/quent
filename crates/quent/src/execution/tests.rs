@@ -1,6 +1,5 @@
 #[cfg(feature = "output-tracing")]
-#[path = "../../tests/output_capture/mod.rs"]
-mod output_capture;
+use crate::output_capture;
 async fn poll_once<F: std::future::Future>(
     mut f: std::pin::Pin<&mut F>,
 ) -> std::task::Poll<F::Output> {
@@ -508,6 +507,29 @@ macro_rules! live_suite {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||runtime.block_on(async {
                 let d = $dialect; let c = context(d,11,"subject",vec![]);
                 let mut session = $session::connect(options.clone(),c.clone()).await.unwrap();
+                #[cfg(feature="output-tracing")]
+                if d==Dialect::Postgres {
+                    // Deliberately hostile physical side effect, solely an output
+                    // probe, NOT support evidence for trigger-backed table semantics.
+                    let mut raw=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+                    sqlx::query("CREATE FUNCTION quent_dispatch_test.output_canary() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE NOTICE 'CANARY_SQL_name_tenant_subject_reason_source_/CANARY/path'; RAISE EXCEPTION 'CANARY_ARBITRARY_DRIVER_CAUSE'; RETURN NEW; END $$").execute(&mut raw).await.unwrap();
+                    sqlx::query("CREATE TRIGGER output_canary BEFORE UPDATE ON quent_dispatch_test.items FOR EACH ROW EXECUTE FUNCTION quent_dispatch_test.output_canary()").execute(&mut raw).await.unwrap();
+                    let mut probe=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let e=probe.execute(&c,Draft::update(table(),write(Value::Text("CANARY_VALUE".into()),changed())).filter(filter(1)).freeze()).await.unwrap_err();
+                    assert_eq!(e,ExecutionError::OutcomeUnknown);assert!(std::error::Error::source(&e).is_none());
+                    assert!(!format!("{e} {e:?}").contains("CANARY"));
+                    output_capture::check(&e.public_view(),&e.public_view().to_json());
+                    // Positive control: the real driver would expose this notice
+                    // through an application-owned raw query without Quent's scope.
+                    let raw_capture=output_capture::Capture::default();
+                    {
+                        let _raw_subscriber=tracing::subscriber::set_default(raw_capture.clone());
+                        assert!(sqlx::query("UPDATE quent_dispatch_test.items SET txt=txt WHERE tenant=11 AND id=1").execute(&mut raw).await.is_err());
+                    }
+                    assert!(raw_capture.0.lock().unwrap().iter().any(|s|s.contains("CANARY_SQL_name_tenant_subject_reason_source")),"driver notice positive control missing");
+                    sqlx::query("DROP TRIGGER output_canary ON quent_dispatch_test.items").execute(&mut raw).await.unwrap();
+                    sqlx::query("DROP FUNCTION quent_dispatch_test.output_canary()").execute(&mut raw).await.unwrap();
+                }
                 // PR2 uses the real production dispatcher, separate finite recorder.
                 let mut delayed = $session::connect(options.clone(), c.clone()).await.unwrap();
                 let op = select(d).filter(filter(1)).freeze();

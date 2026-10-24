@@ -128,7 +128,9 @@ CLI/tracing/SARIF/MCP and detailed export/Windows ACL are not covered by PR1.
 [Output boundaries v1](output-boundaries-v1.md) inventories every current public
 surface and distinguishes application-local SensitiveSource export from public JSON,
 sealed tracing and the non-success CLI. QT-C15 adds actual source/newfile/typed-data,
-owner/mode, no-overwrite/race and refusal evidence. C01/C02/C08/C12–16 retain complete
+owner/mode, no-overwrite/race and refusal evidence. Real PostgreSQL NOTICE/exception
+canaries and raw-driver controls test private driver poll/drop suppression; this does
+not expand trigger-backed DB semantics support. C01/C02/C08/C12–16 retain complete
 private gate/handle/atomic regression; display/export never supplies permission.
 Windows export is unsupported/fail-closed, not an ACL guarantee. Native CI protection
 primitive tests are isolated from the product CI refusal. MCP tools, SARIF/review/

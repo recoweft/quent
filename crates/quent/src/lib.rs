@@ -42,3 +42,7 @@ pub mod output_tracing;
 
 #[cfg(all(test, feature = "output-tracing"))]
 extern crate self as quent;
+
+#[cfg(all(test, feature = "output-tracing"))]
+#[path = "../tests/output_capture/mod.rs"]
+mod output_capture;
