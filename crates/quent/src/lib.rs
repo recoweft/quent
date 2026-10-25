@@ -62,3 +62,7 @@ pub mod codegen;
 /// Pure bounded offline review; output is never execution authority.
 #[cfg(feature = "review")]
 pub mod review;
+
+/// Bounded syntax candidates only; never type identity or execution authority.
+#[cfg(feature = "source-review")]
+pub mod source_review;

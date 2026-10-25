@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Serialize-only Rust syntax candidate review v1, never authority input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "risk",
+    "state",
+    "code",
+    "coverage",
+    "precision",
+    "items",
+    "nodes",
+    "operations",
+    "diagnostics"
+  ],
+  "properties": {
+    "kind": {
+      "const": "quent_rust_review"
+    },
+    "version": {
+      "const": 1
+    },
+    "risk": {
+      "const": "unknown"
+    },
+    "state": {
+      "enum": [
+        "unknown",
+        "partial",
+        "unsupported"
+      ]
+    },
+    "code": {
+      "enum": [
+        "no_candidates",
+        "syntax_candidates",
+        "unsupported"
+      ]
+    },
+    "coverage": {
+      "enum": [
+        "unknown",
+        "partial",
+        "unsupported"
+      ]
+    },
+    "precision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "syntax",
+        "candidate",
+        "identity",
+        "sql",
+        "native",
+        "model",
+        "binding",
+        "policy",
+        "tenant",
+        "freshness",
+        "runtime",
+        "capture"
+      ],
+      "properties": {
+        "syntax": {
+          "const": "parsed"
+        },
+        "candidate": {
+          "const": "syntax_only"
+        },
+        "identity": {
+          "const": "unverified"
+        },
+        "sql": {
+          "const": "unverified"
+        },
+        "native": {
+          "const": "unverified"
+        },
+        "model": {
+          "const": "unverified"
+        },
+        "binding": {
+          "const": "unverified"
+        },
+        "policy": {
+          "const": "unverified"
+        },
+        "tenant": {
+          "const": "unverified"
+        },
+        "freshness": {
+          "const": "unverified"
+        },
+        "runtime": {
+          "const": "unverified"
+        },
+        "capture": {
+          "const": "not_implemented"
+        }
+      }
+    },
+    "items": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 16
+    },
+    "nodes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 512
+    },
+    "operations": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "family",
+          "filter",
+          "missing_where"
+        ],
+        "properties": {
+          "family": {
+            "enum": [
+              "select",
+              "count",
+              "insert",
+              "update",
+              "delete"
+            ]
+          },
+          "filter": {
+            "enum": [
+              "present_syntax",
+              "absent_syntax"
+            ]
+          },
+          "missing_where": {
+            "enum": [
+              "candidate",
+              "not_established"
+            ]
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "identity_unverified",
+          "context_unverified",
+          "no_candidates",
+          "macro_unexpanded",
+          "attribute_unevaluated",
+          "names_unresolved",
+          "control_flow_unresolved",
+          "receiver_unresolved",
+          "arguments_unverified",
+          "unsupported_syntax"
+        ]
+      }
+    }
+  }
+}

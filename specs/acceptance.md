@@ -231,7 +231,7 @@ restores authority, no review exit 0, and no DB/provider/live/clock/environment
 workflow is implicit. Existing shared and generated compiler controls, Strict/CRUD/
 validated/atomic/catalog/CLI/FIFO/codegen/patch/regen regressions remain required.
 New write/Tx/live verification is nonapplicable to the pure review itself. All 24
-full runtime_pending markers remain unchanged. Rust source is refused for PR2;
+full runtime_pending markers remain unchanged. PR1 refused Rust source; [PR2 finite source candidates](source-review-v1.md) now provide independently opt-in syntax-only observations;
 SARIF/diff/baseline/suppression remain PR3. Actual counts, command results, denied
 attempts, both-OS/head CI, disposable DB settings/cleanup and remaining limitations
 are recorded separately in the revision's RelayWeft report and PR.
@@ -241,3 +241,17 @@ the actual 183 full /84 default /173 DB-free plus three incidental substring
 complements, compiler controls and disposable DB cleanup, independently of the
 unchanged documentary fixture expectations. Hosted exact-head results belong to
 the PR and fixed-execution report.
+
+
+QT-AI-08 planned PR2 finite C20 evidence: [source contract/schema](source-review-v1.md),
+[independent output fixtures](../fixtures/source-review-v1/delete.expected.json),
+[library tests](../crates/quent/tests/source_review.rs) and product CLI subprocess
+cases preserve partial/unsupported/unknown for every input. Syntax identity and
+SQL/native/model/binding/policy/tenant/freshness/runtime are independent and
+unverified; source MissingWhere is only a candidate, never Inspection Blocked.
+Trusted capture remains not implemented. The conservative pre-parser byte/token/
+punctuation/group envelope applies even to quoted/comment content. Both-OS special
+file/path replacement and kill+reap stack adversaries accompany existing inputs.
+All 24 full runtime_pending markers remain unchanged. Actual counts, CI and DB
+settings/cleanup appear in [PR2 measurements](source-review-v1-evidence.md) and the
+fixed execution report; prior-head results are not new-head evidence.

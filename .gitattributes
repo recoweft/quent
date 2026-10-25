@@ -5,3 +5,5 @@ fixtures/codegen-v2/*-generated.rs text eol=lf
 
 # Public review stream expectations have canonical LF bytes on both OSes.
 fixtures/review-v1/*.expected.json text eol=lf
+
+fixtures/source-review-v1/* text eol=lf

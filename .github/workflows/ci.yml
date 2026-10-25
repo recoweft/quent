@@ -40,7 +40,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        features: ["local-details", "output-tracing", "local-details,output-tracing", "manifest", "manifest,local-details", "manifest,output-tracing", "manifest,local-details,output-tracing", "operation-spec", "operation-spec,manifest", "operation-spec,local-details", "operation-spec,output-tracing", "operation-spec,manifest,local-details,output-tracing", "codegen", "codegen,local-details", "codegen,output-tracing", "codegen,local-details,output-tracing", "review", "review,local-details", "review,output-tracing", "review,local-details,output-tracing"]
+        features: ["local-details", "output-tracing", "local-details,output-tracing", "manifest", "manifest,local-details", "manifest,output-tracing", "manifest,local-details,output-tracing", "operation-spec", "operation-spec,manifest", "operation-spec,local-details", "operation-spec,output-tracing", "operation-spec,manifest,local-details,output-tracing", "codegen", "codegen,local-details", "codegen,output-tracing", "codegen,local-details,output-tracing", "review", "review,local-details", "review,output-tracing", "review,local-details,output-tracing", "source-review", "source-review,review", "source-review,local-details", "source-review,output-tracing", "source-review,local-details,output-tracing"]
     steps:
       - uses: actions/checkout@v4
       - name: Fetch locked dependencies for standalone generated consumer controls
@@ -53,7 +53,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        features: ["review", "review,manifest"]
+        features: ["review", "review,manifest", "source-review", "source-review,review", "source-review,manifest"]
     steps:
       - uses: actions/checkout@v4
       - run: cargo test -p quent-cli --no-default-features --features "${{ matrix.features }}" --locked

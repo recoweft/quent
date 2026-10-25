@@ -1,6 +1,6 @@
 //! Explicit bounded workflows and fixed refusal for all other routes.
 use std::io::Write;
-#[cfg(any(feature = "manifest", feature = "review"))]
+#[cfg(any(feature = "manifest", feature = "review", feature = "source-review"))]
 mod input;
 mod review;
 #[cfg(feature = "manifest")]
