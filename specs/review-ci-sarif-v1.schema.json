@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": "2.1.0"
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "driver": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "const": "Quent"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "required": [
+              "driver"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 65,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ruleId": {
+                  "enum": [
+                    "review_incomplete",
+                    "structural_block",
+                    "unsupported",
+                    "input_budget",
+                    "missing_where",
+                    "unknown_proof",
+                    "bulk_write",
+                    "weak_predicate",
+                    "read_without_limit",
+                    "read_projection",
+                    "insert_unverified",
+                    "identity_unverified",
+                    "context_unverified",
+                    "no_candidates",
+                    "macro_unexpanded",
+                    "attribute_unevaluated",
+                    "names_unresolved",
+                    "control_flow_unresolved",
+                    "receiver_unresolved",
+                    "arguments_unverified",
+                    "unsupported_syntax",
+                    "untrusted_claims_present"
+                  ]
+                },
+                "level": {
+                  "enum": [
+                    "error",
+                    "note"
+                  ]
+                },
+                "message": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "enum": [
+                        "Review verification is incomplete.",
+                        "The supplied operation is structurally blocked.",
+                        "The supplied review has unsupported coverage.",
+                        "The review budget was exceeded.",
+                        "The operation has no caller predicate.",
+                        "Scope proof is unknown.",
+                        "The operation has broad write scope.",
+                        "The predicate has incomplete scope proof.",
+                        "The read has no explicit limit.",
+                        "Review the read projection.",
+                        "Insert semantics are unverified.",
+                        "Source identity is unverified.",
+                        "Source context is unverified.",
+                        "No syntax candidates were established.",
+                        "Macros remain unexpanded.",
+                        "Attributes remain unevaluated.",
+                        "Names remain unresolved.",
+                        "Control flow remains unresolved.",
+                        "A receiver remains unresolved.",
+                        "Arguments remain unverified.",
+                        "Syntax remains unsupported.",
+                        "External display claims were supplied."
+                      ]
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ]
+                }
+              },
+              "required": [
+                "ruleId",
+                "level",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tool",
+          "results"
+        ]
+      }
+    }
+  },
+  "required": [
+    "version",
+    "runs"
+  ]
+}

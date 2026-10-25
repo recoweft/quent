@@ -1,3 +1,5 @@
+Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](review-ci-v1.md). Earlier PR-specific absence statements are historical.
+
 Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](manifest-verify-v1.md).
 Earlier PR-specific absence statements below describe their historical baseline.
 
@@ -255,3 +257,14 @@ file/path replacement and kill+reap stack adversaries accompany existing inputs.
 All 24 full runtime_pending markers remain unchanged. Actual counts, CI and DB
 settings/cleanup appear in [PR2 measurements](source-review-v1-evidence.md) and the
 fixed execution report; prior-head results are not new-head evidence.
+
+
+QT-AI-08 PR3 finite C01/C02/C08/C12/C15/C19/C20/C24 evidence adds
+[bounded SARIF/diff/expiry/CI](review-ci-v1.md), independent three-format goldens,
+strict full-input comparison with ambiguous duplicates retained, non-suppressible
+original classifications, exclusive finite expiry and explicit incomplete full-head
+assessment. All CLI inputs reuse opened-handle regular-file protections. Hidden
+claim notices, removed results and changed-only input never yield success. Git
+head/tree collection, application context authentication and runtime correspondence
+remain unverified; this does not clear any full runtime_pending case. Actual
+[measurements](review-ci-v1-evidence.md) and exact-head hosted results are separate.

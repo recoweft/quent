@@ -3,10 +3,14 @@ use std::io::Write;
 #[cfg(any(feature = "manifest", feature = "review", feature = "source-review"))]
 mod input;
 mod review;
+mod review_ci;
 #[cfg(feature = "manifest")]
 mod verify;
 fn main() -> std::process::ExitCode {
     install_panic_hook();
+    if let Some(code) = review_ci::run() {
+        return std::process::ExitCode::from(code);
+    }
     if let Some(code) = review::run() {
         return std::process::ExitCode::from(code);
     }

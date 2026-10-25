@@ -66,3 +66,7 @@ pub mod review;
 /// Bounded syntax candidates only; never type identity or execution authority.
 #[cfg(feature = "source-review")]
 pub mod source_review;
+
+/// Pure review reporting; never execution or repository coverage authority.
+#[cfg(feature = "review-ci")]
+pub mod review_ci;

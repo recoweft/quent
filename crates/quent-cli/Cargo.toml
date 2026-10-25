@@ -23,6 +23,7 @@ rustix = { version = "=1.1.4", default-features = false, features = ["std", "fs"
 
 [features]
 default = []
+review-ci = ["review", "quent/review-ci"]
 source-review = ["dep:quent", "quent/source-review", "dep:rustix"]
 review = ["dep:quent", "quent/review", "dep:rustix"]
 manifest = ["dep:quent", "quent/manifest", "dep:serde", "dep:serde_json", "dep:rustix"]

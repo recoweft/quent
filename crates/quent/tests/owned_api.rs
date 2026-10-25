@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review", "review-ci"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -611,14 +611,58 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         );
         assert!(!d.contains("E0432") && !d.contains("E0433"));
     }
+    let output = run(
+        "fn control(r:quent::review_ci::Report){let _=r.to_json();let _=r.to_pretty();let _=r.to_sarif();let _=r.exit_code();let _=quent::review_ci::Time::unix_seconds(1).unwrap();}",
+    );
+    assert!(
+        output.status.success(),
+        "CI control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for target in [
+        "quent::review_ci::Report",
+        "quent::review_ci::InputSet",
+        "quent::review_ci::Baseline",
+        "quent::review_ci::Time",
+        "quent::review_ci::Diagnostic",
+    ] {
+        let output = run(&format!(
+            "fn f(){{let _:{target}=serde_json::from_str(\"{{}}\").unwrap();}}"
+        ));
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]") && !d.contains("E0433"),
+            "CI restoration: {d}"
+        );
+    }
+    for target in [
+        "quent_core::Operation",
+        "quent_core::ScopeFacts",
+        "quent_core::PolicyPreparation",
+        "quent_core::DatabaseContext",
+        "quent::ValidatedOperation",
+        "quent::ValidatedAtomicOperation",
+        "quent::manifest::live::Observation",
+        "quent::operation_spec::CompiledRead",
+        "quent::operation_spec::TypedModelContract",
+    ] {
+        let output = run(&format!(
+            "fn f(r:quent::review_ci::Report){{let _:{target}=r.into();}}"
+        ));
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]") && !d.contains("E0433"),
+            "CI authority: {d}"
+        );
+    }
     assert_eq!(
         controls.get(),
-        10,
-        "compiling positive controls (9 retained)"
+        11,
+        "compiling positive controls (10 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        189,
-        "diagnostic-checked negatives (179 retained)"
+        203,
+        "diagnostic-checked negatives (189 retained)"
     );
 }

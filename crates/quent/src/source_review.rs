@@ -357,3 +357,29 @@ impl<'ast> Visit<'ast> for Scan {
         visit::visit_expr(self, expr);
     }
 }
+
+#[cfg(feature = "review-ci")]
+impl Review {
+    pub(crate) fn ci_codes(&self) -> Vec<crate::review_ci::Code> {
+        use crate::review_ci::Code as C;
+        let mut codes = vec![C::ReviewIncomplete];
+        if self.state == "unsupported" {
+            codes.push(C::Unsupported);
+        }
+        for d in &self.diagnostics {
+            codes.push(match d {
+                Diagnostic::IdentityUnverified => C::IdentityUnverified,
+                Diagnostic::ContextUnverified => C::ContextUnverified,
+                Diagnostic::NoCandidates => C::NoCandidates,
+                Diagnostic::MacroUnexpanded => C::MacroUnexpanded,
+                Diagnostic::AttributeUnevaluated => C::AttributeUnevaluated,
+                Diagnostic::NamesUnresolved => C::NamesUnresolved,
+                Diagnostic::ControlFlowUnresolved => C::ControlFlowUnresolved,
+                Diagnostic::ReceiverUnresolved => C::ReceiverUnresolved,
+                Diagnostic::ArgumentsUnverified => C::ArgumentsUnverified,
+                Diagnostic::UnsupportedSyntax => C::UnsupportedSyntax,
+            });
+        }
+        codes
+    }
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "quent_review_baseline"
+    },
+    "version": {
+      "const": 1
+    },
+    "analysis_version": {
+      "const": 1
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "const": "untrusted_claims_present"
+          },
+          "input": {
+            "$ref": "review-ci-inputs-v1.schema.json#/$defs/input"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expires": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        },
+        "required": [
+          "code",
+          "input",
+          "reason",
+          "owner",
+          "expires"
+        ]
+      }
+    }
+  },
+  "required": [
+    "kind",
+    "version",
+    "analysis_version",
+    "entries"
+  ]
+}
