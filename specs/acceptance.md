@@ -204,3 +204,18 @@ mapping/High/policy refusal and result-budget quarantine without retry. Existing
 Strict/CRUD/owned/atomic/catalog/CLI regressions remain required. Full C10 patch
 behavior and regen management belong to PR2. Every original full runtime_pending
 marker stays unchanged. Measurements/CI belong to this revision's execution report.
+
+## QT-AI-07 PR2 finite patch/regeneration boundary
+
+[Explicit generator v2](typed-patches-regeneration-v2.md) adds model-specific owned
+three-state patches, native/NULL/budget/duplicate/empty checks and protected-setter
+absence, compiled through existing common preparation and the retained record for
+inspection only. Pure exact previous/proposed/existing byte comparison never opens,
+writes or deletes a file and cannot grant ownership or apply permission.
+C10 gains typed and common-policy protection evidence; C01/C07/C08/C11/C12/C15/C19/
+C24 gain the finite SQL/args/metadata, context/mapping, source-free output, version/
+domain/CRLF/conflict and budget subcases in patch_regeneration and fresh consumer.
+C02–06/C13/C14/C16 retain the existing dispatcher/atomic boundary: CompiledPatch
+has no execution conversion, so there is no new send/session/expiry/Tx path.
+All 24 full runtime_pending entries remain unchanged. New head results are
+execution evidence, not inferred from this ledger.

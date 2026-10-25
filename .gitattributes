@@ -1,2 +1,4 @@
 # Generated Rust artifacts have canonical LF bytes on every checkout platform.
 fixtures/codegen-v1/*-generated.rs text eol=lf
+
+fixtures/codegen-v2/*-generated.rs text eol=lf

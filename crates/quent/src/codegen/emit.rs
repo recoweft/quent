@@ -33,7 +33,11 @@ pub(super) fn emit(
 ) -> Result<String, CodegenError> {
     let mut out = Output(String::new());
     macro_rules! w { ($($t:tt)*) => { writeln!(out, $($t)*).map_err(|_| CodegenError::Budget)? }; }
-    w!("// kind=quent_rust_code version=1 generator=quent-codegen/1; local sensitive data.");
+    w!(
+        "// kind=quent_rust_code version={} generator={}; local sensitive data.",
+        cfg.version,
+        cfg.generator
+    );
     w!("// Exact ordered canonical domains, never fingerprints or authority.");
     w!(
         "const _: &str = {:?};",
@@ -63,6 +67,9 @@ pub(super) fn emit(
             "macro_rules! redacted {{ ($t:ty) => {{ impl std::fmt::Debug for $t {{ fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result {{ f.write_str(\"Generated([REDACTED])\") }} }} }}; }}"
         );
         w!("pub struct Model; redacted!(Model);");
+        if cfg.version == 2 {
+            super::patch::emit(&mut out, m, t, policy)?;
+        }
         let key_types = primary
             .iter()
             .map(|n| rust_ty(&cs[find(n)]))
