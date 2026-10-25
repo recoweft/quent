@@ -178,3 +178,15 @@ subcases. Source and role-checked source cannot become operations, context or
 validated/atomic/observation handles through public conversion or JSON. No typed
 compiler or execution connection is implemented. All 24 full runtime_pending
 markers remain unchanged; command/exact-head CI measurements belong to the report.
+
+## QT-AI-06 planned PR2 typed boundary
+
+[Typed compilation contract](typed-operation-spec-v1.md) adds finite C01/C07/C08/
+C11/C12/C15/C24 evidence: exact full application mapping, native width/sign/NULL/
+operator matrix, fixed source-free diagnostics/actions, one common finalization,
+actual owned read and same-record dispatcher observations. C02–06/C10/C13/C14/C16
+retain common policy/validated/atomic regressions. Typed compilation never replaces
+business permission or weakens High/Unknown refusal; soft-delete remains subject
+to existing partial-analysis refusal. All 24 full runtime_pending markers and
+documentary fixture expectations remain unchanged. Commands, actual counts, new-head
+CI, failures/skips and disposable DB cleanup are recorded in the revision report.

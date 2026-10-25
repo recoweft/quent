@@ -480,6 +480,23 @@ impl SensitiveContextSource<'_> {
             .as_ref()
             .map(|s| (s.identity.0.as_str(), s.generation.0, s.facts.as_slice()))
     }
+    /// Exact application registry coverage only; never live schema authentication.
+    /// Requires the same complete ordinary-table column declarations as preparation.
+    pub fn matches_model_columns(&self, table: &Table, columns: &[Column]) -> bool {
+        self.snapshot
+            .application
+            .schema
+            .as_ref()
+            .is_some_and(|schema| {
+                schema.facts.iter().any(|facts| {
+                    facts.table == *table
+                        && facts.dialect == self.snapshot.settings.binding.dialect
+                        && facts.context == TableContext::OrdinaryBaseTableWithoutEffects
+                        && facts.columns.len() == columns.len()
+                        && facts.columns.iter().all(|column| columns.contains(column))
+                })
+            })
+    }
     pub fn subject(&self) -> Option<&str> {
         self.snapshot
             .application

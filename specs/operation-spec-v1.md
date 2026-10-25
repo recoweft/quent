@@ -1,3 +1,6 @@
+Current PR2: [typed compilation and explicit owned read](typed-operation-spec-v1.md).
+PR1-specific implementation/absence statements below describe the historical baseline.
+
 # QT-AI-06 PR1: bounded read-only OperationSpec
 
 Optional facade feature `operation-spec` enables production `operation_spec` APIs.

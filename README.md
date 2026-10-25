@@ -1,4 +1,6 @@
-Current QT-AI-06 PR1: [bounded read-only OperationSpec syntax and roles](specs/operation-spec-v1.md).
+Current QT-AI-06 PR2: [typed read compilation, fixed diagnostics and explicit owned read](specs/typed-operation-spec-v1.md).
+
+QT-AI-06 PR1 baseline: [bounded read-only OperationSpec syntax and roles](specs/operation-spec-v1.md).
 QT-AI-05 PR2: [explicit finite catalog/CLI verification](specs/manifest-verify-v1.md).
 Earlier PR-specific absence statements below describe their historical baseline.
 
@@ -6,7 +8,7 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: bounded read-only OperationSpec syntax/role validation (QT-AI-06 planned PR1), atop finite catalog verification and owned atomic execution.**
+**Status: typed read-only OperationSpec compilation and explicit owned read (QT-AI-06 planned PR2), atop finite catalog verification and owned atomic execution.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
 models/codegen, review, migration, commands and MCP are future work.
@@ -133,3 +135,10 @@ QT-AI-06 PR1 adds optional `operation-spec`: strict bounded single-model read-on
 source parsing, application-asserted tenant-column role refusal and output-only safe
 summaries. This is syntax/role validation, not typed compilation or execution. See
 [OperationSpec wire, budgets and PR1/PR2 boundary](specs/operation-spec-v1.md).
+
+QT-AI-06 planned PR2 adds immutable application typed mapping, lossless native/NULL
+checks and fixed diagnostics/actions through the common planner. Explicit owned
+read consumes the same finalized preparation and rechecks full current mapping and
+context through the existing Strict dispatcher. Type success grants no permission;
+soft-delete/nullable/NOT cases still obey existing partial-analysis refusal.
+See the [type, dialect, NULL, operator and diagnostic register](specs/typed-operation-spec-v1.md).
