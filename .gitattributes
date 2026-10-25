@@ -7,3 +7,6 @@ fixtures/codegen-v2/*-generated.rs text eol=lf
 fixtures/review-v1/*.expected.json text eol=lf
 
 fixtures/source-review-v1/* text eol=lf
+
+# CI JSON/pretty/SARIF goldens and bounded input fixtures use canonical LF.
+fixtures/review-ci-v1/* text eol=lf

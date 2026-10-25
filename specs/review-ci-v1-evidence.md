@@ -123,3 +123,11 @@ Windows detailed-export ACL success and OS-wide I/O deadlines remain unverified.
 All24 full runtime_pending markers remain unchanged. Exact-head Ubuntu/Windows
 hosted results are separately reported after push/PR creation; this document does
 not treat workflow presence or prior-head hosted results as passing evidence.
+
+Initial hosted head e459aa7ad0d19c12481eac7acd9849471dc81354 exposed a missing
+.gitattributes rule for new golden files on Windows checkout. Two new CLI exact-byte
+assertions failed (393-byte LF stdout versus394-byte CRLF expectation); extracted
+log arrays were otherwise byte-identical after CRLF normalization. The new fixture
+directory is now explicitly LF, matching existing fixture policy. No product input,
+output or acceptance oracle was weakened. Failed/cancelled jobs on this initial
+head are not counted as passing; final exact-head hosted runs are checked separately.
