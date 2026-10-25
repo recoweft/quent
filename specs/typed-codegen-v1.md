@@ -236,3 +236,9 @@ controller environment question. No host configuration was changed by this worke
 No final failed/ignored test is counted as acceptance. Physical authentication,
 DDL concurrency, TLS, Windows live, OS I/O deadlines and write-provider guarantees
 remain unchanged and unverified.
+
+The first hosted Windows run detected CRLF checkout conversion of the checked-in
+Rust artifact, while the production generator correctly emitted canonical LF.
+Repository .gitattributes now pins only these generated artifacts to text/eol=lf.
+Strict byte comparisons stay unchanged; no host/global Git setting is changed.
+Actual results for the corrected head are recorded separately from that failed run.
