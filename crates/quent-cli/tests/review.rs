@@ -710,3 +710,338 @@ fn source_windows_path_replacement_keeps_opened_handle_safety() {
         }
     });
 }
+
+#[cfg(feature = "review-ci")]
+fn ci_command(format: &str, paths: [&Path; 3]) -> Output {
+    run(&[
+        OsStr::new("review-ci"),
+        OsStr::new(format),
+        paths[0].as_os_str(),
+        paths[1].as_os_str(),
+        paths[2].as_os_str(),
+    ])
+}
+#[test]
+fn ci_grammar_features_precede_all_three_reads() {
+    let f = Files::new();
+    let p = f.0.join("CANARY_writerless");
+    #[cfg(unix)]
+    rustix_fifo_when_available(&p);
+    let s = p.as_os_str();
+    for args in [
+        vec![OsStr::new("review-ci")],
+        vec![OsStr::new("review-ci"), OsStr::new("--unknown"), s, s, s],
+        vec![OsStr::new("review-ci"), OsStr::new("--json"), s, s],
+        vec![OsStr::new("review-ci"), OsStr::new("--json"), s, s, s, s],
+    ] {
+        refused(run(&args), 2, b"QUENT_REVIEW_INVALID\n");
+    }
+    for position in 0..3 {
+        let mut paths = [s, s, s];
+        paths[position] = OsStr::new("-");
+        refused(
+            run(&[
+                OsStr::new("review-ci"),
+                OsStr::new("--json"),
+                paths[0],
+                paths[1],
+                paths[2],
+            ]),
+            2,
+            b"QUENT_REVIEW_INVALID\n",
+        );
+    }
+    #[cfg(not(feature = "review-ci"))]
+    for fmt in ["--json", "--pretty", "--sarif"] {
+        refused(
+            run(&[OsStr::new("review-ci"), OsStr::new(fmt), s, s, s]),
+            4,
+            b"QUENT_REVIEW_UNSUPPORTED\n",
+        );
+    }
+}
+#[cfg(feature = "review-ci")]
+fn ci_files(f: &Files) -> [PathBuf; 3] {
+    [
+        f.file(
+            "CANARY_head",
+            include_bytes!("../../../fixtures/review-ci-v1/empty.json"),
+        ),
+        f.file(
+            "CANARY_base",
+            include_bytes!("../../../fixtures/review-ci-v1/empty.json"),
+        ),
+        f.file(
+            "CANARY_baseline",
+            include_bytes!("../../../fixtures/review-ci-v1/baseline.json"),
+        ),
+    ]
+}
+#[cfg(feature = "review-ci")]
+#[test]
+fn ci_independent_sarif_json_pretty_goldens_and_exits() {
+    let f = Files::new();
+    let paths = ci_files(&f);
+    for (fmt, expected) in [
+        (
+            "--json",
+            include_bytes!("../../../fixtures/review-ci-v1/empty.expected.json").as_slice(),
+        ),
+        (
+            "--pretty",
+            include_bytes!("../../../fixtures/review-ci-v1/empty.pretty.expected.json").as_slice(),
+        ),
+        (
+            "--sarif",
+            include_bytes!("../../../fixtures/review-ci-v1/empty.sarif.expected.json").as_slice(),
+        ),
+    ] {
+        let o = ci_command(fmt, [&paths[0], &paths[1], &paths[2]]);
+        assert_eq!(o.status.code(), Some(3));
+        assert!(o.stderr.is_empty());
+        assert_eq!(o.stdout, expected);
+    }
+}
+#[cfg(feature = "review-ci")]
+#[test]
+fn ci_all_inputs_bytes_utf8_closed_wire_and_resource_refusals() {
+    let f = Files::new();
+    let paths = ci_files(&f);
+    for n in 0..3 {
+        let original = fs::read(&paths[n]).unwrap();
+        let mut exact = original.clone();
+        exact.resize(65536, b' ');
+        fs::write(&paths[n], &exact).unwrap();
+        assert_eq!(
+            ci_command("--json", [&paths[0], &paths[1], &paths[2]])
+                .status
+                .code(),
+            Some(3)
+        );
+        exact.push(b' ');
+        fs::write(&paths[n], exact).unwrap();
+        refused(
+            ci_command("--sarif", [&paths[0], &paths[1], &paths[2]]),
+            2,
+            b"QUENT_REVIEW_BUDGET\n",
+        );
+        for b in [
+            vec![255],
+            br#"{"kind":1,"k\u0069nd":2}"#.to_vec(),
+            b"null".to_vec(),
+            format!("{}0{}", "[".repeat(100), "]".repeat(100)).into_bytes(),
+            br#"{"kind":"quent_review_ci","version":1}"#.to_vec(),
+            b"{} {}".to_vec(),
+        ] {
+            fs::write(&paths[n], b).unwrap();
+            let o = ci_command("--pretty", [&paths[0], &paths[1], &paths[2]]);
+            assert!(!o.status.success());
+            assert!(o.stdout.is_empty());
+            assert!(
+                o.stderr == b"QUENT_REVIEW_INVALID\n" || o.stderr == b"QUENT_REVIEW_UNSUPPORTED\n"
+            );
+        }
+        fs::write(&paths[n], original).unwrap();
+    }
+}
+#[cfg(feature = "review-ci")]
+#[test]
+fn ci_suppressed_claim_cannot_hide_block_unknown_or_removed_gate() {
+    use serde_json::json;
+    let f = Files::new();
+    let paths = ci_files(&f);
+    let mut source: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../../../fixtures/review-v1/select.json")).unwrap();
+    source["operation"]["family"] = json!("delete");
+    source["operation"]["projection"] = json!([]);
+    source["operation"]
+        .as_object_mut()
+        .unwrap()
+        .remove("filter");
+    source["operation"].as_object_mut().unwrap().remove("limit");
+    source["claims"] = json!({"sql":"https://CANARY.invalid/\u{1b}[31m [CANARY](file:///secret)","coverage":"complete","verdict":"accepted","freshness":"fresh","fingerprint":"CANARY_hash"});
+    let input = json!({"target":"CANARY_target","context":"CANARY_context","scope":"CANARY_scope","format":"plan","source":source.to_string()});
+    let head = json!({"kind":"quent_review_inputs","version":1,"analysis_version":1,"selection":"changed_only","inputs":[input]});
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let baseline = json!({"kind":"quent_review_baseline","version":1,"analysis_version":1,"entries":[{"code":"untrusted_claims_present","input":input,"reason":"CANARY_reason","owner":"CANARY_owner","expires":now+600}]});
+    fs::write(&paths[0], head.to_string()).unwrap();
+    fs::write(&paths[2], baseline.to_string()).unwrap();
+    for fmt in ["--json", "--pretty", "--sarif"] {
+        let o = ci_command(fmt, [&paths[0], &paths[1], &paths[2]]);
+        assert_eq!(o.status.code(), Some(5));
+        assert!(o.stderr.is_empty());
+        let text = String::from_utf8(o.stdout).unwrap();
+        for canary in [
+            "CANARY",
+            "https://",
+            "file://",
+            "fingerprint",
+            "owner",
+            "reason",
+        ] {
+            assert!(!text.contains(canary));
+        }
+        assert!(text.contains("missing_where"));
+        assert!(text.contains("review_incomplete"));
+        if fmt != "--sarif" {
+            let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(v["hidden_count"], 1);
+            assert_eq!(v["head_results"][0]["risk"], "blocked");
+            assert_eq!(v["git_head"], "unverified");
+        }
+    }
+    // Removed display cannot certify a missing head input set.
+    fs::write(&paths[1], head.to_string()).unwrap();
+    fs::write(
+        &paths[0],
+        include_bytes!("../../../fixtures/review-ci-v1/empty.json"),
+    )
+    .unwrap();
+    let o = ci_command("--json", [&paths[0], &paths[1], &paths[2]]);
+    assert_eq!(o.status.code(), Some(3));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["explicit_set"], "missing");
+    assert_eq!(v["diagnostics"][0]["diff"], "removed");
+}
+#[cfg(all(feature = "review-ci", unix))]
+#[test]
+fn ci_all_three_inputs_fifo_device_directory_symlink_refuse() {
+    let f = Files::new();
+    let paths = ci_files(&f);
+    let fifo = f.0.join("CANARY_fifo");
+    rustix_fifo_when_available(&fifo);
+    let link = f.0.join("CANARY_link");
+    std::os::unix::fs::symlink(&paths[0], &link).unwrap();
+    for n in 0..3 {
+        for bad in [&fifo, f.0.as_path(), Path::new("/dev/null")] {
+            let mut p = [paths[0].as_path(), paths[1].as_path(), paths[2].as_path()];
+            p[n] = bad;
+            refused(ci_command("--json", p), 2, b"QUENT_REVIEW_INVALID\n");
+        }
+        let mut p = [paths[0].as_path(), paths[1].as_path(), paths[2].as_path()];
+        p[n] = &link;
+        refused(ci_command("--sarif", p), 8, b"QUENT_REVIEW_IO\n");
+    }
+}
+#[cfg(all(feature = "review-ci", windows))]
+#[test]
+fn ci_all_three_inputs_windows_device_directory_reparse_refuse() {
+    let f = Files::new();
+    let paths = ci_files(&f);
+    let link = f.0.join("CANARY_link");
+    std::os::windows::fs::symlink_file(&paths[0], &link).unwrap();
+    for n in 0..3 {
+        for bad in [f.0.as_path(), Path::new("NUL"), link.as_path()] {
+            let mut p = [paths[0].as_path(), paths[1].as_path(), paths[2].as_path()];
+            p[n] = bad;
+            let o = ci_command("--json", p);
+            assert!(matches!(o.status.code(), Some(2 | 8)));
+            assert!(o.stdout.is_empty());
+            assert!(o.stderr == b"QUENT_REVIEW_INVALID\n" || o.stderr == b"QUENT_REVIEW_IO\n");
+        }
+    }
+}
+#[cfg(feature = "review-ci")]
+#[test]
+fn ci_all_three_replacement_races_preserve_opened_file_and_fixed_streams() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+    let f = Files::new();
+    let paths = ci_files(&f);
+    for n in 0..3 {
+        let content = fs::read(&paths[n]).unwrap();
+        let stable = f.file("CANARY_stable_ci", &content);
+        let changing = f.file("CANARY_changing_ci", &content);
+        let stop = Arc::new(AtomicBool::new(false));
+        let changes = Arc::new(AtomicUsize::new(0));
+        std::thread::scope(|scope| {
+            let stop_writer = stop.clone();
+            let counter = changes.clone();
+            let changing_ref = &changing;
+            let stable_ref = &stable;
+            let dir = &f.0;
+            let content = &content;
+            let writer = scope.spawn(move || {
+                let tmp = dir.join("CANARY_replace_ci");
+                while !stop_writer.load(Ordering::Relaxed) {
+                    fs::write(&tmp, content).unwrap();
+                    fs::rename(&tmp, changing_ref).unwrap();
+                    counter.fetch_add(1, Ordering::Relaxed);
+                    #[cfg(unix)]
+                    {
+                        rustix::fs::mkfifoat(rustix::fs::CWD, &tmp, rustix::fs::Mode::RUSR)
+                            .unwrap();
+                        fs::rename(&tmp, changing_ref).unwrap();
+                    }
+                    #[cfg(unix)]
+                    std::os::unix::fs::symlink(stable_ref, &tmp).unwrap();
+                    #[cfg(windows)]
+                    std::os::windows::fs::symlink_file(stable_ref, &tmp).unwrap();
+                    fs::rename(&tmp, changing_ref).unwrap();
+                    counter.fetch_add(1, Ordering::Relaxed);
+                }
+            });
+            let result = std::panic::catch_unwind(|| {
+                for _ in 0..24 {
+                    let mut p = [paths[0].as_path(), paths[1].as_path(), paths[2].as_path()];
+                    p[n] = &changing;
+                    let o = ci_command("--json", p);
+                    match o.status.code() {
+                        Some(3) => {
+                            assert!(o.stderr.is_empty());
+                            assert_eq!(
+                                o.stdout,
+                                include_bytes!(
+                                    "../../../fixtures/review-ci-v1/empty.expected.json"
+                                )
+                            );
+                        }
+                        Some(2) => refused(o, 2, b"QUENT_REVIEW_INVALID\n"),
+                        Some(8) => refused(o, 8, b"QUENT_REVIEW_IO\n"),
+                        _ => panic!("unexpected CI race result"),
+                    }
+                }
+            });
+            stop.store(true, Ordering::Relaxed);
+            writer.join().unwrap();
+            assert!(changes.load(Ordering::Relaxed) > 0);
+            if let Err(e) = result {
+                std::panic::resume_unwind(e);
+            }
+        });
+    }
+}
+#[cfg(feature = "review-ci")]
+#[test]
+fn ci_zero_network_with_real_detecting_control() {
+    use std::net::{TcpListener, TcpStream};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let c = TcpStream::connect(addr).unwrap();
+    listener.accept().unwrap();
+    drop(c);
+    let f = Files::new();
+    let p = ci_files(&f);
+    let args = [
+        OsStr::new("review-ci"),
+        OsStr::new("--sarif"),
+        p[0].as_os_str(),
+        p[1].as_os_str(),
+        p[2].as_os_str(),
+    ];
+    let o = run_at(&args, &format!("postgres://CANARY:CANARY@{addr}/CANARY"));
+    assert_eq!(o.status.code(), Some(3));
+    let mut invalid = args.to_vec();
+    invalid.push(OsStr::new("extra"));
+    refused(run_at(&invalid, "CANARY"), 2, b"QUENT_REVIEW_INVALID\n");
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}

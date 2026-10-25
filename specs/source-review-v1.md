@@ -1,3 +1,5 @@
+Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](review-ci-v1.md). Earlier PR-specific absence statements are historical.
+
 # QT-AI-08 planned PR2: finite Rust source candidates
 
 `quent/source-review` exposes pure `source_review::review(&[u8])`. CLI feature

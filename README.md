@@ -1,3 +1,5 @@
+Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](specs/review-ci-v1.md). Earlier PR-specific absence statements are historical.
+
 QT-AI-08 planned PR2: [bounded Rust source candidates, conservative coverage and independent precision](specs/source-review-v1.md).
 
 Current QT-AI-07 PR1: [finite nominal keys, explicit projections and typed repositories](specs/typed-codegen-v1.md).
@@ -12,10 +14,14 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: finite typed repositories, inspection-only patches/regeneration, and bounded offline review through QT-AI-08 planned PR2.**
+**Status: finite typed repositories, inspection-only patches/regeneration, and bounded offline review through QT-AI-08 planned PR3.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
 migration, commands and MCP are future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
+Optional `review-ci` adds `quent-cli review-ci --json|--pretty|--sarif HEAD_INPUTS BASE_INPUTS BASELINE`.
+It compares exact supplied inputs and supports expiring display baselines; all original
+findings remain non-suppressible. Git-head coverage and runtime remain unverified;
+there is no CI pass/exit0. See the linked closed input/output/SARIF contract.
 CLI `manifest verify --offline SOURCE COMPARISON` is DB-free; `--live SOURCE CONFIG`
 explicitly runs a bounded read-only catalog observation with optional driver/runtime
 features. Inputs must be explicitly named regular files; Unix FIFO inputs refuse

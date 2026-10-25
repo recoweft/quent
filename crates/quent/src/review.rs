@@ -73,6 +73,9 @@ pub struct Review {
     manifest: Option<serde_json::Value>,
     claims: &'static str,
     claim_count: u8,
+    #[cfg(feature = "review-ci")]
+    #[serde(skip)]
+    ci_findings: Vec<quent_core::FindingCode>,
 }
 impl Review {
     fn new(source: &'static str) -> Self {
@@ -91,6 +94,8 @@ impl Review {
             manifest: None,
             claims: "absent",
             claim_count: 0,
+            #[cfg(feature = "review-ci")]
+            ci_findings: vec![],
         }
     }
     pub fn state(&self) -> State {
@@ -216,6 +221,10 @@ pub fn inspection(i: &Inspection<'_>) -> Review {
         Completeness::Unknown => "unknown",
     };
     r.precision.sql = "retained_record";
+    #[cfg(feature = "review-ci")]
+    {
+        r.ci_findings = i.findings().iter().map(quent_core::Finding::code).collect();
+    }
     // Existing output contains full scope, evidence and all nonsuppressible findings.
     r.inspection =
         Some(serde_json::from_str(&i.public_view().to_json()).expect("fixed core output"));
@@ -259,4 +268,34 @@ pub fn manifest(bytes: &[u8]) -> Result<Review, ReviewError> {
     }
     r.manifest = Some(serde_json::from_str(&summary.to_json()).expect("fixed manifest output"));
     Ok(r)
+}
+
+#[cfg(feature = "review-ci")]
+impl Review {
+    pub(crate) fn ci_codes(&self) -> Vec<crate::review_ci::Code> {
+        use crate::review_ci::Code as C;
+        let mut codes = vec![C::ReviewIncomplete];
+        if self.code == Code::StructuralBlock {
+            codes.push(C::StructuralBlock);
+        }
+        if self.state == State::Unsupported {
+            codes.push(C::Unsupported);
+        }
+        for f in &self.ci_findings {
+            use quent_core::FindingCode as F;
+            codes.push(match f {
+                F::MissingWhere => C::MissingWhere,
+                F::UnknownProof => C::UnknownProof,
+                F::BulkWrite => C::BulkWrite,
+                F::WeakPredicate => C::WeakPredicate,
+                F::ReadWithoutLimit => C::ReadWithoutLimit,
+                F::ReadProjection => C::ReadProjection,
+                F::InsertUnverified => C::InsertUnverified,
+            });
+        }
+        if self.claim_count != 0 {
+            codes.push(C::UntrustedClaimsPresent);
+        }
+        codes
+    }
 }

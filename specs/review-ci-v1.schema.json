@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "quent_review_ci"
+    },
+    "version": {
+      "const": 1
+    },
+    "analysis_version": {
+      "const": 1
+    },
+    "state": {
+      "enum": [
+        "incomplete",
+        "budget"
+      ]
+    },
+    "exit": {
+      "enum": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "selection": {
+      "enum": [
+        "explicit_set",
+        "changed_only"
+      ]
+    },
+    "explicit_inputs_processed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8
+    },
+    "base_inputs_processed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8
+    },
+    "explicit_set": {
+      "enum": [
+        "missing",
+        "processed"
+      ]
+    },
+    "git_head": {
+      "const": "unverified"
+    },
+    "runtime": {
+      "const": "unverified"
+    },
+    "authority": {
+      "const": "not_granted"
+    },
+    "public_budget_exceeded": {
+      "type": "boolean"
+    },
+    "diagnostic_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 256
+    },
+    "hidden_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 256
+    },
+    "diagnostics": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "review_incomplete",
+              "structural_block",
+              "unsupported",
+              "input_budget",
+              "missing_where",
+              "unknown_proof",
+              "bulk_write",
+              "weak_predicate",
+              "read_without_limit",
+              "read_projection",
+              "insert_unverified",
+              "identity_unverified",
+              "context_unverified",
+              "no_candidates",
+              "macro_unexpanded",
+              "attribute_unevaluated",
+              "names_unresolved",
+              "control_flow_unresolved",
+              "receiver_unresolved",
+              "arguments_unverified",
+              "unsupported_syntax",
+              "untrusted_claims_present"
+            ]
+          },
+          "diff": {
+            "enum": [
+              "added",
+              "unchanged",
+              "removed",
+              "unknown"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "diff",
+          "hidden"
+        ]
+      }
+    },
+    "head_results": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "review-v1.schema.json"
+          },
+          {
+            "$ref": "source-review-v1.schema.json"
+          }
+        ]
+      }
+    },
+    "base_results": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "review-v1.schema.json"
+          },
+          {
+            "$ref": "source-review-v1.schema.json"
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "kind",
+    "version",
+    "analysis_version",
+    "state",
+    "exit",
+    "selection",
+    "explicit_inputs_processed",
+    "base_inputs_processed",
+    "explicit_set",
+    "git_head",
+    "runtime",
+    "authority",
+    "public_budget_exceeded",
+    "diagnostic_count",
+    "hidden_count",
+    "diagnostics",
+    "head_results",
+    "base_results"
+  ]
+}

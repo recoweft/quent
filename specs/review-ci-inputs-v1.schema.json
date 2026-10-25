@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "quent_review_inputs"
+    },
+    "version": {
+      "const": 1
+    },
+    "analysis_version": {
+      "const": 1
+    },
+    "selection": {
+      "enum": [
+        "explicit_set",
+        "changed_only"
+      ]
+    },
+    "inputs": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/input"
+      }
+    }
+  },
+  "required": [
+    "kind",
+    "version",
+    "analysis_version",
+    "selection",
+    "inputs"
+  ],
+  "$defs": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^(?!\\s*$)[^*\\u0000-\\u001f\\u007f]+$"
+        },
+        "context": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^(?!\\s*$)[^*\\u0000-\\u001f\\u007f]+$"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^(?!\\s*$)[^*\\u0000-\\u001f\\u007f]+$"
+        },
+        "format": {
+          "enum": [
+            "plan",
+            "spec",
+            "manifest",
+            "rust"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "target",
+        "context",
+        "scope",
+        "format",
+        "source"
+      ]
+    }
+  }
+}

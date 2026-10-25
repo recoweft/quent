@@ -1,3 +1,5 @@
+Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](review-ci-v1.md). Earlier PR-specific absence statements are historical.
+
 Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](manifest-verify-v1.md).
 Earlier PR-specific absence statements below describe their historical baseline.
 
