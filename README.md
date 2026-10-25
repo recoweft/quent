@@ -1,3 +1,5 @@
+Current QT-AI-07 PR1: [finite nominal keys, explicit projections and typed repositories](specs/typed-codegen-v1.md).
+
 Current QT-AI-06 PR2: [typed read compilation, fixed diagnostics and explicit owned read](specs/typed-operation-spec-v1.md).
 
 QT-AI-06 PR1 baseline: [bounded read-only OperationSpec syntax and roles](specs/operation-spec-v1.md).
@@ -8,10 +10,10 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: typed read-only OperationSpec compilation and explicit owned read (QT-AI-06 planned PR2), atop finite catalog verification and owned atomic execution.**
+**Status: finite typed model/key/projection/repository generation (QT-AI-07 planned PR1), with explicit owned reads through the common compiler and gate.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
-models/codegen, review, migration, commands and MCP are future work.
+three-state patches/regeneration management, review, migration, commands and MCP are future work.
 CLI `manifest verify --offline SOURCE COMPARISON` is DB-free; `--live SOURCE CONFIG`
 explicitly runs a bounded read-only catalog observation with optional driver/runtime
 features. Inputs must be explicitly named regular files; Unix FIFO inputs refuse
@@ -21,6 +23,7 @@ conditions. Other CLI routes retain fixed non-success refusal.
 Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
 connect/execute and dedicated catalog-reader APIs perform I/O. No release or crates.io publication is provided.
 
+- [Codegen config, naming/budgets, native/NULL/key/role matrix and PR2 responsibilities](specs/typed-codegen-v1.md)
 - [OperationSpec wire, budgets, application role assertions and PR2 boundary](specs/operation-spec-v1.md)
 - [Schema/manifest source, canonical fingerprints and offline evidence](specs/schema-manifest-v1.md)
 - [Output surfaces, local file protections, CLI and CI/MCP limits](specs/output-boundaries-v1.md)
@@ -142,3 +145,12 @@ read consumes the same finalized preparation and rechecks full current mapping a
 context through the existing Strict dispatcher. Type success grants no permission;
 soft-delete/nullable/NOT cases still obey existing partial-analysis refusal.
 See the [type, dialect, NULL, operator and diagnostic register](specs/typed-operation-spec-v1.md).
+
+Optional `codegen` is driver/runtime-free and generates finite local Rust code data
+from strict manifest source v1 and independent generation config v1. It preserves
+model-specific nominal keys, native widths/signs, Option and explicit projection
+row types. Applications bind their own complete TypedModelContract/current context;
+generated metadata never supplies trusted context or business permission. Generated
+reads retain the existing compiler/finalized record/session dispatch and refusal
+rules. No generator CLI, write repository or patch/regen workflow is added. See
+[the contract and checked-in finite examples](specs/typed-codegen-v1.md).

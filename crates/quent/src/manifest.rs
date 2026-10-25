@@ -1,6 +1,6 @@
 //! DB-free finite manifest sources. Parsing never authenticates or authorizes.
 //! See specs/schema-manifest-v1.md for the canonical and wire contracts.
-mod bounded;
+pub(crate) mod bounded;
 mod wire;
 use std::fmt;
 use wire::*;

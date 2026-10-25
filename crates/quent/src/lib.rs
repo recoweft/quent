@@ -40,7 +40,7 @@ pub mod local_details;
 #[cfg(feature = "output-tracing")]
 pub mod output_tracing;
 
-#[cfg(all(test, feature = "output-tracing"))]
+#[cfg(all(test, any(feature = "output-tracing", feature = "codegen")))]
 extern crate self as quent;
 
 #[cfg(all(test, feature = "output-tracing"))]
@@ -54,3 +54,7 @@ pub mod manifest;
 /// Bounded read-only source syntax and application-asserted column roles.
 #[cfg(feature = "operation-spec")]
 pub mod operation_spec;
+
+/// Pure finite Rust code artifacts; never context or authorization restoration.
+#[cfg(feature = "codegen")]
+pub mod codegen;

@@ -228,3 +228,15 @@ output-only `quent_manifest_summary` kind; see [manifest v1](schema-manifest-v1.
 Earlier no-parser statements above describe QT-AI-04. Source parsing is never
 public-view deserialization or authority restoration. No tracing or detail exporter
 accepts the new sensitive carrier; CLI manifest remains unsupported.
+
+## QT-AI-07 planned PR1 code artifacts
+
+[Finite typed Rust generation](typed-codegen-v1.md) adds optional pure codegen,
+model-specific keys/columns/predicates/order/projection/results/repositories and
+explicit application mapping/context binding through the existing read compiler
+and same finalized-record dispatcher. Source metadata, generated Rust and public
+summary/diagnostic JSON remain separate untrusted/output-only domains. No patch,
+regen workflow, new write/provider, authority restoration or risk relaxation is
+introduced. Prior PR absence statements above are historical. All 24 full
+runtime_pending markers remain unchanged; actual new-head evidence is reported
+separately.

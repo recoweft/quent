@@ -190,3 +190,17 @@ business permission or weakens High/Unknown refusal; soft-delete remains subject
 to existing partial-analysis refusal. All 24 full runtime_pending markers and
 documentary fixture expectations remain unchanged. Commands, actual counts, new-head
 CI, failures/skips and disposable DB cleanup are recorded in the revision report.
+
+## QT-AI-07 planned PR1 finite generated consumer
+
+[Generated model contract and evidence matrix](typed-codegen-v1.md) adds limited
+C01/C07/C08/C10(read-only surface)/C11/C12/C15/C19/C24 evidence. Production inputs
+and independently handwritten API/type/SQL/native/result oracles accompany byte
+correspondence fixtures. Fresh production-generated consumers test model mixing,
+native/NULL/partial-key/tenant/private/serde/authority refusals with diagnostic
+codes and compiling controls. Live generated reads compare inspected/dispatched
+SQL allocation and ordered args, native+NULL and partial projection rows, context/
+mapping/High/policy refusal and result-budget quarantine without retry. Existing
+Strict/CRUD/owned/atomic/catalog/CLI regressions remain required. Full C10 patch
+behavior and regen management belong to PR2. Every original full runtime_pending
+marker stays unchanged. Measurements/CI belong to this revision's execution report.

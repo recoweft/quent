@@ -25,6 +25,7 @@ rustix = { version = "=1.1.4", default-features = false, features = ["std", "fs"
 
 [features]
 default = []
+codegen = ["manifest", "operation-spec"]
 operation-spec = ["dep:serde", "dep:serde_json"]
 manifest = ["dep:serde", "dep:serde_json"]
 local-details = ["dep:rustix"]

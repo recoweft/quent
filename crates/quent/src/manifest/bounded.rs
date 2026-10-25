@@ -4,7 +4,7 @@ use super::ManifestError;
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use std::{collections::BTreeSet, fmt};
 
-pub(super) fn check(bytes: &[u8]) -> Result<(), ManifestError> {
+pub(crate) fn check(bytes: &[u8]) -> Result<(), ManifestError> {
     if bytes.len() > 65_536 {
         return Err(ManifestError::Budget);
     }
