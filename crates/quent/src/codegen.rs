@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeSet, fmt};
 mod emit;
+mod patch;
+mod regenerate;
+pub use patch::{PatchDiagnostic, PatchError, PatchSummary};
+pub use regenerate::{Regeneration, RegenerationAction, RegenerationState, compare};
 /// Implementation dependency for generated source, pinned by this workspace.
 /// This reexport supplies JSON data only, never an executor or authority builder.
 #[doc(hidden)]
@@ -66,6 +70,10 @@ impl Summary {
 }
 /// Local code artifact only. No Display/serde, filesystem I/O or execution API.
 pub struct CodeArtifact {
+    revision: u32,
+    schema: Vec<u8>,
+    policy: Vec<u8>,
+    config: String,
     source: String,
     models: usize,
     projections: usize,
@@ -257,15 +265,37 @@ fn variant(c: &Value) -> String {
     s[..1].make_ascii_uppercase();
     s
 }
-/// Manifest source v1 + independent finite config v1 -> generator v1 Rust bytes.
+/// Manifest source v1 + explicit matched config/generator revision 1 or 2.
+/// Revision 1 output stays byte-identical; revision 2 additionally emits patches.
 /// The only inputs are the supplied bytes; no environment, clock, provider or I/O.
 pub fn generate(manifest: &[u8], config: &[u8]) -> Result<CodeArtifact, CodegenError> {
     use CodegenError as E;
     let source = ManifestSource::parse(manifest).map_err(|_| E::Wire)?;
     crate::manifest::bounded::check(config).map_err(|_| E::Wire)?;
     let cfg: Config = serde_json::from_slice(config).map_err(|_| E::Wire)?;
-    if cfg.version != 1 || cfg.generator != "quent-codegen/1" {
+    if !matches!(
+        (cfg.version, cfg.generator.as_str()),
+        (1, "quent-codegen/1") | (2, "quent-codegen/2")
+    ) {
         return Err(E::Version);
+    }
+    if cfg.version == 2
+        && cfg.models.iter().any(|m| {
+            m.columns.iter().any(|c| {
+                matches!(
+                    c.name.as_str(),
+                    "patch"
+                        | "payload"
+                        | "compiled_patch"
+                        | "change"
+                        | "nullable_change"
+                        | "compile_patch"
+                        | "matches_current"
+                )
+            })
+        })
+    {
+        return Err(E::Naming);
     }
     let summaries = source.public_view();
     for summary in &summaries.artifacts()[..2] {
@@ -370,6 +400,19 @@ pub fn generate(manifest: &[u8], config: &[u8]) -> Result<CodeArtifact, CodegenE
             return Err(E::Budget);
         }
     }
+    if cfg.version == 2 {
+        for (m, t) in cfg.models.iter().zip(tables) {
+            let mut methods = BTreeSet::new();
+            for (d, c) in m.columns.iter().zip(t["columns"].as_array().unwrap()) {
+                if !methods.insert(format!("set_{}", d.name))
+                    || (c["nullability"] == "nullable"
+                        && !methods.insert(format!("set_null_{}", d.name)))
+                {
+                    return Err(E::Naming);
+                }
+            }
+        }
+    }
     let cfg_canonical = serde_json::to_string(&cfg).expect("closed config");
     let schema_bytes = source
         .sensitive_source()
@@ -391,6 +434,10 @@ pub fn generate(manifest: &[u8], config: &[u8]) -> Result<CodeArtifact, CodegenE
         return Err(E::Budget);
     }
     Ok(CodeArtifact {
+        revision: cfg.version,
+        schema: schema_bytes,
+        policy: policy_bytes,
+        config: cfg_canonical,
         source: output,
         models: cfg.models.len(),
         projections: cfg.models.iter().map(|m| m.projections.len()).sum(),

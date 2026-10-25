@@ -152,5 +152,9 @@ model-specific nominal keys, native widths/signs, Option and explicit projection
 row types. Applications bind their own complete TypedModelContract/current context;
 generated metadata never supplies trusted context or business permission. Generated
 reads retain the existing compiler/finalized record/session dispatch and refusal
-rules. No generator CLI, write repository or patch/regen workflow is added. See
+rules. Explicit config/generator v2 additionally emits model-specific three-state
+patches for DB-free common preparation/inspection. Pure exact-byte regeneration
+comparison reports changes/conflicts and never writes existing files. No patch
+execution connection or generator CLI is added. See the
+[patch/version/non-overwrite contract](specs/typed-patches-regeneration-v2.md) and
 [the contract and checked-in finite examples](specs/typed-codegen-v1.md).

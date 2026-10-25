@@ -1,3 +1,6 @@
+Current PR2: [explicit v2 patches and pure non-overwrite regeneration](typed-patches-regeneration-v2.md).
+The PR1 implementation/evidence below describes the preserved generator-v1 output.
+
 # QT-AI-07 planned PR1: finite typed Rust code artifacts
 
 `quent/codegen` adds a pure generator API, not a CLI regeneration workflow. It

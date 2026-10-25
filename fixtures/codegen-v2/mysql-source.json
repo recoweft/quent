@@ -1,0 +1,328 @@
+{
+  "kind": "quent_manifest_source",
+  "version": 1,
+  "schema": {
+    "kind": "quent_schema",
+    "version": 1,
+    "target": {
+      "database": "dedicated_test",
+      "address": "dedicated_loopback",
+      "catalog": "quent_dispatch_test",
+      "dialect": "mysql"
+    },
+    "coverage": "complete",
+    "tables": [
+      {
+        "path": [
+          "quent_dispatch_test",
+          "generated_items"
+        ],
+        "semantics": "ordinary",
+        "columns_coverage": "complete",
+        "keys_coverage": "complete",
+        "columns": [
+          {
+            "name": "part",
+            "native": "i16",
+            "nullability": "nonnull",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "id",
+            "native": "i64",
+            "nullability": "nonnull",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "tenant",
+            "native": "i64",
+            "nullability": "nonnull",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "small",
+            "native": "i16",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "normal",
+            "native": "i32",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "big",
+            "native": "i64",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "flag",
+            "native": "bool",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "txt",
+            "native": "text",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "optional",
+            "native": "i64",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "tiny",
+            "native": "i8",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_tiny",
+            "native": "u8",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_small",
+            "native": "u16",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_normal",
+            "native": "u32",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_big",
+            "native": "u64",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          }
+        ],
+        "keys": [
+          {
+            "kind": "primary",
+            "columns": [
+              "part",
+              "id"
+            ],
+            "coverage": "complete"
+          }
+        ]
+      },
+      {
+        "path": [
+          "quent_dispatch_test",
+          "other_items"
+        ],
+        "semantics": "ordinary",
+        "columns_coverage": "complete",
+        "keys_coverage": "complete",
+        "columns": [
+          {
+            "name": "part",
+            "native": "i16",
+            "nullability": "nonnull",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "id",
+            "native": "i64",
+            "nullability": "nonnull",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "tenant",
+            "native": "i64",
+            "nullability": "nonnull",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "small",
+            "native": "i16",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "normal",
+            "native": "i32",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "big",
+            "native": "i64",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "flag",
+            "native": "bool",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "txt",
+            "native": "text",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "optional",
+            "native": "i64",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "tiny",
+            "native": "i8",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_tiny",
+            "native": "u8",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_small",
+            "native": "u16",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_normal",
+            "native": "u32",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          },
+          {
+            "name": "u_big",
+            "native": "u64",
+            "nullability": "nullable",
+            "default": {
+              "state": "none"
+            }
+          }
+        ],
+        "keys": [
+          {
+            "kind": "primary",
+            "columns": [
+              "part",
+              "id"
+            ],
+            "coverage": "complete"
+          }
+        ]
+      }
+    ]
+  },
+  "policy": {
+    "kind": "quent_policy",
+    "version": 1,
+    "target": {
+      "database": "dedicated_test",
+      "address": "dedicated_loopback",
+      "catalog": "quent_dispatch_test",
+      "dialect": "mysql"
+    },
+    "coverage": "complete",
+    "rules": [
+      {
+        "kind": "tenant",
+        "table": [
+          "quent_dispatch_test",
+          "generated_items"
+        ],
+        "column": "tenant"
+      },
+      {
+        "kind": "tenant",
+        "table": [
+          "quent_dispatch_test",
+          "other_items"
+        ],
+        "column": "tenant"
+      },
+      {
+        "kind": "readonly",
+        "table": [
+          "quent_dispatch_test",
+          "other_items"
+        ],
+        "column": "small"
+      },
+      {
+        "kind": "generated",
+        "table": [
+          "quent_dispatch_test",
+          "other_items"
+        ],
+        "column": "normal"
+      }
+    ]
+  }
+}

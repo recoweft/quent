@@ -275,3 +275,11 @@ regen workflow, new write/provider, authority restoration or risk relaxation is
 introduced. Prior PR absence statements above are historical. All 24 full
 runtime_pending markers remain unchanged; actual new-head evidence is reported
 separately.
+
+QT-AI-07 PR2: [explicit v2 patch/regeneration boundary](typed-patches-regeneration-v2.md)
+adds private model-specific three-state patches for common DB-free preparation and
+inspection, plus exact pure prior/proposed/existing byte comparison. It adds no
+execution connection or filesystem I/O. Output-only patch summary/diagnostic and
+regeneration state/action/count never carry code, diffs, names, values or paths.
+V1 generator bytes, SensitiveDetails export restrictions and all runtime_pending
+markers remain unchanged.
