@@ -206,3 +206,15 @@ are unchanged. Original CI jobs are retained with manifest combinations added;
 hosted results and exact head belong to the PR/execution report. No parallel
 full/DB-free harness reliability, Windows ACL support, actual TLS or network
 completion-fault guarantee is claimed. All 24 full runtime_pending markers remain.
+
+## QT-AI-07 planned PR1 code artifacts
+
+[Finite typed Rust generation](typed-codegen-v1.md) adds optional pure codegen,
+model-specific keys/columns/predicates/order/projection/results/repositories and
+explicit application mapping/context binding through the existing read compiler
+and same finalized-record dispatcher. Source metadata, generated Rust and public
+summary/diagnostic JSON remain separate untrusted/output-only domains. No patch,
+regen workflow, new write/provider, authority restoration or risk relaxation is
+introduced. Prior PR absence statements above are historical. All 24 full
+runtime_pending markers remain unchanged; actual new-head evidence is reported
+separately.

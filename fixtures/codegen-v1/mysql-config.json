@@ -1,0 +1,217 @@
+{
+  "kind": "quent_codegen_config",
+  "version": 1,
+  "generator": "quent-codegen/1",
+  "models": [
+    {
+      "table": [
+        "quent_dispatch_test",
+        "generated_items"
+      ],
+      "columns": [
+        {
+          "name": "part",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "id",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "tenant",
+          "role": "tenant",
+          "read": true
+        },
+        {
+          "name": "small",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "normal",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "big",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "flag",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "txt",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "optional",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "tiny",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_tiny",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_small",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_normal",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_big",
+          "role": "ordinary",
+          "read": true
+        }
+      ],
+      "projections": [
+        {
+          "name": "detail",
+          "fields": [
+            "part",
+            "id",
+            "small",
+            "normal",
+            "big",
+            "flag",
+            "txt",
+            "optional",
+            "tiny",
+            "u_tiny",
+            "u_small",
+            "u_normal",
+            "u_big"
+          ]
+        },
+        {
+          "name": "compact",
+          "fields": [
+            "optional",
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "table": [
+        "quent_dispatch_test",
+        "other_items"
+      ],
+      "columns": [
+        {
+          "name": "part",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "id",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "tenant",
+          "role": "tenant",
+          "read": true
+        },
+        {
+          "name": "small",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "normal",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "big",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "flag",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "txt",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "optional",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "tiny",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_tiny",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_small",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_normal",
+          "role": "ordinary",
+          "read": true
+        },
+        {
+          "name": "u_big",
+          "role": "ordinary",
+          "read": true
+        }
+      ],
+      "projections": [
+        {
+          "name": "detail",
+          "fields": [
+            "part",
+            "id",
+            "small",
+            "normal",
+            "big",
+            "flag",
+            "txt",
+            "optional",
+            "tiny",
+            "u_tiny",
+            "u_small",
+            "u_normal",
+            "u_big"
+          ]
+        },
+        {
+          "name": "compact",
+          "fields": [
+            "optional",
+            "id"
+          ]
+        }
+      ]
+    }
+  ]
+}

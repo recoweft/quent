@@ -1202,3 +1202,6 @@ fn export_does_not_change_gate(prep: &PolicyPreparation) {
     }
     assert_eq!(before, prep.public_view().to_json());
 }
+
+#[cfg(feature = "codegen")]
+mod generated;

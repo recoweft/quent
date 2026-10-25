@@ -535,6 +535,12 @@ macro_rules! immediate_dispatch {
 
 macro_rules! compiled_dispatch {
     ($dialect:ident) => {
+        /// Fail closed if a generated finite result decoder rejects native data.
+        /// This only revokes session availability; it grants no execution access.
+        #[cfg(feature = "codegen")]
+        pub fn quarantine_generated_decode(&mut self) {
+            self.available = false;
+        }
         /// Application-only explicit read, using the compile-time sealed record.
         /// Current mapping/context are borrowed for the complete dispatch future.
         #[cfg(feature = "operation-spec")]

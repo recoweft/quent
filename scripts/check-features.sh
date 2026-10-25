@@ -11,6 +11,7 @@ for ((mask=0; mask<16; mask++)); do
   cargo check -p quent --no-default-features --features "${joined:+$joined,}manifest" --locked "$@"
   cargo check -p quent --no-default-features --features "${joined:+$joined,}operation-spec" --locked "$@"
   cargo check -p quent --no-default-features --features "${joined:+$joined,}manifest,operation-spec" --locked "$@"
+  cargo check -p quent --no-default-features --features "${joined:+$joined,}codegen" --locked "$@"
   cargo check -p quent-cli --no-default-features --features "${joined:+$joined,}manifest" --locked "$@"
 done
 

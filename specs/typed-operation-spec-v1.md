@@ -171,3 +171,15 @@ anonymous volumes were removed and absence checked. Earlier development failures
 were Rust macro scope/Option call-site errors and an incorrect expected SQL
 qualification/parenthesization, corrected before these final runs. Hosted CI must
 be checked against the actual new commit, independently of local measurements.
+
+## QT-AI-07 planned PR1 code artifacts
+
+[Finite typed Rust generation](typed-codegen-v1.md) adds optional pure codegen,
+model-specific keys/columns/predicates/order/projection/results/repositories and
+explicit application mapping/context binding through the existing read compiler
+and same finalized-record dispatcher. Source metadata, generated Rust and public
+summary/diagnostic JSON remain separate untrusted/output-only domains. No patch,
+regen workflow, new write/provider, authority restoration or risk relaxation is
+introduced. Prior PR absence statements above are historical. All 24 full
+runtime_pending markers remain unchanged; actual new-head evidence is reported
+separately.
