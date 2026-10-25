@@ -4,7 +4,7 @@ use super::SpecError;
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use std::{collections::BTreeSet, fmt};
 
-pub(super) fn check(bytes: &[u8]) -> Result<(), SpecError> {
+pub(crate) fn check(bytes: &[u8]) -> Result<(), SpecError> {
     if bytes.len() > 65_536 {
         return Err(SpecError::Budget);
     }

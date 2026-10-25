@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Serialize-only public review v1 (never authority input)",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "source",
+        "state",
+        "code",
+        "risk",
+        "coverage",
+        "precision",
+        "action",
+        "inspection",
+        "spec",
+        "manifest",
+        "claims",
+        "claim_count"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_review"
+        },
+        "version": {
+          "const": 1
+        },
+        "source": {
+          "enum": [
+            "plan_source",
+            "operation_spec",
+            "manifest",
+            "application_inspection",
+            "application_typed_spec"
+          ]
+        },
+        "state": {
+          "enum": [
+            "unknown",
+            "partial",
+            "unsupported",
+            "refused"
+          ]
+        },
+        "code": {
+          "enum": [
+            "source_parsed",
+            "incomplete",
+            "unsupported",
+            "invalid",
+            "budget",
+            "structural_block",
+            "application_inspection"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "unknown",
+            "low",
+            "medium",
+            "high",
+            "destructive",
+            "blocked"
+          ]
+        },
+        "coverage": {
+          "enum": [
+            "unknown",
+            "partial",
+            "complete"
+          ]
+        },
+        "precision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "wire",
+            "sql",
+            "native",
+            "model",
+            "binding",
+            "policy",
+            "tenant",
+            "freshness",
+            "runtime",
+            "external_verdict"
+          ],
+          "properties": {
+            "wire": {
+              "enum": [
+                "checked",
+                "not_applicable"
+              ]
+            },
+            "sql": {
+              "enum": [
+                "unverified",
+                "finite_data_finalized",
+                "retained_record"
+              ]
+            },
+            "native": {
+              "enum": [
+                "unverified",
+                "finite_data_checked",
+                "literal_ranges_checked",
+                "application_asserted_checked"
+              ]
+            },
+            "model": {
+              "enum": [
+                "unverified",
+                "application_asserted_checked"
+              ]
+            },
+            "binding": {
+              "enum": [
+                "unverified",
+                "exact_application_snapshot"
+              ]
+            },
+            "policy": {
+              "enum": [
+                "unverified",
+                "application_asserted_checked"
+              ]
+            },
+            "tenant": {
+              "enum": [
+                "unverified",
+                "application_asserted_checked"
+              ]
+            },
+            "freshness": {
+              "enum": [
+                "unverified"
+              ]
+            },
+            "runtime": {
+              "enum": [
+                "unverified"
+              ]
+            },
+            "external_verdict": {
+              "enum": [
+                "unverified",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "action": {
+          "enum": [
+            "supply_application_context",
+            "review_independent_domains"
+          ]
+        },
+        "inspection": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "public-views-v1.schema.json#/oneOf/0"
+            }
+          ]
+        },
+        "spec": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "version",
+                "state",
+                "counts"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "quent_operation_spec_summary"
+                },
+                "version": {
+                  "const": 1
+                },
+                "state": {
+                  "enum": [
+                    "syntax_only",
+                    "application_roles_checked"
+                  ]
+                },
+                "counts": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "fields",
+                    "order",
+                    "predicates",
+                    "branches",
+                    "literals",
+                    "literal_bytes"
+                  ],
+                  "properties": {
+                    "fields": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "predicates": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 256
+                    },
+                    "branches": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 256
+                    },
+                    "literals": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 512
+                    },
+                    "literal_bytes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16384
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "manifest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "version",
+                "artifacts"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "quent_manifest_summary"
+                },
+                "version": {
+                  "const": 1
+                },
+                "artifacts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind",
+                      "version",
+                      "coverage",
+                      "freshness",
+                      "items",
+                      "code"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "Schema",
+                          "Policy",
+                          "GeneratedCode",
+                          "LiveObservation"
+                        ]
+                      },
+                      "version": {
+                        "const": 1
+                      },
+                      "coverage": {
+                        "enum": [
+                          "Missing",
+                          "Unknown",
+                          "Partial",
+                          "Complete",
+                          "Unsupported"
+                        ]
+                      },
+                      "freshness": {
+                        "enum": [
+                          "Missing",
+                          "Unverified"
+                        ]
+                      },
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 8192
+                      },
+                      "code": {
+                        "enum": [
+                          "Missing",
+                          "UnverifiedSource",
+                          "UnknownFacts",
+                          "PartialFacts",
+                          "UnsupportedSemantics",
+                          "UnsupportedNative",
+                          "UnsupportedDefault",
+                          "UnsupportedKey"
+                        ]
+                      }
+                    }
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              }
+            }
+          ]
+        },
+        "claims": {
+          "enum": [
+            "absent",
+            "unverified"
+          ]
+        },
+        "claim_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "state",
+        "code",
+        "action"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quent_review_diagnostic"
+        },
+        "version": {
+          "const": 1
+        },
+        "state": {
+          "const": "refused"
+        },
+        "code": {
+          "enum": [
+            "invalid",
+            "budget",
+            "unsupported"
+          ]
+        },
+        "action": {
+          "const": "check_supported_input"
+        }
+      }
+    }
+  ]
+}

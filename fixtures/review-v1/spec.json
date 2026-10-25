@@ -1,0 +1,1 @@
+{"kind":"quent_operation_spec","version":1,"model":"private_model","fields":["private_id"],"filter":{"op":"eq","field":"private_id","value":{"type":"i64","value":1234567}},"order":[],"limit":10}

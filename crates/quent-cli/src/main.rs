@@ -1,12 +1,15 @@
-//! Bootstrap refusal surface. No argument/stdin/path parser, DB or detail export.
+//! Explicit bounded workflows and fixed refusal for all other routes.
 use std::io::Write;
+#[cfg(any(feature = "manifest", feature = "review"))]
+mod input;
+mod review;
 #[cfg(feature = "manifest")]
 mod verify;
 fn main() -> std::process::ExitCode {
-    // Never format panic payload/location or activate a backtrace on this surface.
-    std::panic::set_hook(Box::new(|_| {
-        let _ = std::io::stderr().write_all(b"QUENT_PANIC\n");
-    }));
+    install_panic_hook();
+    if let Some(code) = review::run() {
+        return std::process::ExitCode::from(code);
+    }
     #[cfg(feature = "manifest")]
     if let Some(code) = verify::run() {
         return std::process::ExitCode::from(code);
@@ -38,4 +41,53 @@ fn main() -> std::process::ExitCode {
     // must not trigger a default panic hook with a source path/backtrace.
     let _ = std::io::stderr().write_all(b"QUENT_NOT_IMPLEMENTED\n");
     std::process::ExitCode::FAILURE
+}
+
+fn install_panic_hook() {
+    // Never format payload, location or backtrace, even with inherited tracing env.
+    std::panic::set_hook(Box::new(|_| {
+        let _ = std::io::stderr().write_all(b"QUENT_PANIC\n");
+    }));
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn panic_fixture() {
+        if std::env::var_os("QUENT_TEST_PANIC").is_some() {
+            super::install_panic_hook();
+            panic!("CANARY_SQL_name_value_reason_path_credential");
+        }
+    }
+    #[test]
+    fn fixed_panic_hook_with_backtrace_and_tracing_environment() {
+        use std::{
+            process::{Command, Stdio},
+            time::{Duration, Instant},
+        };
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "tests::panic_fixture", "--nocapture"])
+            .env("QUENT_TEST_PANIC", "1")
+            .env("RUST_BACKTRACE", "full")
+            .env("RUST_LOG", "trace")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("panic fixture watchdog killed and reaped child");
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let o = child.wait_with_output().unwrap();
+        assert!(!o.status.success());
+        assert_eq!(o.stderr, b"QUENT_PANIC\n");
+        assert!(!String::from_utf8_lossy(&o.stdout).contains("CANARY"));
+    }
 }

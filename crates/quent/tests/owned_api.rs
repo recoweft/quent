@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -543,10 +543,46 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    assert_eq!(controls.get(), 8, "compiling positive controls");
+    let output = run(
+        "fn control(r:quent::review::Review) { let _=serde_json::to_string(&r).unwrap(); let _=r.to_json(); let _=r.to_pretty(); let _=r.exit_code(); }",
+    );
+    assert!(
+        output.status.success(),
+        "review control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for target in [
+        "quent::review::Review",
+        "quent_core::Operation",
+        "quent_core::PolicyPreparation",
+        "quent_core::DatabaseContext",
+        "quent::ValidatedOperation",
+        "quent::ValidatedAtomicOperation",
+        "quent::manifest::live::Observation",
+        "quent::operation_spec::CompiledRead",
+        "quent::operation_spec::TypedModelContract",
+    ] {
+        let source = if target == "quent::review::Review" {
+            format!("fn f() {{let _:{target}=serde_json::from_str(\"{{}}\").unwrap();}}")
+        } else {
+            format!("fn f(r:quent::review::Review) {{let _:{target}=r.into();}}")
+        };
+        let output = run(&source);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]"),
+            "review authority: {d}"
+        );
+        assert!(!d.contains("E0432") && !d.contains("E0433"));
+    }
+    assert_eq!(
+        controls.get(),
+        9,
+        "compiling positive controls (8 retained)"
+    );
     assert_eq!(
         runs.get() - controls.get(),
-        170,
-        "diagnostic-checked negatives (127 retained)"
+        179,
+        "diagnostic-checked negatives (170 retained)"
     );
 }

@@ -1,0 +1,39 @@
+{
+  "kind": "quent_review",
+  "version": 1,
+  "source": "operation_spec",
+  "state": "unknown",
+  "code": "source_parsed",
+  "risk": "unknown",
+  "coverage": "unknown",
+  "precision": {
+    "wire": "checked",
+    "sql": "unverified",
+    "native": "literal_ranges_checked",
+    "model": "unverified",
+    "binding": "unverified",
+    "policy": "unverified",
+    "tenant": "unverified",
+    "freshness": "unverified",
+    "runtime": "unverified",
+    "external_verdict": "unverified"
+  },
+  "action": "supply_application_context",
+  "inspection": null,
+  "spec": {
+    "kind": "quent_operation_spec_summary",
+    "version": 1,
+    "state": "syntax_only",
+    "counts": {
+      "fields": 1,
+      "order": 0,
+      "predicates": 1,
+      "branches": 0,
+      "literals": 1,
+      "literal_bytes": 8
+    }
+  },
+  "manifest": null,
+  "claims": "absent",
+  "claim_count": 0
+}

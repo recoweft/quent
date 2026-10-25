@@ -158,3 +158,7 @@ comparison reports changes/conflicts and never writes existing files. No patch
 execution connection or generator CLI is added. See the
 [patch/version/non-overwrite contract](specs/typed-patches-regeneration-v2.md) and
 [the contract and checked-in finite examples](specs/typed-codegen-v1.md).
+
+## Bounded offline Review CLI (QT-AI-08 PR1)
+
+Enable `quent-cli/review` and use `quent-cli review plan|spec|manifest --json|--pretty FILE` (one target and format). See [the finite grammar, precision axes, fixed exits and FIFO/OS limits](specs/review-v1.md). Valid offline input still has unverified runtime/authority and review never exits 0. Rust source/SARIF/baseline remain unimplemented. The new plan wire is independent from output-only local exports and public views.

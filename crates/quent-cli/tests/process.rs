@@ -12,7 +12,6 @@ fn every_current_cli_route_is_fixed_non_success() {
         &["-V"],
         &["--CANARY_unknown=SQL_tenant_subject"],
         &["CANARY_unknown_command"],
-        &["review", "/CANARY_private/path.sql"],
         &["manifest", "{broken CANARY"],
         &["mcp", "--detail", "/CANARY_secret"],
         &["--", "CANARY\n\r\u{1b}"],

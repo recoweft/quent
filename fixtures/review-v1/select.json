@@ -1,0 +1,1 @@
+{"kind":"quent_review_plan_source","version":1,"dialect":"postgres","operation":{"family":"select","table":["private_catalog","private_items"],"columns":[{"name":"private_id","type":"i64","nullable":false}],"projection":[0],"writes":[],"order":[],"filter":{"op":"eq","column":0,"value":{"type":"i64","value":1234567}},"limit":10}}
