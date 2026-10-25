@@ -58,3 +58,7 @@ pub mod operation_spec;
 /// Pure finite Rust code artifacts; never context or authorization restoration.
 #[cfg(feature = "codegen")]
 pub mod codegen;
+
+/// Pure bounded offline review; output is never execution authority.
+#[cfg(feature = "review")]
+pub mod review;

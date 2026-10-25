@@ -23,8 +23,12 @@ rustix = { version = "=1.1.4", default-features = false, features = ["std", "fs"
 
 [features]
 default = []
+review = ["dep:quent", "quent/review", "dep:rustix"]
 manifest = ["dep:quent", "quent/manifest", "dep:serde", "dep:serde_json", "dep:rustix"]
 postgres = ["manifest", "dep:sqlx", "sqlx/postgres", "quent/postgres"]
 mysql = ["manifest", "dep:sqlx", "sqlx/mysql", "quent/mysql"]
 runtime-tokio = ["manifest", "dep:tokio", "quent/runtime-tokio", "tokio/rt", "tokio/time"]
 tls-rustls = ["quent?/tls-rustls", "sqlx?/tls-rustls-ring-webpki"]
+
+[dev-dependencies]
+serde_json = "=1.0.154"

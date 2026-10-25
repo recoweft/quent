@@ -6,7 +6,7 @@ use quent_core::DatabaseContext;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::{collections::BTreeSet, fmt};
-mod bounded;
+pub(crate) mod bounded;
 
 type Result<T> = std::result::Result<T, SpecError>;
 /// Closed input-free failures; no source error or path is retained.

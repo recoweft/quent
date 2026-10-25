@@ -219,3 +219,25 @@ C02–06/C13/C14/C16 retain the existing dispatcher/atomic boundary: CompiledPat
 has no execution conversion, so there is no new send/session/expiry/Tx path.
 All 24 full runtime_pending entries remain unchanged. New head results are
 execution evidence, not inferred from this ledger.
+
+## QT-AI-08 PR1 finite offline review
+
+[Review v1 grammar/precision/output/exit/file boundary](review-v1.md) adds finite
+C01/C08/C12/C15/C19/C20/C24 evidence. External plan operation data is analyzed only
+in private temporary Core objects; external claims stay unverified. Spec CLI is
+syntax-only; explicit app typed review retains exact mapping/current compiler
+checks. Manifest's independent domains remain source-parsed/unverified. No JSON
+restores authority, no review exit 0, and no DB/provider/live/clock/environment
+workflow is implicit. Existing shared and generated compiler controls, Strict/CRUD/
+validated/atomic/catalog/CLI/FIFO/codegen/patch/regen regressions remain required.
+New write/Tx/live verification is nonapplicable to the pure review itself. All 24
+full runtime_pending markers remain unchanged. Rust source is refused for PR2;
+SARIF/diff/baseline/suppression remain PR3. Actual counts, command results, denied
+attempts, both-OS/head CI, disposable DB settings/cleanup and remaining limitations
+are recorded separately in the revision's RelayWeft report and PR.
+
+[Finite local measurements for this implementation](review-v1-evidence.md) record
+the actual 183 full /84 default /173 DB-free plus three incidental substring
+complements, compiler controls and disposable DB cleanup, independently of the
+unchanged documentary fixture expectations. Hosted exact-head results belong to
+the PR and fixed-execution report.

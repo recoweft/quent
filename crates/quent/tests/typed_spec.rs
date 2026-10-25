@@ -640,3 +640,40 @@ fn c07_every_integer_operator_not_and_in_preserve_native_arguments() {
         }
     }
 }
+
+#[cfg(feature = "review")]
+#[test]
+fn c12_review_uses_exact_typed_compiler_and_independent_current() {
+    for d in [Dialect::Postgres, Dialect::Mysql] {
+        let c = context(d, SqlType::Text, true, "user", vec![]);
+        let m = mapping(&c, SqlType::Text, true);
+        let make = || {
+            source(Some(
+                json!({"op":"eq","field":"id","value":{"type":"i64","value":7}}),
+            ))
+        };
+        let expected = make().compile(&m, &c).unwrap();
+        let r = quent::review::typed_spec(make(), &m, &c).unwrap();
+        let j: Json = serde_json::from_str(&r.to_json()).unwrap();
+        assert_eq!(
+            j["inspection"],
+            serde_json::from_str::<Json>(&expected.public_view().to_json()).unwrap()
+        );
+        assert_eq!(j["precision"]["binding"], "exact_application_snapshot");
+        assert_eq!(j["precision"]["runtime"], "unverified");
+        assert_eq!(j["coverage"], "partial"); // bool guard is still partial, never hidden.
+        assert_eq!(r.exit_code(), 5);
+        let other = context(d, SqlType::Text, true, "changed", vec![]);
+        assert_eq!(
+            quent::review::typed_spec(make(), &m, &other),
+            Err(TypedError::SnapshotMismatch)
+        );
+        let protected = source(Some(
+            json!({"op":"eq","field":"tenant","value":{"type":"i64","value":11}}),
+        ));
+        assert_eq!(
+            quent::review::typed_spec(protected, &m, &c),
+            Err(TypedError::TenantPredicate)
+        );
+    }
+}
