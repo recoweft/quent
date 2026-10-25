@@ -43,8 +43,8 @@ regression, two test-only panic-hook subprocess tests and six Unix CLI tests.
 The standalone default grammar test checks unsupported-feature and invalid-grammar
 refusal without reading paths; it is not a successful review on the default build.
 
-Plan/Spec independent full public expectations are checked both by the library and
-real CLI JSON/pretty subprocesses. A valid plan has finite-data SQL/native precision,
+Plan/Spec/manifest independent full public expectations are checked both by the library and
+real CLI JSON/pretty subprocesses with exact stdout bytes (including formatting and final LF), exact stderr and exit codes. Review expected-output fixtures pin LF with repository gitattributes for both OSes. A valid plan has finite-data SQL/native precision,
 High/Unknown from missing facts, exit 3; a missing-WHERE write retains Blocked and
 MissingWhere, exit 5. A valid syntax-only Spec has literal-range precision and all
 application/runtime axes unverified, exit 3. Manifest domains retain independent
@@ -66,7 +66,7 @@ child **test harness** with backtrace/tracing env, not a product environment byp
 Actual files cover exact 65,536/max+1 bytes, invalid UTF8, writerless FIFO, directory,
 /dev/null, final symlink and repeated regular/FIFO/symlink path replacement. Every
 new CLI child is watched for five seconds; timeout kills and reaps, then fails.
-Existing three verify input regressions are retained. This measures no filesystem-
+Existing three verify input regressions are retained. Native Windows CI additionally exercises regular/reparse replacement and compares every accepted capture to the independent full output expectation; this is separate from local WSL evidence. This measures no filesystem-
 wide deadline, immutable snapshot, physical target authentication or Windows live DB.
 
 Both DB image digests are unchanged in scripts/test-dispatch.sh. Only new dedicated

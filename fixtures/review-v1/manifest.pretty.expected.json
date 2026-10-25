@@ -1,0 +1,64 @@
+{
+  "kind": "quent_review",
+  "version": 1,
+  "source": "manifest",
+  "state": "unknown",
+  "code": "source_parsed",
+  "risk": "unknown",
+  "coverage": "unknown",
+  "precision": {
+    "wire": "checked",
+    "sql": "unverified",
+    "native": "unverified",
+    "model": "unverified",
+    "binding": "unverified",
+    "policy": "unverified",
+    "tenant": "unverified",
+    "freshness": "unverified",
+    "runtime": "unverified",
+    "external_verdict": "unverified"
+  },
+  "action": "review_independent_domains",
+  "inspection": null,
+  "spec": null,
+  "manifest": {
+    "artifacts": [
+      {
+        "code": "UnverifiedSource",
+        "coverage": "Complete",
+        "freshness": "Unverified",
+        "items": 1,
+        "kind": "Schema",
+        "version": 1
+      },
+      {
+        "code": "UnverifiedSource",
+        "coverage": "Complete",
+        "freshness": "Unverified",
+        "items": 1,
+        "kind": "Policy",
+        "version": 1
+      },
+      {
+        "code": "UnknownFacts",
+        "coverage": "Unknown",
+        "freshness": "Unverified",
+        "items": 1,
+        "kind": "GeneratedCode",
+        "version": 1
+      },
+      {
+        "code": "UnknownFacts",
+        "coverage": "Unknown",
+        "freshness": "Unverified",
+        "items": 0,
+        "kind": "LiveObservation",
+        "version": 1
+      }
+    ],
+    "kind": "quent_manifest_summary",
+    "version": 1
+  },
+  "claims": "absent",
+  "claim_count": 0
+}

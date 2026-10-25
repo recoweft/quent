@@ -275,7 +275,7 @@ Real CLI subprocesses check parsed pretty/JSON, safe streams/exits/determinism,
 bytes boundary/UTF8, no automatic stdin, grammar-before-read, writerless FIFO,
 directory/device/final symlink and regular/FIFO/symlink replacement with five-second
 watchdogs that kill **and reap** on timeout. Native Windows tests cover regular,
-directory/device/final reparse paths. A loopback detector has an actual TCP positive
+directory/device/final reparse paths and regular/reparse replacement against independent expected output. A loopback detector has an actual TCP positive
 control and sees no connection for valid or rejected review inputs with an ambient
 DSN; the existing explicit-live CLI detecting control remains separately required.
 Tracing capture has a positive control and observes no review events. No DB/provider

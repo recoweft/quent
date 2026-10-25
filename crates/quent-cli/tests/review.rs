@@ -128,19 +128,28 @@ fn command(k: &str, fmt: &str, p: &Path) -> Output {
 #[test]
 fn product_pretty_and_json_match_independent_outputs_and_fixed_exits() {
     let f = Files::new();
-    for (k, src, expected) in [
+    for (k, src, expected, pretty) in [
         (
             "plan",
             include_bytes!("../../../fixtures/review-v1/select.json").as_slice(),
             include_bytes!("../../../fixtures/review-v1/select.expected.json").as_slice(),
+            include_bytes!("../../../fixtures/review-v1/select.pretty.expected.json").as_slice(),
         ),
         (
             "spec",
             include_bytes!("../../../fixtures/review-v1/spec.json").as_slice(),
             include_bytes!("../../../fixtures/review-v1/spec.expected.json").as_slice(),
+            include_bytes!("../../../fixtures/review-v1/spec.pretty.expected.json").as_slice(),
+        ),
+        (
+            "manifest",
+            include_bytes!("../../../fixtures/manifest-v1/postgres.json").as_slice(),
+            include_bytes!("../../../fixtures/review-v1/manifest.expected.json").as_slice(),
+            include_bytes!("../../../fixtures/review-v1/manifest.pretty.expected.json").as_slice(),
         ),
     ] {
         let p = f.file("CANARY_private_path", src);
+        let expected_bytes = expected;
         let expected: serde_json::Value = serde_json::from_slice(expected).unwrap();
         for format in ["--json", "--pretty"] {
             let o = command(k, format, &p);
@@ -150,6 +159,14 @@ fn product_pretty_and_json_match_independent_outputs_and_fixed_exits() {
                 serde_json::from_slice::<serde_json::Value>(&o.stdout).unwrap(),
                 expected
             );
+            assert_eq!(
+                o.stdout,
+                if format == "--json" {
+                    expected_bytes
+                } else {
+                    pretty
+                }
+            );
             assert_eq!(o.stdout.last(), Some(&b'\n'));
             assert_eq!(o.stdout, command(k, format, &p).stdout);
             for canary in ["private_", "1234567", "CANARY", "SELECT"] {
@@ -157,16 +174,6 @@ fn product_pretty_and_json_match_independent_outputs_and_fixed_exits() {
             }
         }
     }
-    let p = f.file(
-        "CANARY_manifest",
-        include_bytes!("../../../fixtures/manifest-v1/postgres.json"),
-    );
-    let o = command("manifest", "--json", &p);
-    assert_eq!(o.status.code(), Some(3));
-    assert!(o.stderr.is_empty());
-    let j: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
-    assert_eq!(j["source"], "manifest");
-    assert_eq!(j["manifest"]["artifacts"][0]["freshness"], "Unverified");
     let mut v: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../../fixtures/review-v1/select.json")).unwrap();
     v["operation"]["family"] = serde_json::json!("delete");
@@ -351,4 +358,62 @@ fn review_zero_connect_has_detecting_positive_control() {
             std::io::ErrorKind::WouldBlock
         );
     }
+}
+
+#[cfg(all(feature = "review", windows))]
+#[test]
+fn windows_path_replacement_keeps_opened_handle_safety() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+    let f = Files::new();
+    let bytes = include_bytes!("../../../fixtures/review-v1/select.json");
+    let stable = f.file("CANARY_stable", bytes);
+    let changing = f.file("CANARY_changing", bytes);
+    let stop = Arc::new(AtomicBool::new(false));
+    let replacements = Arc::new(AtomicUsize::new(0));
+    std::thread::scope(|scope| {
+        let stop_writer = stop.clone();
+        let changes = replacements.clone();
+        let changing_ref = &changing;
+        let stable_ref = &stable;
+        let dir = &f.0;
+        let writer = scope.spawn(move || {
+            let temp = dir.join("CANARY_replace");
+            while !stop_writer.load(Ordering::Relaxed) {
+                fs::write(&temp, bytes).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+                changes.fetch_add(1, Ordering::Relaxed);
+                std::os::windows::fs::symlink_file(stable_ref, &temp).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+                changes.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+        let result = std::panic::catch_unwind(|| {
+            for _ in 0..32 {
+                let o = command("plan", "--json", &changing);
+                match o.status.code() {
+                    Some(3) => {
+                        assert!(o.stderr.is_empty());
+                        let actual: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+                        let expected: serde_json::Value = serde_json::from_slice(include_bytes!(
+                            "../../../fixtures/review-v1/select.expected.json"
+                        ))
+                        .unwrap();
+                        assert_eq!(actual, expected);
+                    }
+                    Some(2) => refused(o, 2, b"QUENT_REVIEW_INVALID\n"),
+                    Some(8) => refused(o, 8, b"QUENT_REVIEW_IO\n"),
+                    _ => panic!("unexpected replacement result"),
+                }
+            }
+        });
+        stop.store(true, Ordering::Relaxed);
+        writer.join().unwrap();
+        assert!(replacements.load(Ordering::Relaxed) > 0);
+        if let Err(e) = result {
+            std::panic::resume_unwind(e);
+        }
+    });
 }
