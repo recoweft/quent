@@ -70,3 +70,6 @@ pub mod source_review;
 /// Pure review reporting; never execution or repository coverage authority.
 #[cfg(feature = "review-ci")]
 pub mod review_ci;
+
+/// Explicit application-only authorization; no execution gate integration in PR1.
+pub mod authorization;

@@ -268,3 +268,9 @@ claim notices, removed results and changed-only input never yield success. Git
 head/tree collection, application context authentication and runtime correspondence
 remain unverified; this does not clear any full runtime_pending case. Actual
 [measurements](review-ci-v1-evidence.md) and exact-head hosted results are separate.
+
+
+QT-AI-09 planned PR1: [explicit scoped authorization acquisition](authorization-contract-v1.md) adds
+immutable per-DB trusted registration and consumed exact request-bound candidates.
+Successful acquisition has no dispatcher/Tx/permit conversion; existing Strict
+High/Destructive refusal and all 24 full runtime_pending markers remain.

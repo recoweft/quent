@@ -29,7 +29,9 @@ without waiting for a writer. Opened-handle checks and byte limits do not guaran
 OS/filesystem I/O deadlines; see the verification specification for symlink and OS
 conditions. Other CLI routes retain fixed non-success refusal.
 Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
-connect/execute and dedicated catalog-reader APIs perform I/O. No release or crates.io publication is provided.
+connect/execute, dedicated catalog readers and explicit authorization acquisition
+(with a trusted application adapter) can perform I/O. Acquisition grants no
+execution permission in PR1. No release or crates.io publication is provided.
 
 - [Codegen config, naming/budgets, native/NULL/key/role matrix and PR2 responsibilities](specs/typed-codegen-v1.md)
 - [OperationSpec wire, budgets, application role assertions and PR2 boundary](specs/operation-spec-v1.md)
@@ -170,3 +172,9 @@ execution connection or generator CLI is added. See the
 ## Bounded offline Review CLI (QT-AI-08 PR1)
 
 Enable `quent-cli/review` and use `quent-cli review plan|spec|manifest --json|--pretty FILE` (one target and format). See [the finite grammar, precision axes, fixed exits and FIFO/OS limits](specs/review-v1.md). Valid offline input still has unverified runtime/authority and review never exits 0. For bounded Rust syntax candidates, enable `quent-cli/source-review` and use `quent-cli review rust --json|--pretty FILE`. See [source syntax/envelope/coverage and independent precision](specs/source-review-v1.md). Identity, SQL and runtime remain unverified; source coverage never becomes Complete. SARIF/baseline remain PR3. The new plan wire is independent from output-only local exports and public views.
+
+
+QT-AI-09 planned PR1: [explicit scoped authorization acquisition](specs/authorization-contract-v1.md) adds
+immutable per-DB trusted registration and consumed exact request-bound candidates.
+Successful acquisition has no dispatcher/Tx/permit conversion; existing Strict
+High/Destructive refusal and all 24 full runtime_pending markers remain.

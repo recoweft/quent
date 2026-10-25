@@ -283,3 +283,9 @@ execution connection or filesystem I/O. Output-only patch summary/diagnostic and
 regeneration state/action/count never carry code, diffs, names, values or paths.
 V1 generator bytes, SensitiveDetails export restrictions and all runtime_pending
 markers remain unchanged.
+
+
+QT-AI-09 planned PR1: [explicit scoped authorization acquisition](authorization-contract-v1.md) adds
+immutable per-DB trusted registration and consumed exact request-bound candidates.
+Successful acquisition has no dispatcher/Tx/permit conversion; existing Strict
+High/Destructive refusal and all 24 full runtime_pending markers remain.
