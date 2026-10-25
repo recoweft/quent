@@ -344,10 +344,13 @@ fn exclusive_deadlines_and_bounds() {
             now,
         )
         .unwrap();
-    assert!(check(&c, &a, now).is_ok());
-    assert_eq!(check(&c, &a, c.expires), Err(AuthorizationError::Expired));
+    assert!(check_expiry(&c, now).is_ok());
     assert_eq!(
-        check(&c, &a, c.expires + Duration::from_nanos(1)),
+        check_expiry(&c, c.expires),
+        Err(AuthorizationError::Expired)
+    );
+    assert_eq!(
+        check_expiry(&c, c.expires + Duration::from_nanos(1)),
         Err(AuthorizationError::Expired)
     );
     for ttl in [Duration::ZERO, Duration::from_secs(301), Duration::MAX] {

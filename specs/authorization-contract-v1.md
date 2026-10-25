@@ -70,7 +70,8 @@ operation replacement, scope substitution, expiry extension or serialization API
 
 `acquire_authorization(candidate, &current)` consumes the candidate at future
 creation, checks complete snapshot plus registration identity, eligibility and
-expiry before invoking the provider, and checks again after await. Current is an
+expiry before invoking the provider, and checks again after await. Each real-time
+expiry sample follows all bounded content/decision comparisons at its boundary. Current is an
 immutable borrowed snapshot throughout; safe API calls cannot change it in place.
 A new derived context, even with the same generation and different contents, fails
 comparison. The provider gets one `AuthorizationRequest` borrowing this candidate,

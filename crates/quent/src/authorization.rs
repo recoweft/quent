@@ -260,18 +260,20 @@ redacted!(
     AuthorizationAcquisition
 );
 
-fn check(
+fn check_bindings(
     candidate: &AuthorizationCandidate,
     current: &AuthorizationContext,
-    now: Instant,
 ) -> Result<()> {
     if !candidate.context.matches(current) {
         return Err(AuthorizationError::Mismatch);
     }
+    eligible(&candidate.prepared, candidate.scope)
+}
+fn check_expiry(candidate: &AuthorizationCandidate, now: Instant) -> Result<()> {
     if now >= candidate.expires {
         return Err(AuthorizationError::Expired);
     }
-    eligible(&candidate.prepared, candidate.scope)
+    Ok(())
 }
 /// The sole provider-calling API. Both snapshots are immutable for this borrow;
 /// independently changed application routing/session state is not observable here.
@@ -281,7 +283,8 @@ pub async fn acquire_authorization(
     candidate: AuthorizationCandidate,
     current: &AuthorizationContext,
 ) -> Result<AuthorizationAcquisition> {
-    check(&candidate, current, Instant::now())?;
+    check_bindings(&candidate, current)?;
+    check_expiry(&candidate, Instant::now())?;
     let r = candidate
         .context
         .registration
@@ -295,10 +298,12 @@ pub async fn acquire_authorization(
             invocation: invocation.clone(),
         })
         .await;
-    check(&candidate, current, Instant::now())?;
+    check_bindings(&candidate, current)?;
     if !Arc::ptr_eq(&invocation, &decision.invocation) {
         return Err(AuthorizationError::Mismatch);
     }
+    // Sample after *all* bounded comparisons, never before their work.
+    check_expiry(&candidate, Instant::now())?;
     match decision.response {
         AdapterResponse::AllowCandidate => Ok(AuthorizationAcquisition {
             _candidate: candidate,

@@ -90,3 +90,11 @@ classifications, not automatic detectors. Windows protected export remains
 UnsupportedOs; CI/MCP details refusal remains. Hosted Ubuntu/Windows exact-head
 jobs are checked separately after push; workflow presence is not a pass or proof
 of branch protection. No merge/Issue closure/release/publish occurs in this PR.
+
+Final review refinement samples the actual monotonic clock after bounded context/
+eligibility comparisons, and after decision identity comparison on return. Thus
+comparison work cannot use an earlier time sample to admit an expired candidate.
+Focused9, default93, full220 (new disposable containers/cleanup), warning-denied
+Clippy/rustdoc were repeated successfully. Feature/output/CLI matrices and hosted
+results are checked again on the final code; earlier-head hosted jobs are excluded
+from final-head acceptance.
