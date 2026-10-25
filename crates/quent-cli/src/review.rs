@@ -29,9 +29,35 @@ pub(super) fn run() -> Option<u8> {
     if path.as_encoded_bytes().len() > 4096 {
         return Some(fail(2, "QUENT_REVIEW_BUDGET\n"));
     }
-    // Rust is an explicitly unsupported target, never a source parser or file open.
+    // Disabled source support refuses before any file open.
+    #[cfg(not(feature = "source-review"))]
     if kind.as_deref() == Some(OsStr::new("rust")) {
         return Some(fail(4, "QUENT_REVIEW_UNSUPPORTED\n"));
+    }
+    #[cfg(feature = "source-review")]
+    if kind.as_deref() == Some(OsStr::new("rust")) {
+        let bytes = match load(&path) {
+            Ok(b) => b,
+            Err(c) => return Some(c),
+        };
+        return Some(match quent::source_review::review(&bytes) {
+            Err(e) => {
+                let _ = writeln!(std::io::stderr(), "{}", e.code());
+                e.exit_code()
+            }
+            Ok(r) => {
+                let output = if format.as_deref() == Some(OsStr::new("--json")) {
+                    r.to_json()
+                } else {
+                    r.to_pretty()
+                };
+                if writeln!(std::io::stdout(), "{output}").is_err() {
+                    fail(8, "QUENT_REVIEW_IO\n")
+                } else {
+                    r.exit_code()
+                }
+            }
+        });
     }
     #[cfg(not(feature = "review"))]
     {
@@ -39,17 +65,9 @@ pub(super) fn run() -> Option<u8> {
     }
     #[cfg(feature = "review")]
     {
-        use crate::input::{InputError, read};
-        let bytes = match read(std::path::Path::new(&path), 65_536) {
+        let bytes = match load(&path) {
             Ok(b) => b,
-            Err(e) => {
-                return Some(match e {
-                    InputError::Invalid => fail(2, "QUENT_REVIEW_INVALID\n"),
-                    InputError::Budget => fail(2, "QUENT_REVIEW_BUDGET\n"),
-                    InputError::Io => fail(8, "QUENT_REVIEW_IO\n"),
-                    InputError::Unsupported => fail(4, "QUENT_REVIEW_UNSUPPORTED\n"),
-                });
-            }
+            Err(c) => return Some(c),
         };
         let result = match kind.as_deref().and_then(OsStr::to_str) {
             Some("plan") => quent::review::plan_source(&bytes),
@@ -76,4 +94,15 @@ pub(super) fn run() -> Option<u8> {
             }
         })
     }
+}
+
+#[cfg(any(feature = "review", feature = "source-review"))]
+fn load(path: &OsStr) -> Result<Vec<u8>, u8> {
+    use crate::input::{InputError, read};
+    read(std::path::Path::new(path), 65_536).map_err(|e| match e {
+        InputError::Invalid => fail(2, "QUENT_REVIEW_INVALID\n"),
+        InputError::Budget => fail(2, "QUENT_REVIEW_BUDGET\n"),
+        InputError::Io => fail(8, "QUENT_REVIEW_IO\n"),
+        InputError::Unsupported => fail(4, "QUENT_REVIEW_UNSUPPORTED\n"),
+    })
 }

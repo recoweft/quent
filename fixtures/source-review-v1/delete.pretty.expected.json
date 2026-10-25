@@ -1,0 +1,37 @@
+{
+  "kind": "quent_rust_review",
+  "version": 1,
+  "state": "partial",
+  "code": "syntax_candidates",
+  "coverage": "partial",
+  "risk": "unknown",
+  "precision": {
+    "syntax": "parsed",
+    "candidate": "syntax_only",
+    "identity": "unverified",
+    "sql": "unverified",
+    "native": "unverified",
+    "model": "unverified",
+    "binding": "unverified",
+    "policy": "unverified",
+    "tenant": "unverified",
+    "freshness": "unverified",
+    "runtime": "unverified",
+    "capture": "not_implemented"
+  },
+  "items": 1,
+  "nodes": 3,
+  "operations": [
+    {
+      "family": "delete",
+      "filter": "absent_syntax",
+      "missing_where": "candidate"
+    }
+  ],
+  "diagnostics": [
+    "identity_unverified",
+    "context_unverified",
+    "arguments_unverified",
+    "names_unresolved"
+  ]
+}

@@ -1,4 +1,4 @@
-#[cfg(any(unix, feature = "review"))]
+#[cfg(any(unix, feature = "review", feature = "source-review"))]
 use std::path::Path;
 use std::{
     ffi::OsStr,
@@ -19,7 +19,7 @@ impl Files {
         fs::create_dir(&p).unwrap();
         Self(p)
     }
-    #[cfg(feature = "review")]
+    #[cfg(any(feature = "review", feature = "source-review"))]
     fn file(&self, name: &str, b: &[u8]) -> PathBuf {
         let p = self.0.join(name);
         fs::write(&p, b).unwrap();
@@ -35,7 +35,15 @@ fn run(args: &[&OsStr]) -> Output {
     run_at(args, "CANARY_credential")
 }
 fn run_at(args: &[&OsStr], dsn: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_quent-cli"))
+    run_in(args, dsn, None)
+}
+fn run_in(args: &[&OsStr], dsn: &str, directory: Option<&std::path::Path>) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_quent-cli"));
+    if let Some(d) = directory {
+        command.current_dir(d);
+    }
+    let mut child = command
+        // product executable, never the supplied Rust file
         .args(args)
         .env("RUST_BACKTRACE", "full")
         .env("RUST_LOG", "trace")
@@ -84,6 +92,7 @@ fn finite_grammar_and_default_refusal_precede_file_or_stdin_io() {
         }
         refused(run(&a), 2, b"QUENT_REVIEW_INVALID\n");
     }
+    #[cfg(not(feature = "source-review"))]
     refused(
         run(&[
             OsStr::new("review"),
@@ -110,12 +119,12 @@ fn finite_grammar_and_default_refusal_precede_file_or_stdin_io() {
 }
 #[cfg(unix)]
 fn rustix_fifo_when_available(p: &Path) {
-    #[cfg(any(feature = "manifest", feature = "review"))]
+    #[cfg(any(feature = "manifest", feature = "review", feature = "source-review"))]
     rustix::fs::mkfifoat(rustix::fs::CWD, p, rustix::fs::Mode::RUSR).unwrap();
-    #[cfg(not(any(feature = "manifest", feature = "review")))]
+    #[cfg(not(any(feature = "manifest", feature = "review", feature = "source-review")))]
     let _ = p;
 }
-#[cfg(feature = "review")]
+#[cfg(any(feature = "review", feature = "source-review"))]
 fn command(k: &str, fmt: &str, p: &Path) -> Output {
     run(&[
         OsStr::new("review"),
@@ -399,6 +408,290 @@ fn windows_path_replacement_keeps_opened_handle_safety() {
                         let actual: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
                         let expected: serde_json::Value = serde_json::from_slice(include_bytes!(
                             "../../../fixtures/review-v1/select.expected.json"
+                        ))
+                        .unwrap();
+                        assert_eq!(actual, expected);
+                    }
+                    Some(2) => refused(o, 2, b"QUENT_REVIEW_INVALID\n"),
+                    Some(8) => refused(o, 8, b"QUENT_REVIEW_IO\n"),
+                    _ => panic!("unexpected replacement result"),
+                }
+            }
+        });
+        stop.store(true, Ordering::Relaxed);
+        writer.join().unwrap();
+        assert!(replacements.load(Ordering::Relaxed) > 0);
+        if let Err(e) = result {
+            std::panic::resume_unwind(e);
+        }
+    });
+}
+
+#[cfg(feature = "source-review")]
+#[test]
+fn source_product_all_stdout_bytes_stderr_exit_and_grammar() {
+    let f = Files::new();
+    for (source, compact, pretty) in [
+        (
+            include_bytes!("../../../fixtures/source-review-v1/delete.rs").as_slice(),
+            include_bytes!("../../../fixtures/source-review-v1/delete.expected.json").as_slice(),
+            include_bytes!("../../../fixtures/source-review-v1/delete.pretty.expected.json")
+                .as_slice(),
+        ),
+        (
+            include_bytes!("../../../fixtures/source-review-v1/filter.rs").as_slice(),
+            include_bytes!("../../../fixtures/source-review-v1/filter.expected.json").as_slice(),
+            include_bytes!("../../../fixtures/source-review-v1/filter.pretty.expected.json")
+                .as_slice(),
+        ),
+    ] {
+        let p = f.file("CANARY_source", source);
+        for (fmt, expected) in [("--json", compact), ("--pretty", pretty)] {
+            let o = command("rust", fmt, &p);
+            assert_eq!(o.status.code(), Some(3));
+            assert!(o.stderr.is_empty());
+            assert_eq!(o.stdout, expected);
+        }
+    }
+    let p = f.file("CANARY_invalid", b"fn CANARY(){panic!(\"CANARY\");}");
+    let o = command("rust", "--json", &p);
+    assert_eq!(o.status.code(), Some(4));
+    assert!(o.stderr.is_empty());
+    assert!(!String::from_utf8_lossy(&o.stdout).contains("CANARY"));
+    fs::write(&p, b"fn CANARY(){").unwrap();
+    refused(command("rust", "--json", &p), 2, b"QUENT_REVIEW_INVALID\n");
+    for args in [
+        vec!["review", "rust", "--wrong"],
+        vec!["review", "rust", "--json", "-"],
+        vec!["review", "rust", "--json", "CANARY", "extra"],
+    ] {
+        let a: Vec<&OsStr> = args.iter().map(OsStr::new).collect();
+        refused(run(&a), 2, b"QUENT_REVIEW_INVALID\n");
+    }
+}
+#[cfg(feature = "source-review")]
+#[test]
+fn source_subprocess_preparser_stack_and_lexical_adversaries() {
+    let f = Files::new();
+    let mut cases = vec![
+        format!("fn f(){{{}x;}}", "!".repeat(400)),
+        format!("type T={}&u8;", "&".repeat(400)),
+        format!("type T={}u8{};", "X<".repeat(100), ">".repeat(100)),
+        format!("fn f(){{{}x{};}}", "(".repeat(100), ")".repeat(100)),
+        format!("m!({});", "a ".repeat(600)),
+        format!("/*{}*/", "/*".repeat(100)),
+        format!("fn f(){{let x=r#\"{}\"#;}}", " ".repeat(4096)),
+        " ".repeat(65536),
+        " ".repeat(65537),
+        "a".repeat(513),
+    ]
+    .into_iter()
+    .map(|s| (s, 2))
+    .collect::<Vec<_>>();
+    // Near-envelope recursion goes INTO the production parser, not just refusal.
+    for n in [8, 16, 32] {
+        cases.push((format!("fn f(){{{}x;}}", "!".repeat(n)), 4));
+    }
+    cases.push((
+        format!("type T={}u8{};", "X<".repeat(16), ">".repeat(16)),
+        4,
+    ));
+    cases.push((format!("type T={}u8;", "&".repeat(32)), 4));
+    cases.push((format!("fn f(){{x{};}}", " as T".repeat(80)), 4));
+    for (s, expected_exit) in cases {
+        let p = f.file("CANARY_adversary", s.as_bytes());
+        let o = command("rust", "--json", &p);
+        if expected_exit == 2 {
+            refused(o, 2, b"QUENT_REVIEW_BUDGET\n");
+        } else {
+            assert_eq!(o.status.code(), Some(expected_exit));
+            assert!(o.stderr.is_empty());
+        }
+    }
+    let p = f.file("CANARY_utf8", b"\xff");
+    refused(
+        command("rust", "--pretty", &p),
+        2,
+        b"QUENT_REVIEW_INVALID\n",
+    );
+    let mut exact = vec![b' '; 4096];
+    exact[..13].copy_from_slice(b"fn main() {} ");
+    fs::write(&p, &exact).unwrap();
+    assert_eq!(command("rust", "--json", &p).status.code(), Some(4));
+    exact.push(b' ');
+    fs::write(&p, &exact).unwrap();
+    refused(command("rust", "--json", &p), 2, b"QUENT_REVIEW_BUDGET\n");
+}
+#[cfg(all(feature = "source-review", unix))]
+#[test]
+fn source_fifo_symlink_device_and_grammar_precedence() {
+    let f = Files::new();
+    let fifo = f.0.join("CANARY_fifo");
+    rustix_fifo_when_available(&fifo);
+    for p in [&fifo, f.0.as_path(), Path::new("/dev/null")] {
+        refused(command("rust", "--json", p), 2, b"QUENT_REVIEW_INVALID\n");
+        refused(command("rust", "--wrong", p), 2, b"QUENT_REVIEW_INVALID\n");
+    }
+    let p = f.file("CANARY_regular", b"fn f(){}");
+    let link = f.0.join("CANARY_link");
+    std::os::unix::fs::symlink(p, &link).unwrap();
+    refused(command("rust", "--json", &link), 8, b"QUENT_REVIEW_IO\n");
+}
+#[cfg(feature = "source-review")]
+#[test]
+fn source_zero_connect_with_actual_detecting_control() {
+    use std::net::{TcpListener, TcpStream};
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    l.set_nonblocking(true).unwrap();
+    let addr = l.local_addr().unwrap();
+    let c = TcpStream::connect(addr).unwrap();
+    assert!(l.accept().is_ok());
+    drop(c);
+    let dsn = format!("postgres://CANARY:CANARY@{addr}/CANARY");
+    let f = Files::new();
+    let sentinel = f.0.join("CANARY");
+    fs::write(&sentinel, b"detecting_control").unwrap();
+    assert!(sentinel.is_file());
+    fs::remove_file(&sentinel).unwrap();
+    for source in [
+        "fn f(){quent_core::Draft::delete(t);}",
+        "fn f(){std::process::abort();}",
+        "fn CANARY(){",
+        "fn f(){std::fs::write(\"CANARY\",\"CANARY\");}",
+    ] {
+        let p = f.file("CANARY_source", source.as_bytes());
+        let o = run_in(
+            &[
+                OsStr::new("review"),
+                OsStr::new("rust"),
+                OsStr::new("--json"),
+                p.as_os_str(),
+            ],
+            &dsn,
+            Some(&f.0),
+        );
+        assert!(matches!(o.status.code(), Some(2..=4)));
+        assert!(!String::from_utf8_lossy(&o.stdout).contains("CANARY"));
+        assert_eq!(
+            l.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+    }
+    assert!(!f.0.join("CANARY").exists());
+}
+
+#[cfg(all(feature = "source-review", unix))]
+#[test]
+fn source_path_replacement_keeps_actual_opened_object_safety() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    let f = Files::new();
+    let b = include_bytes!("../../../fixtures/source-review-v1/delete.rs");
+    let stable = f.file("CANARY_stable", b);
+    let changing = f.file("CANARY_changing", b);
+    let stop = Arc::new(AtomicBool::new(false));
+    std::thread::scope(|scope| {
+        let stop_writer = stop.clone();
+        let changing_ref = &changing;
+        let stable_ref = &stable;
+        let dir = &f.0;
+        let writer = scope.spawn(move || {
+            let temp = dir.join("replace");
+            while !stop_writer.load(Ordering::Relaxed) {
+                fs::write(&temp, b).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+                rustix::fs::mkfifoat(rustix::fs::CWD, &temp, rustix::fs::Mode::RUSR).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+                std::os::unix::fs::symlink(stable_ref, &temp).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+            }
+        });
+        let result = std::panic::catch_unwind(|| {
+            for _ in 0..32 {
+                let o = command("rust", "--json", &changing);
+                match o.status.code() {
+                    Some(3) => {
+                        assert!(o.stderr.is_empty());
+                        let j: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+                        let expected: serde_json::Value = serde_json::from_slice(include_bytes!(
+                            "../../../fixtures/source-review-v1/delete.expected.json"
+                        ))
+                        .unwrap();
+                        assert_eq!(j, expected);
+                    }
+                    Some(2) => refused(o, 2, b"QUENT_REVIEW_INVALID\n"),
+                    Some(8) => refused(o, 8, b"QUENT_REVIEW_IO\n"),
+                    _ => panic!("unexpected result"),
+                }
+            }
+        });
+        stop.store(true, Ordering::Relaxed);
+        writer.join().unwrap();
+        if let Err(e) = result {
+            std::panic::resume_unwind(e);
+        }
+    });
+}
+#[cfg(all(feature = "source-review", windows))]
+#[test]
+fn source_windows_regular_directory_device_and_final_reparse_refuse() {
+    let f = Files::new();
+    let p = f.file(
+        "CANARY_regular",
+        include_bytes!("../../../fixtures/source-review-v1/delete.rs"),
+    );
+    assert_eq!(command("rust", "--json", &p).status.code(), Some(3));
+    let link = f.0.join("CANARY_reparse");
+    std::os::windows::fs::symlink_file(&p, &link).unwrap();
+    for p in [f.0.as_path(), Path::new("NUL"), link.as_path()] {
+        let o = command("rust", "--json", p);
+        assert!(matches!(o.status.code(), Some(2 | 8)));
+        assert!(o.stdout.is_empty());
+        assert!(o.stderr == b"QUENT_REVIEW_INVALID\n" || o.stderr == b"QUENT_REVIEW_IO\n");
+    }
+}
+
+#[cfg(all(feature = "source-review", windows))]
+#[test]
+fn source_windows_path_replacement_keeps_opened_handle_safety() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+    let f = Files::new();
+    let bytes = include_bytes!("../../../fixtures/source-review-v1/delete.rs");
+    let stable = f.file("CANARY_stable", bytes);
+    let changing = f.file("CANARY_changing", bytes);
+    let stop = Arc::new(AtomicBool::new(false));
+    let replacements = Arc::new(AtomicUsize::new(0));
+    std::thread::scope(|scope| {
+        let stop_writer = stop.clone();
+        let changes = replacements.clone();
+        let changing_ref = &changing;
+        let stable_ref = &stable;
+        let dir = &f.0;
+        let writer = scope.spawn(move || {
+            let temp = dir.join("CANARY_replace");
+            while !stop_writer.load(Ordering::Relaxed) {
+                fs::write(&temp, bytes).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+                changes.fetch_add(1, Ordering::Relaxed);
+                std::os::windows::fs::symlink_file(stable_ref, &temp).unwrap();
+                fs::rename(&temp, changing_ref).unwrap();
+                changes.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+        let result = std::panic::catch_unwind(|| {
+            for _ in 0..32 {
+                let o = command("rust", "--json", &changing);
+                match o.status.code() {
+                    Some(3) => {
+                        assert!(o.stderr.is_empty());
+                        let actual: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+                        let expected: serde_json::Value = serde_json::from_slice(include_bytes!(
+                            "../../../fixtures/source-review-v1/delete.expected.json"
                         ))
                         .unwrap();
                         assert_eq!(actual, expected);

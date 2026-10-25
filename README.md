@@ -1,3 +1,5 @@
+QT-AI-08 planned PR2: [bounded Rust source candidates, conservative coverage and independent precision](specs/source-review-v1.md).
+
 Current QT-AI-07 PR1: [finite nominal keys, explicit projections and typed repositories](specs/typed-codegen-v1.md).
 
 Current QT-AI-06 PR2: [typed read compilation, fixed diagnostics and explicit owned read](specs/typed-operation-spec-v1.md).
@@ -10,10 +12,10 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: finite typed model/key/projection/repository generation (QT-AI-07 planned PR1), with explicit owned reads through the common compiler and gate.**
+**Status: finite typed repositories, inspection-only patches/regeneration, and bounded offline review through QT-AI-08 planned PR2.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
-three-state patches/regeneration management, review, migration, commands and MCP are future work.
+migration, commands and MCP are future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
 CLI `manifest verify --offline SOURCE COMPARISON` is DB-free; `--live SOURCE CONFIG`
 explicitly runs a bounded read-only catalog observation with optional driver/runtime
 features. Inputs must be explicitly named regular files; Unix FIFO inputs refuse
@@ -161,4 +163,4 @@ execution connection or generator CLI is added. See the
 
 ## Bounded offline Review CLI (QT-AI-08 PR1)
 
-Enable `quent-cli/review` and use `quent-cli review plan|spec|manifest --json|--pretty FILE` (one target and format). See [the finite grammar, precision axes, fixed exits and FIFO/OS limits](specs/review-v1.md). Valid offline input still has unverified runtime/authority and review never exits 0. Rust source/SARIF/baseline remain unimplemented. The new plan wire is independent from output-only local exports and public views.
+Enable `quent-cli/review` and use `quent-cli review plan|spec|manifest --json|--pretty FILE` (one target and format). See [the finite grammar, precision axes, fixed exits and FIFO/OS limits](specs/review-v1.md). Valid offline input still has unverified runtime/authority and review never exits 0. For bounded Rust syntax candidates, enable `quent-cli/source-review` and use `quent-cli review rust --json|--pretty FILE`. See [source syntax/envelope/coverage and independent precision](specs/source-review-v1.md). Identity, SQL and runtime remain unverified; source coverage never becomes Complete. SARIF/baseline remain PR3. The new plan wire is independent from output-only local exports and public views.

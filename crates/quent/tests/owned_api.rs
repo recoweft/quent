@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -575,14 +575,50 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         );
         assert!(!d.contains("E0432") && !d.contains("E0433"));
     }
+    let source_control = format!(
+        "mod delete {{ {} }} mod filter {{ {} }} fn control(r:quent::source_review::Review) {{ let _=serde_json::to_string(&r).unwrap(); let _=r.to_json(); let _=r.to_pretty(); let _=r.exit_code(); let _=quent::source_review::review(b\"fn f(){{}}\").unwrap(); }}",
+        include_str!("../../../fixtures/source-review-v1/delete.rs"),
+        include_str!("../../../fixtures/source-review-v1/filter.rs")
+    );
+    let output = run(&source_control);
+    assert!(
+        output.status.success(),
+        "source control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for target in [
+        "quent::source_review::Review",
+        "quent_core::Operation",
+        "quent_core::ScopeFacts",
+        "quent_core::PolicyPreparation",
+        "quent_core::DatabaseContext",
+        "quent::ValidatedOperation",
+        "quent::ValidatedAtomicOperation",
+        "quent::manifest::live::Observation",
+        "quent::operation_spec::CompiledRead",
+        "quent::operation_spec::TypedModelContract",
+    ] {
+        let source = if target == "quent::source_review::Review" {
+            format!("fn f(){{let _:{target}=serde_json::from_str(\"{{}}\").unwrap();}}")
+        } else {
+            format!("fn f(r:quent::source_review::Review){{let _:{target}=r.into();}}")
+        };
+        let output = run(&source);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]"),
+            "source authority: {d}"
+        );
+        assert!(!d.contains("E0432") && !d.contains("E0433"));
+    }
     assert_eq!(
         controls.get(),
-        9,
-        "compiling positive controls (8 retained)"
+        10,
+        "compiling positive controls (9 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        179,
-        "diagnostic-checked negatives (170 retained)"
+        189,
+        "diagnostic-checked negatives (179 retained)"
     );
 }

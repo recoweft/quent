@@ -1,3 +1,5 @@
+Current PR2 source support is independently opt-in: [finite Rust syntax candidates](source-review-v1.md). PR1 historical source deferrals below are superseded only for that feature; existing three-input wires stay unchanged.
+
 # QT-AI-08 PR1: bounded offline review v1
 
 `quent/review` is optional and enables the existing `manifest` and
