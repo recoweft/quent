@@ -212,6 +212,24 @@ fn common_gate_all_families_and_contexts() {
     }
 }
 
+// Authorization fake is deliberately not a real network/authentication service.
+struct AuthorizationProbe(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+impl crate::authorization::TrustedAuthorizationAdapter for AuthorizationProbe {
+    fn authorize<'a>(
+        &'a self,
+        r: crate::authorization::AuthorizationRequest<'a>,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = crate::authorization::AuthorizationDecision>
+                + Send
+                + 'a,
+        >,
+    > {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Box::pin(async move { r.respond(crate::authorization::AdapterResponse::AllowCandidate) })
+    }
+}
+
 // These tests fail if explicitly selected without dedicated target opt-in. Normal
 // DB-free CI commands explicitly exclude live_; required live CI selects them.
 macro_rules! atomic_cases {
@@ -227,6 +245,21 @@ macro_rules! atomic_cases {
         let make=|n| Draft::update(table(),write(Value::Text("atomic".into()),changed())).filter(filter(n)).freeze();
         let observe= "SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1";
         let mut s=$session::connect(options.clone(),c.clone()).await.unwrap();
+        let provider_calls=std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let auth=crate::authorization::AuthorizationContext::register(c.clone(),"provider".into(),1,vec![],AuthorizationProbe(provider_calls.clone())).unwrap();
+        let high=Draft::update(table(),write(Value::Text("CANARY_AUTH".into()),changed())).filter(eq(tenant(),Value::I64(11))).freeze();
+        let candidate=auth.candidate(&high,crate::authorization::AuthorizationScope::MultiRowUpdate,MAX_TTL).unwrap();
+        assert_eq!(provider_calls.load(std::sync::atomic::Ordering::SeqCst),0);
+        let acquisition=crate::authorization::acquire_authorization(candidate,&auth).await.unwrap();
+        assert_eq!(provider_calls.load(std::sync::atomic::Ordering::SeqCst),1);
+        assert_eq!(s.execute(c,high).await.unwrap_err(),ExecutionError::RiskRefused);
+        assert_eq!(s.execute(c,Draft::delete(table()).filter(eq(tenant(),Value::I64(11))).freeze()).await.unwrap_err(),ExecutionError::RiskRefused);
+        assert!(s.recorder.calls.is_empty());assert!(s.recorder.events.is_empty());
+        drop(acquisition);
+        let mut ordinary=$session::connect(options.clone(),c.clone()).await.unwrap();
+        ordinary.execute(c,make(1)).await.unwrap();
+        assert_eq!(ordinary.recorder.calls.len(),1);
+        assert_eq!(provider_calls.load(std::sync::atomic::Ordering::SeqCst),1);
         let op=make(1);
         // Public display mutation cannot change the private shared/atomic gate.
         let prep=c.prepare().prepare_operation(&op).unwrap();
@@ -248,6 +281,7 @@ macro_rules! atomic_cases {
         let h=s.validate_atomic(c,&op,one,MAX_TTL).unwrap();
         let r=s.execute_atomic(c,&op,one,h).await.unwrap();
         assert_eq!(r.state(),ResultState::Committed);
+        assert_eq!(provider_calls.load(std::sync::atomic::Ordering::SeqCst),1);
         #[cfg(feature="output-tracing")] output_capture::check(&r.public_view(),&r.public_view().to_json());
         let mut view=r.public_view(); assert_eq!(view.state,ViewState::Committed);
         view.state=ViewState::OutcomeUnknown; let _=view.to_json();

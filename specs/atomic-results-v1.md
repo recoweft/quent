@@ -1,3 +1,8 @@
+Current QT-AI-09 PR1: [explicit authorization acquisition](authorization-contract-v1.md)
+adds a separate consumed application-only callback API. The execution paths below
+remain provider-free and retain Strict High/Destructive refusal. Earlier absence
+statements refer to the execution boundary, not this separate acquisition API.
+
 # QT-AI-03 planned PR3: finite atomic results
 
 The owned API is intentionally a **single business operation transaction**:

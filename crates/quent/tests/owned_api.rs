@@ -655,14 +655,145 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "CI authority: {d}"
         );
     }
+    let output = run(
+        "fn control(c:&quent::authorization::AuthorizationContext,o:&Operation){use quent::authorization::*; let candidate=c.candidate(o,AuthorizationScope::MultiRowUpdate,std::time::Duration::from_secs(1)).unwrap(); let f=acquire_authorization(candidate,c); drop(f); } fn reply(r:quent::authorization::AuthorizationRequest<'_>)->quent::authorization::AuthorizationDecision{r.respond(quent::authorization::AdapterResponse::AllowCandidate)}",
+    );
+    assert!(
+        output.status.success(),
+        "authorization control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for ty in [
+        "AuthorizationCandidate",
+        "AuthorizationDecision",
+        "AuthorizationAcquisition",
+        "AuthorizationRequest<'static>",
+    ] {
+        for (source, code) in [
+            (
+                format!("fn f(x:quent::authorization::{ty}){{let _=x.clone();}}"),
+                "E0599",
+            ),
+            (
+                format!("fn copy<T:Copy>(){{}} fn f(){{copy::<quent::authorization::{ty}>();}}"),
+                "E0277",
+            ),
+            (
+                format!("fn f(x:&quent::authorization::{ty}){{let _=serde_json::to_string(x);}}"),
+                "E0277",
+            ),
+            (
+                format!(
+                    "fn f(){{let _:quent::authorization::{ty}=serde_json::from_str(\"{{}}\").unwrap();}}"
+                ),
+                "E0277",
+            ),
+            (
+                format!("fn f(){{let _:quent::authorization::{ty}=\"{{}}\".parse().unwrap();}}"),
+                "E0277",
+            ),
+            (
+                format!("fn f(){{let _:quent::authorization::{ty}=true.into();}}"),
+                "E0277",
+            ),
+        ] {
+            let output = run(&source);
+            let d = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success()
+                    && d.contains(&format!("error[{code}]"))
+                    && !d.contains("E0433"),
+                "authorization negative: {d}"
+            );
+        }
+    }
+    for source in [
+        "fn f(x:quent::authorization::AuthorizationCandidate){x.expires=std::time::Instant::now();}",
+        "fn f(x:quent::authorization::AuthorizationDecision){let _=x.response;}",
+    ] {
+        let output = run(source);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0616]"),
+            "private binding: {d}"
+        );
+    }
+    for source in [
+        "fn f(c:&quent::authorization::AuthorizationContext,x:quent::authorization::AuthorizationCandidate){let f=quent::authorization::acquire_authorization(x,c);drop(f);let _=quent::authorization::acquire_authorization(x,c);}",
+        "async fn f(c:&quent::authorization::AuthorizationContext,x:quent::authorization::AuthorizationCandidate){let _=quent::authorization::acquire_authorization(x,c).await;let _=quent::authorization::acquire_authorization(x,c).await;}",
+        "fn f(r:quent::authorization::AuthorizationRequest<'_>){use quent::authorization::*;let _=r.respond(AdapterResponse::AllowCandidate);let _=r.respond(AdapterResponse::AllowCandidate);}",
+    ] {
+        let output = run(source);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0382]"),
+            "linear consumption: {d}"
+        );
+    }
+    for ty in [
+        "AuthorizationCandidate",
+        "AuthorizationDecision",
+        "AuthorizationAcquisition",
+    ] {
+        let output = run(&format!(
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,x:quent::authorization::{ty}){{let _=s.execute_validated(c,o,x).await;}}"
+        ));
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0308]"),
+            "not execution: {d}"
+        );
+    }
+    for source in [
+        "fn f(){let _=quent::authorization::AuthorizationDecision{invocation:std::sync::Arc::new(()),response:quent::authorization::AdapterResponse::AllowCandidate};}",
+        "fn f(p:quent_core::PolicyPreparation,c:quent::authorization::AuthorizationContext){let _=quent::authorization::AuthorizationCandidate{prepared:p,context:c,scope:quent::authorization::AuthorizationScope::MultiRowUpdate,expires:std::time::Instant::now()};}",
+        "fn f(c:quent::authorization::AuthorizationCandidate){let _=quent::authorization::AuthorizationAcquisition{_candidate:c};}",
+    ] {
+        let output = run(source);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0451]"),
+            "constructor private: {d}"
+        );
+    }
+    for ty in [
+        "AuthorizationCandidate",
+        "AuthorizationDecision",
+        "AuthorizationAcquisition",
+    ] {
+        let output = run(&format!(
+            "fn f(v:quent_core::PlanView){{let _:quent::authorization::{ty}=v.into();}}"
+        ));
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]"),
+            "public summary is not authorization: {d}"
+        );
+    }
+    let output = run(
+        "fn f(r:quent::authorization::AuthorizationRequest<'_>){let _=r.respond(std::io::Error::other(\"CANARY_nested_error\"));}",
+    );
+    let d = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success() && d.contains("error[E0308]"),
+        "arbitrary provider error: {d}"
+    );
+    let output = run(
+        "fn f(mut c:quent::authorization::AuthorizationContext,x:quent::authorization::AuthorizationCandidate){let future=quent::authorization::acquire_authorization(x,&c);c=c.clone();drop(future);}",
+    );
+    let d = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success() && d.contains("error[E0506]"),
+        "current snapshot frozen during await: {d}"
+    );
     assert_eq!(
         controls.get(),
-        11,
-        "compiling positive controls (10 retained)"
+        12,
+        "compiling positive controls (11 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        203,
-        "diagnostic-checked negatives (189 retained)"
+        243,
+        "diagnostic-checked negatives (203 retained)"
     );
 }
