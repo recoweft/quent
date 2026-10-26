@@ -319,6 +319,11 @@ impl Metadata {
         &self.operation
     }
 }
+// Constructed only after finite policy preparation and all-column coverage.
+#[derive(PartialEq, Eq)]
+enum FiniteInsertProof {
+    AllAssertedColumns,
+}
 #[derive(PartialEq, Eq)]
 struct Record {
     sql: String,
@@ -326,6 +331,7 @@ struct Record {
     metadata: Metadata,
     dialect: Dialect,
     caller_missing_where: bool,
+    insert_proof: Option<FiniteInsertProof>,
 }
 /// Private finalized record. No execute, authorization, serde or SQL reconstruction API.
 /// ```compile_fail
@@ -775,6 +781,7 @@ impl Operation {
         }
         Ok(Plan {
             record: Record {
+                insert_proof: None,
                 sql: r.sql,
                 args: r.args,
                 metadata: Metadata {
@@ -890,3 +897,22 @@ impl Operation {
 
 mod public;
 pub use public::*;
+
+mod command_encoding;
+pub use command_encoding::CommandCanonical;
+
+impl Table {
+    /// Explicit sensitive quoting through the sole renderer's identifier rules.
+    /// This is a name only, never executable authority or caller SQL.
+    pub fn sensitive_qualified_sql(&self, dialect: Dialect) -> String {
+        Renderer {
+            dialect,
+            table: self,
+            sql: String::new(),
+            args: vec![],
+            columns: BTreeMap::new(),
+            nodes: 0,
+        }
+        .table_sql()
+    }
+}

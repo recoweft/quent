@@ -275,3 +275,7 @@ adds explicit finite High UPDATE/physical DELETE execution through the common ga
 Unbound PR1 acquisition remains non-executing; ordinary High/Destructive refusal,
 public output boundaries and all 24 full runtime_pending markers remain.
 See [finite measurements and limitations](authorization-gate-v1-evidence.md).
+
+## QT-AI-10 planned PR1 finite command evidence
+
+[Command ledger contract](command-ledger-v1.md) and [finite measurements](command-ledger-v1-evidence.md) track QT-C17/C18 and supporting C01/C02/C06/C08/C10/C11/C12/C13/C14/C15/C16/C19/C23 subcases. All 24 full runtime_pending markers and original fixtures remain unchanged. PR2 detailed concurrency/optimistic version/physical reply-loss recovery and PR3 audit/outbox remain pending.

@@ -792,3 +792,101 @@ fn finite_truth_oracle_outer_guard_matches_caller_and_trusted_tenant() {
         }
     }
 }
+
+#[test]
+fn command_insert_complete_columns_and_original_input_binding() {
+    for d in [Dialect::Postgres, Dialect::Mysql] {
+        let c = context(d, Some(11), vec![]);
+        let pairs = vec![
+            data("id", 1),
+            data("value", 0),
+            (col("deleted"), Input::Value(Value::Bool(false))),
+            (col("secret"), Input::Value(Value::Text(String::new()))),
+            data("ro", 0),
+            data("generated", 0),
+        ];
+        let implicit = Draft::insert(table(), pairs.clone()).freeze();
+        let p = c.prepare().prepare_command_operation(&implicit).unwrap();
+        assert_eq!(p.inspect().risk(), Risk::Low);
+        assert_eq!(p.inspect().scope(), Scope::Single);
+        assert_eq!(p.inspect().completeness(), Completeness::Complete);
+        assert_eq!(
+            c.prepare()
+                .prepare_operation(&implicit)
+                .unwrap()
+                .inspect()
+                .risk(),
+            Risk::High
+        );
+        let mut explicit = pairs.clone();
+        explicit.push(data("tenant", 11));
+        let q = c
+            .prepare()
+            .prepare_command_operation(&Draft::insert(table(), explicit).freeze())
+            .unwrap();
+        assert_eq!(
+            p.sensitive_source().final_source().sql(),
+            q.sensitive_source().final_source().sql()
+        );
+        assert_eq!(
+            p.sensitive_source().final_source().args(),
+            q.sensitive_source().final_source().args()
+        );
+        let pc = p
+            .sensitive_source()
+            .canonical_command_input(&table())
+            .unwrap();
+        let qc = q
+            .sensitive_source()
+            .canonical_command_input(&table())
+            .unwrap();
+        assert_ne!(pc.sensitive_bytes(), qc.sensitive_bytes());
+        assert_eq!(
+            pc.sensitive_bytes(),
+            p.sensitive_source()
+                .canonical_command_input(&table())
+                .unwrap()
+                .sensitive_bytes()
+        );
+        assert_eq!(format!("{pc:?}"), "CommandCanonical([REDACTED])");
+        for omit in 0..pairs.len() {
+            let mut v = pairs.clone();
+            v.remove(omit);
+            assert!(
+                c.prepare()
+                    .prepare_command_operation(&Draft::insert(table(), v).freeze())
+                    .is_err()
+            );
+        }
+        for policy in [
+            PolicyDeclaration::Readonly(col("ro")),
+            PolicyDeclaration::Generated(col("generated")),
+            PolicyDeclaration::Pii(col("secret")),
+        ] {
+            assert!(
+                context(d, Some(11), vec![policy])
+                    .prepare()
+                    .prepare_command_operation(&implicit)
+                    .is_err()
+            );
+        }
+        let key = p
+            .sensitive_source()
+            .canonical_command_key(b"namespace", &[1; 16])
+            .unwrap();
+        assert_ne!(
+            key.sensitive_bytes(),
+            p.sensitive_source()
+                .canonical_command_key(b"namespace2", &[1; 16])
+                .unwrap()
+                .sensitive_bytes()
+        );
+        assert_ne!(
+            key.sensitive_bytes(),
+            p.sensitive_source()
+                .canonical_command_key(b"namespace", &[2; 16])
+                .unwrap()
+                .sensitive_bytes()
+        );
+    }
+}

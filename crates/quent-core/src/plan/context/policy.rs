@@ -349,3 +349,94 @@ impl PreparationContext {
         })
     }
 }
+
+impl PreparationContext {
+    /// DB-free finite command preparation. Not an execution permit. INSERT must
+    /// explicitly cover the complete asserted schema after tenant supplementation.
+    /// Ordinary preparation and raw INSERT inspection remain unverified/High.
+    pub fn prepare_command_operation(
+        &self,
+        operation: &Operation,
+    ) -> PolicyResult<PolicyPreparation> {
+        let mut p = self.prepare_operation(operation)?;
+        let d = &p.plan.record.metadata.operation.0;
+        let tenant = p
+            .snapshot
+            .application
+            .tenant
+            .as_ref()
+            .ok_or(PolicyError::MissingTenant)?;
+        if tenant.column.table != d.table
+            || !p
+                .snapshot
+                .settings
+                .policies
+                .declarations
+                .iter()
+                .any(|p| matches!(p,PolicyDeclaration::Tenant(c) if c == &tenant.column))
+        {
+            return Err(PolicyError::Unsupported);
+        }
+        if !d.returning.is_empty() || d.version.is_some() {
+            return Err(PolicyError::Unsupported);
+        }
+        match &d.body {
+            Body::Insert(data) => {
+                let columns = &p.facts().columns;
+                if data.len() != columns.len()
+                    || !columns
+                        .iter()
+                        .all(|c| data.iter().filter(|(supplied, _)| supplied == c).count() == 1)
+                {
+                    return Err(PolicyError::Unsupported);
+                }
+                p.plan.record.insert_proof = Some(FiniteInsertProof::AllAssertedColumns);
+            }
+            Body::Update(_) => (),
+            _ => return Err(PolicyError::Unsupported),
+        }
+        Ok(p)
+    }
+}
+impl SensitivePolicySource<'_> {
+    /// Sensitive, versioned deterministic encoding of the original operation,
+    /// complete context and final immutable record. No decoder/restoration exists.
+    pub fn canonical_command_input(&self, ledger: &Table) -> PolicyResult<CommandCanonical> {
+        use crate::plan::command_encoding::Encoder;
+        let mut e = Encoder::new(b"QCC1");
+        e.table(ledger)?;
+        e.operation(&self.prepared.original)?;
+        self.prepared.snapshot.encode_command_context(&mut e)?;
+        let r = &self.prepared.plan.record;
+        e.operation(&r.metadata.operation)?;
+        e.bytes(r.sql.as_bytes())?;
+        e.values(&r.args)?;
+        e.boolean(r.caller_missing_where)?;
+        e.boolean(r.insert_proof.is_some())?;
+        Ok(CommandCanonical(e.finish()))
+    }
+    /// Durable lookup key: target (including catalog/dialect/routing), tenant,
+    /// namespace and application-persisted operation ID. Subject is in full input,
+    /// so another subject cannot disclose a stored result under this key.
+    pub fn canonical_command_key(
+        &self,
+        namespace: &[u8],
+        operation_id: &[u8; 16],
+    ) -> PolicyResult<CommandCanonical> {
+        use crate::plan::command_encoding::Encoder;
+        if namespace.is_empty() || namespace.len() > 128 {
+            return Err(PolicyError::Budget);
+        }
+        let mut e = Encoder::new(b"QCK1");
+        self.prepared
+            .snapshot
+            .encode_command_target_tenant(&mut e)?;
+        e.bytes(namespace)?;
+        e.bytes(operation_id)?;
+        let bytes = e.finish();
+        if bytes.len() > 2048 {
+            return Err(PolicyError::Budget);
+        }
+        Ok(CommandCanonical(bytes))
+    }
+}

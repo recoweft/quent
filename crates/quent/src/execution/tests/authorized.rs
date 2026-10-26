@@ -59,6 +59,9 @@ impl TrustedAuthorizationAdapter for Arc<Probe> {
     }
 }
 impl Probe {
+    pub(super) fn responses(&self) -> usize {
+        self.responses.load(Ordering::SeqCst)
+    }
     pub(super) fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }

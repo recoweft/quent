@@ -1,3 +1,5 @@
+Current QT-AI-10 PR1: [finite durable command identity, owned ledger/results and explicit replay](specs/command-ledger-v1.md).
+
 Current QT-AI-09 PR2: [explicit request/session-bound permits and final common gate](specs/authorization-gate-v1.md).
 
 Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](specs/review-ci-v1.md). Earlier PR-specific absence statements are historical.
@@ -16,11 +18,12 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: finite typed repositories, inspection-only patches/regeneration, and bounded offline review through QT-AI-08 planned PR3.**
+**Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, and bounded offline review.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
-Immediate execution uses the common policy/risk/capability gate; INSERT/Unknown refuse.
+Immediate execution uses the common policy/risk/capability gate; ordinary INSERT/Unknown refuse.
+Application-only commands support all-column single INSERT (tenant supplementation only) and finite Low UPDATE, with explicit installed ledger and saved-result replay.
 Finite High UPDATE/physical DELETE require an explicit bound permit; ordinary High still refuses. Multi-operation transactions,
-migration, commands and MCP are future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
+migration, command concurrency/version extensions, audit/outbox and MCP remain future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
 Optional `review-ci` adds `quent-cli review-ci --json|--pretty|--sarif HEAD_INPUTS BASE_INPUTS BASELINE`.
 It compares exact supplied inputs and supports expiring display baselines; all original
 findings remain non-suppressible. Git-head coverage and runtime remain unverified;
@@ -32,7 +35,7 @@ without waiting for a writer. Opened-handle checks and byte limits do not guaran
 OS/filesystem I/O deadlines; see the verification specification for symlink and OS
 conditions. Other CLI routes retain fixed non-success refusal.
 Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
-connect/execute, dedicated catalog readers and explicit authorization acquisition
+connect/execute, command execution/lookup, dedicated catalog readers and explicit authorization acquisition
 (with a trusted application adapter) can perform I/O. Only runtime-bound acquisition
 can yield a finite executable permit; PR1 unbound acquisition remains non-executing. No release or crates.io publication is provided.
 

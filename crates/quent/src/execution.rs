@@ -33,6 +33,10 @@ pub enum ExecutionError {
     SessionUnavailable,
     ExpectationMismatch,
     Conflict,
+    IdentityConflict,
+    LedgerInvalid,
+    ReservationUnresolved,
+    LedgerFailed,
 }
 impl fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -581,13 +585,23 @@ macro_rules! immediate_dispatch {
             handle: ValidatedOperation,
             authorization: Option<AuthorizationCheck<'_>>,
         ) -> Result<ExecutionResult> {
+            self.dispatch_retained(current, operation, &handle, authorization)
+                .await
+        }
+        async fn dispatch_retained(
+            &mut self,
+            current: &DatabaseContext,
+            operation: Option<&Operation>,
+            handle: &ValidatedOperation,
+            authorization: Option<AuthorizationCheck<'_>>,
+        ) -> Result<ExecutionResult> {
             quiet(async {
                 if !self.available {
                     return Err(ExecutionError::SessionUnavailable);
                 }
-                recheck(&handle, &self.identity, &self.context, current, operation)?;
-                recheck_authorization(authorization.as_ref(), &handle, &self.identity)?;
-                check_expiry(&handle, Instant::now())?;
+                recheck(handle, &self.identity, &self.context, current, operation)?;
+                recheck_authorization(authorization.as_ref(), handle, &self.identity)?;
+                check_expiry(handle, Instant::now())?;
                 let prepared = &handle.prepared;
                 let source = prepared.sensitive_source();
                 let record = source.final_source();
@@ -595,7 +609,11 @@ macro_rules! immediate_dispatch {
                 let columns = record.result_columns();
                 if !matches!(
                     family,
-                    Family::Select | Family::Count | Family::Update | Family::Delete
+                    Family::Select
+                        | Family::Count
+                        | Family::Insert
+                        | Family::Update
+                        | Family::Delete
                 ) {
                     return Err(ExecutionError::Unsupported);
                 }
@@ -613,20 +631,20 @@ macro_rules! immediate_dispatch {
                 if let Some(barrier) = self.final_barrier.take() {
                     barrier.notified().await;
                 }
-                recheck(&handle, &self.identity, &self.context, current, operation)?;
-                recheck_authorization(authorization.as_ref(), &handle, &self.identity)?;
+                recheck(handle, &self.identity, &self.context, current, operation)?;
+                recheck_authorization(authorization.as_ref(), handle, &self.identity)?;
                 // Sample the clock AFTER bounded input/context comparison, never before it.
                 #[cfg(test)]
                 let now = self.final_now.take().unwrap_or_else(Instant::now);
                 #[cfg(not(test))]
                 let now = Instant::now();
-                check_expiry(&handle, now)?;
+                check_expiry(handle, now)?;
                 self.available = false; // cancellation/error leaves this session unusable
                 #[cfg(test)]
                 self.recorder
                     .sent(record.sql(), record.args(), record.metadata());
                 let state = self.result_state;
-                let result = if matches!(family, Family::Update | Family::Delete)
+                let result = if matches!(family, Family::Insert | Family::Update | Family::Delete)
                     && columns.is_empty()
                 {
                     query
@@ -1056,10 +1074,50 @@ macro_rules! borrowed_dispatch {
                     disposition: AtomicDisposition::NotStarted,
                 })
             }
+            /// Borrowed transactions cannot own ledger/business/result completion.
+            pub fn validate_command(
+                &self,
+                _: &DatabaseContext,
+                _: &Operation,
+                _: &CommandNamespace,
+                _: CommandId,
+                _: &CommandLedger,
+                _: Duration,
+            ) -> Result<ValidatedCommand> {
+                Err(ExecutionError::Unsupported)
+            }
+            /// Consume and refuse; the external transaction remains caller-owned.
+            pub async fn execute_command(
+                &mut self,
+                _: &DatabaseContext,
+                _: &Operation,
+                _: ValidatedCommand,
+            ) -> std::result::Result<CommandResult, AtomicFailure> {
+                Err(AtomicFailure {
+                    cause: ExecutionError::Unsupported,
+                    disposition: AtomicDisposition::NotStarted,
+                })
+            }
+            pub async fn lookup_command(
+                &mut self,
+                _: &DatabaseContext,
+                _: &Operation,
+                _: ValidatedCommand,
+            ) -> std::result::Result<Option<CommandResult>, AtomicFailure> {
+                Err(AtomicFailure {
+                    cause: ExecutionError::Unsupported,
+                    disposition: AtomicDisposition::NotStarted,
+                })
+            }
             immediate_dispatch!($driver, $dialect, $affected);
         }
     };
 }
+
+#[macro_use]
+mod command;
+pub use command::*;
+use command::{command_check, inspect_input, result_bytes, saved_result};
 
 #[cfg(feature = "postgres")]
 mod postgres;
@@ -1093,7 +1151,9 @@ impl ExecutionError {
             Self::OutcomeUnknown => DiagnosticCode::ExecutionOutcomeUnknown,
             Self::SessionUnavailable => DiagnosticCode::ExecutionSessionUnavailable,
             Self::ExpectationMismatch => DiagnosticCode::ExecutionExpectationMismatch,
-            Self::Conflict => DiagnosticCode::ExecutionConflict,
+            Self::Conflict | Self::IdentityConflict => DiagnosticCode::ExecutionConflict,
+            Self::LedgerInvalid => DiagnosticCode::ExecutionDecode,
+            Self::ReservationUnresolved | Self::LedgerFailed => DiagnosticCode::ExecutionReadFailed,
         };
         DiagnosticView { code, state: None }
     }

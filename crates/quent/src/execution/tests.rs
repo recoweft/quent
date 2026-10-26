@@ -8,6 +8,7 @@ async fn poll_once<F: std::future::Future>(
 use super::*;
 #[macro_use]
 mod authorized;
+mod command;
 fn id(s: &str) -> Ident {
     Ident::new(s).unwrap()
 }

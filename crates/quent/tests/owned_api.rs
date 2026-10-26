@@ -912,14 +912,93 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "authorized restoration/cancel: {d}"
         );
     }
+    let output = run(
+        "async fn control(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,n:&quent::CommandNamespace,l:&quent::CommandLedger){let id=quent::CommandId::new([1;16]);let h=s.validate_command(c,o,n,id.clone(),l,std::time::Duration::from_secs(1)).unwrap();let _=s.execute_command(c,o,h).await;let h=s.validate_command(c,o,n,id,l,std::time::Duration::from_secs(1)).unwrap();let _=s.lookup_command(c,o,h).await;}",
+    );
+    assert!(
+        output.status.success(),
+        "command control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let output = run(
+        "fn control(p:&quent_core::PolicyPreparation,r:&quent::CommandResult){let c=p.sensitive_source().canonical_command_input(p.sensitive_source().final_source().sensitive_table()).unwrap();let _=c.sensitive_bytes();let _=r.sensitive_result().affected_rows();let _=r.kind();let _=r.public_view().to_json();let _=quent::CommandNamespace::new(vec![0,255]);let id=quent::CommandId::new([0;16]);let _=id.clone();}",
+    );
+    assert!(
+        output.status.success(),
+        "command sensitive/identity control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for carrier in [
+        "quent::ValidatedCommand",
+        "quent::CommandResult",
+        "quent::CommandId",
+        "quent::CommandNamespace",
+        "quent::CommandLedger",
+        "quent_core::CommandCanonical",
+    ] {
+        for body in [
+            format!("fn f(v:&{carrier}){{serde_json::to_string(v).unwrap();}}"),
+            format!("fn f(){{let _:{carrier}=serde_json::from_str(\"{{}}\").unwrap();}}"),
+        ] {
+            let output = run(&body);
+            let d = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success() && d.contains("error[E0277]"),
+                "command serde: {d}"
+            );
+        }
+    }
+    for (body, diagnostic) in [
+        ("fn f(h:quent::ValidatedCommand){let _=h.clone();}", "E0599"),
+        (
+            "fn copy<T:Copy>(){} fn f(){copy::<quent::ValidatedCommand>();}",
+            "E0277",
+        ),
+        (
+            "fn f(h:&quent::ValidatedCommand){let _=&h.operation;}",
+            "E0616",
+        ),
+        ("fn f(h:&quent::ValidatedCommand){let _=&h.key;}", "E0616"),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,h:quent::ValidatedCommand){let _=s.execute_command(c,o,h).await;let _=s.execute_command(c,o,h).await;}",
+            "E0382",
+        ),
+        (
+            "fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,h:quent::ValidatedCommand){let future=s.execute_command(c,o,h);drop(future);let _=s.execute_command(c,o,h);}",
+            "E0382",
+        ),
+        (
+            "fn f(v:quent_core::PlanView){let _:quent::ValidatedCommand=v.into();}",
+            "E0277",
+        ),
+        (
+            "fn f(v:Vec<u8>){let _:quent::ValidatedCommand=v.into();}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::CommandResult){let _:quent::ValidatedCommand=v.into();}",
+            "E0277",
+        ),
+        (
+            "fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,h:quent::ValidatedCommand){let future=s.lookup_command(c,o,h);drop(future);let _=s.lookup_command(c,o,h);}",
+            "E0382",
+        ),
+    ] {
+        let output = run(body);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains(&format!("error[{diagnostic}]")),
+            "command ownership/restoration: {d}"
+        );
+    }
     assert_eq!(
         controls.get(),
-        14,
-        "compiling positive controls (12 retained)"
+        16,
+        "compiling positive controls (14 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        272,
-        "diagnostic-checked negatives (243 retained)"
+        294,
+        "diagnostic-checked negatives (272 retained)"
     );
 }

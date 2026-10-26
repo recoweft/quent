@@ -71,6 +71,7 @@ impl MysqlSession {
     immediate_dispatch!(MySql, Mysql, MysqlFoundRows);
     compiled_dispatch!(Mysql);
     atomic_dispatch!(MySql, Mysql, BorrowedMysqlTransaction);
+    command_dispatch!(MySql, Mysql, BorrowedMysqlTransaction);
 }
 fn bind<'q>(
     query: &mut sqlx::query::Query<'q, MySql, <MySql as sqlx::Database>::Arguments>,
@@ -221,3 +222,7 @@ borrowed_dispatch!(
     Mysql,
     MysqlFoundRows
 );
+
+impl BorrowedMysqlTransaction<'_> {
+    command_protocol!(MySql, Mysql);
+}
