@@ -746,7 +746,7 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
     }
     for source in [
         "fn f(){let _=quent::authorization::AuthorizationDecision{invocation:std::sync::Arc::new(()),response:quent::authorization::AdapterResponse::AllowCandidate};}",
-        "fn f(p:quent_core::PolicyPreparation,c:quent::authorization::AuthorizationContext){let _=quent::authorization::AuthorizationCandidate{prepared:p,context:c,scope:quent::authorization::AuthorizationScope::MultiRowUpdate,expires:std::time::Instant::now()};}",
+        "fn f(p:quent_core::PolicyPreparation,c:quent::authorization::AuthorizationContext){let _=quent::authorization::AuthorizationCandidate{prepared:p,context:c,scope:quent::authorization::AuthorizationScope::MultiRowUpdate,expires:std::time::Instant::now(),runtime:None};}",
         "fn f(c:quent::authorization::AuthorizationCandidate){let _=quent::authorization::AuthorizationAcquisition{_candidate:c};}",
     ] {
         let output = run(source);
@@ -786,14 +786,140 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         !output.status.success() && d.contains("error[E0506]"),
         "current snapshot frozen during await: {d}"
     );
+    let output = run(
+        "async fn control(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,o:&Operation){let r=quent::AuthorizationExecutionRequest::new();let c=s.authorization_candidate(a,&r,o,quent::authorization::AuthorizationScope::MultiRowUpdate,std::time::Duration::from_secs(1)).unwrap();let h=s.acquire_authorized(a,&r,c).await.unwrap();let _=s.execute_authorized(a,&r,o,h).await;let c=s.authorization_candidate(a,&r,o,quent::authorization::AuthorizationScope::MultiRowUpdate,std::time::Duration::from_secs(1)).unwrap();let h=s.acquire_authorized(a,&r,c).await.unwrap();let _=s.execute_authorized_atomic(a,&r,o,ExpectedRows::exactly(1).unwrap(),h).await;}",
+    );
+    assert!(
+        output.status.success(),
+        "authorized control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for ty in [
+        "AuthorizedOperation",
+        "ExecutableAuthorizationCandidate",
+        "AuthorizationExecutionRequest",
+    ] {
+        for (body, diagnostic) in [
+            (format!("fn f(x:quent::{ty}){{let _=x.clone();}}"), "E0599"),
+            (
+                format!("fn f<T:Copy>(){{}} fn g(){{f::<quent::{ty}>();}}"),
+                "E0277",
+            ),
+            (
+                format!("fn f(x:&quent::{ty}){{let _=serde_json::to_string(x);}}"),
+                "E0277",
+            ),
+            (
+                format!("fn f(){{let _:quent::{ty}=serde_json::from_str(\"{{}}\").unwrap();}}"),
+                "E0277",
+            ),
+            (
+                format!("fn f(x:quent_core::PlanView){{let _:quent::{ty}=x.into();}}"),
+                "E0277",
+            ),
+        ] {
+            let output = run(&body);
+            let d = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success() && d.contains(&format!("error[{diagnostic}]")),
+                "authorized boundary: {d}"
+            );
+        }
+    }
+    for (body, diagnostic) in [
+        (
+            "fn f(x:quent::AuthorizedOperation){let _=x.operation;}",
+            "E0616",
+        ),
+        (
+            "fn f(x:quent::ExecutableAuthorizationCandidate){let _=x.candidate;}",
+            "E0616",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation,h:quent::AuthorizedOperation){let f=s.execute_authorized(a,r,o,h);drop(f);let _=s.execute_authorized(a,r,o,h);}",
+            "E0382",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation,h:quent::AuthorizedOperation){s.execute_authorized(a,r,o,h).await;let _=s.execute_authorized(a,r,o,h);}",
+            "E0382",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation,h:quent::authorization::AuthorizationAcquisition){s.execute_authorized(a,r,o,h).await;}",
+            "E0308",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,h:quent::AuthorizedOperation){s.execute_validated(c,o,h).await;}",
+            "E0308",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,h:quent::authorization::AuthorizationCandidate){s.acquire_authorized(a,r,h).await;}",
+            "E0308",
+        ),
+        (
+            "fn f(x:quent::ValidatedOperation){let _=quent::AuthorizedOperation{operation:x};}",
+            "E0639",
+        ),
+    ] {
+        let output = run(body);
+        let d = String::from_utf8_lossy(&output.stderr);
+        // Field-incomplete literals may report E0063 before privacy checking.
+        let matches = d.contains(&format!("error[{diagnostic}]"))
+            || (diagnostic == "E0639"
+                && (d.contains("error[E0063]") || d.contains("due to private fields")));
+        assert!(
+            !output.status.success() && matches,
+            "authorized ownership/constructor: {d}"
+        );
+    }
+    let output = run(
+        "async fn control(b:&mut BorrowedPostgresTransaction<'_>,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation){let c=b.authorization_candidate(a,r,o,quent::authorization::AuthorizationScope::MultiRowUpdate,std::time::Duration::from_secs(1)).unwrap();let h=b.acquire_authorized(a,r,c).await.unwrap();let _=b.execute_authorized(a,r,o,h).await;}",
+    );
+    assert!(
+        output.status.success(),
+        "borrowed authorized control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (body, diagnostic) in [
+        (
+            "fn f(h:quent::AuthorizedOperation){let _=h.claim(true);}",
+            "E0599",
+        ),
+        (
+            "fn f(){let _:quent::AuthorizedOperation=\"{}\".parse().unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(){let _:quent::AuthorizedOperation=true.into();}",
+            "E0277",
+        ),
+        (
+            "fn f(x:quent::AuthorizationExecutionRequest){let _=quent::AuthorizationExecutionRequest{identity:std::sync::Arc::new(()),requires_live_freshness:false};}",
+            "E0451",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,h:quent::ExecutableAuthorizationCandidate){let future=s.acquire_authorized(a,r,h);drop(future);let _=s.acquire_authorized(a,r,h);}",
+            "E0382",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation,h:quent::AuthorizedOperation){let future=s.execute_authorized_atomic(a,r,o,ExpectedRows::exactly(1).unwrap(),h);drop(future);let _=s.execute_authorized_atomic(a,r,o,ExpectedRows::exactly(1).unwrap(),h);}",
+            "E0382",
+        ),
+    ] {
+        let output = run(body);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains(&format!("error[{diagnostic}]")),
+            "authorized restoration/cancel: {d}"
+        );
+    }
     assert_eq!(
         controls.get(),
-        12,
-        "compiling positive controls (11 retained)"
+        14,
+        "compiling positive controls (12 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        243,
-        "diagnostic-checked negatives (203 retained)"
+        272,
+        "diagnostic-checked negatives (243 retained)"
     );
 }

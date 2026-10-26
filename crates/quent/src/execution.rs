@@ -2,6 +2,7 @@
 // Never forward SQLx protocol notices/type-resolution fields to the application's
 // tracing subscriber. Statement/slow logging stays disabled independently.
 pub(crate) mod quiet_driver;
+use crate::authorization::{self, AuthorizationContext, AuthorizationError, AuthorizationScope};
 use quent_core::*;
 use quiet_driver::quiet;
 use std::{
@@ -14,6 +15,7 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionError {
     Policy(PolicyError),
+    Authorization(AuthorizationError),
     ContextMismatch,
     OperationMismatch,
     InvalidTtl,
@@ -104,6 +106,98 @@ fn check_expiry(handle: &ValidatedOperation, now: Instant) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+/// Application-created identity for one authenticated runtime request. Keeping
+/// this value identifies the same request; it authenticates no external caller.
+/// No public ID/string/serde restoration or Clone/Copy exists.
+pub struct AuthorizationExecutionRequest {
+    identity: Arc<()>,
+    requires_live_freshness: bool,
+}
+impl AuthorizationExecutionRequest {
+    pub fn new() -> Self {
+        Self {
+            identity: Arc::new(()),
+            requires_live_freshness: false,
+        }
+    }
+    /// Required live catalog freshness is unsupported; candidate creation refuses
+    /// before invoking any provider. An offline snapshot is never promoted to live.
+    pub fn requiring_live_freshness() -> Self {
+        Self {
+            identity: Arc::new(()),
+            requires_live_freshness: true,
+        }
+    }
+}
+impl Default for AuthorizationExecutionRequest {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl fmt::Debug for AuthorizationExecutionRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("AuthorizationExecutionRequest([REDACTED])")
+    }
+}
+/// Linear candidate bound before provider invocation to a request and session.
+pub struct ExecutableAuthorizationCandidate {
+    candidate: authorization::AuthorizationCandidate,
+}
+impl fmt::Debug for ExecutableAuthorizationCandidate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ExecutableAuthorizationCandidate([REDACTED])")
+    }
+}
+struct PermitBinding {
+    context: AuthorizationContext,
+    scope: AuthorizationScope,
+    runtime: authorization::RuntimeBinding,
+}
+/// A successful bound permit owns the sole prepared record. It cannot be
+/// restored, cloned, converted to an ordinary handle or returned after failure.
+pub struct AuthorizedOperation {
+    operation: ValidatedOperation,
+    binding: PermitBinding,
+}
+impl fmt::Debug for AuthorizedOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("AuthorizedOperation([REDACTED])")
+    }
+}
+struct AuthorizationCheck<'a> {
+    binding: &'a PermitBinding,
+    current: &'a AuthorizationContext,
+    request: &'a AuthorizationExecutionRequest,
+}
+fn recheck_authorization(
+    check: Option<&AuthorizationCheck<'_>>,
+    handle: &ValidatedOperation,
+    session: &Arc<()>,
+) -> Result<()> {
+    if let Some(a) = check {
+        if !a.binding.context.matches(a.current)
+            || !handle
+                .prepared
+                .sensitive_source()
+                .context()
+                .same_snapshot(a.current.sensitive_database())
+            || !Arc::ptr_eq(&a.binding.runtime.session, session)
+            || !Arc::ptr_eq(&a.binding.runtime.request, &a.request.identity)
+        {
+            return Err(ExecutionError::Authorization(AuthorizationError::Mismatch));
+        }
+        authorization::eligible(&handle.prepared, a.binding.scope)
+            .map_err(ExecutionError::Authorization)?;
+    } else {
+        // The same final gate also protects every ordinary/typed/validated path.
+        let i = handle.prepared.inspect();
+        if matches!(i.risk(), Risk::High | Risk::Destructive | Risk::Blocked) {
+            return Err(ExecutionError::RiskRefused);
+        }
+    }
+    Ok(())
 }
 
 /// A bounded exact expectation; never inferred from the first returned row.
@@ -300,6 +394,7 @@ enum AtomicFault {
 struct Recorder {
     calls: Vec<(String, Vec<Value>)>,
     sql_addresses: Vec<usize>,
+    metadata: Vec<Metadata>,
     events: Vec<&'static str>,
     live: Arc<std::sync::Mutex<Vec<&'static str>>>,
 }
@@ -315,7 +410,7 @@ impl Recorder {
         assert!(live.len() < 65_536, "finite cancellation trace budget");
         live.push(event);
     }
-    fn sent(&mut self, sql: &str, args: &[Value]) {
+    fn sent(&mut self, sql: &str, args: &[Value], metadata: &Metadata) {
         assert!(
             self.calls.len() < 128,
             "finite dispatcher observation budget"
@@ -323,6 +418,7 @@ impl Recorder {
         self.event("send");
         self.sql_addresses.push(sql.as_ptr() as usize);
         self.calls.push((sql.to_owned(), args.to_vec()));
+        self.metadata.push(metadata.clone());
     }
 }
 // A closed macro expands the identical immediate/delayed dispatcher for the two owned
@@ -368,6 +464,96 @@ macro_rules! immediate_dispatch {
                 expires,
             })
         }
+        /// Explicit DB/provider-free candidate creation, bound before acquisition.
+        pub fn authorization_candidate(
+            &self,
+            current: &AuthorizationContext,
+            request: &AuthorizationExecutionRequest,
+            operation: &Operation,
+            scope: AuthorizationScope,
+            ttl: Duration,
+        ) -> Result<ExecutableAuthorizationCandidate> {
+            if !self.available {
+                return Err(ExecutionError::SessionUnavailable);
+            }
+            if !self.context.same_snapshot(current.sensitive_database())
+                || current.sensitive_database().sensitive_source().target().3 != Dialect::$dialect
+            {
+                return Err(ExecutionError::ContextMismatch);
+            }
+            if request.requires_live_freshness {
+                return Err(ExecutionError::Unsupported);
+            }
+            let mut candidate = current
+                .candidate(operation, scope, ttl)
+                .map_err(ExecutionError::Authorization)?;
+            candidate.bind_runtime(self.identity.clone(), request.identity.clone());
+            Ok(ExecutableAuthorizationCandidate { candidate })
+        }
+        /// Explicit provider I/O only. The session/request were already retained
+        /// by the private candidate; PR1 unbound receipts have no conversion here.
+        pub async fn acquire_authorized(
+            &self,
+            current: &AuthorizationContext,
+            request: &AuthorizationExecutionRequest,
+            candidate: ExecutableAuthorizationCandidate,
+        ) -> Result<AuthorizedOperation> {
+            if !self.available {
+                return Err(ExecutionError::SessionUnavailable);
+            }
+            // Check the pre-existing binding BEFORE calling the provider.
+            candidate
+                .candidate
+                .check_runtime(&self.identity, &request.identity)
+                .map_err(ExecutionError::Authorization)?;
+            if !self.context.same_snapshot(current.sensitive_database()) {
+                return Err(ExecutionError::ContextMismatch);
+            }
+            let candidate = authorization::acquire_candidate(candidate.candidate, current)
+                .await
+                .map_err(ExecutionError::Authorization)?;
+            candidate
+                .check_runtime(&self.identity, &request.identity)
+                .map_err(ExecutionError::Authorization)?;
+            let (prepared, context, scope, expires, runtime) = candidate.into_execution();
+            Ok(AuthorizedOperation {
+                operation: ValidatedOperation {
+                    prepared,
+                    session: self.identity.clone(),
+                    expires,
+                },
+                binding: PermitBinding {
+                    context,
+                    scope,
+                    runtime,
+                },
+            })
+        }
+        /// Supply the independently current application snapshot again. Consumes
+        /// the permit at future creation, including unpolled/drop/error paths.
+        pub async fn execute_authorized(
+            &mut self,
+            current: &AuthorizationContext,
+            request: &AuthorizationExecutionRequest,
+            operation: &Operation,
+            handle: AuthorizedOperation,
+        ) -> Result<ExecutionResult> {
+            let AuthorizedOperation {
+                operation: validated,
+                binding,
+            } = handle;
+            self.dispatch_prepared(
+                current.sensitive_database(),
+                Some(operation),
+                validated,
+                Some(AuthorizationCheck {
+                    binding: &binding,
+                    current,
+                    request,
+                }),
+            )
+            .await
+        }
         /// Immediate execution uses the identical validation and final dispatch gate.
         pub async fn execute(
             &mut self,
@@ -385,7 +571,7 @@ macro_rules! immediate_dispatch {
             operation: &Operation,
             handle: ValidatedOperation,
         ) -> Result<ExecutionResult> {
-            self.dispatch_prepared(current, Some(operation), handle)
+            self.dispatch_prepared(current, Some(operation), handle, None)
                 .await
         }
         async fn dispatch_prepared(
@@ -393,12 +579,14 @@ macro_rules! immediate_dispatch {
             current: &DatabaseContext,
             operation: Option<&Operation>,
             handle: ValidatedOperation,
+            authorization: Option<AuthorizationCheck<'_>>,
         ) -> Result<ExecutionResult> {
             quiet(async {
                 if !self.available {
                     return Err(ExecutionError::SessionUnavailable);
                 }
                 recheck(&handle, &self.identity, &self.context, current, operation)?;
+                recheck_authorization(authorization.as_ref(), &handle, &self.identity)?;
                 check_expiry(&handle, Instant::now())?;
                 let prepared = &handle.prepared;
                 let source = prepared.sensitive_source();
@@ -426,6 +614,7 @@ macro_rules! immediate_dispatch {
                     barrier.notified().await;
                 }
                 recheck(&handle, &self.identity, &self.context, current, operation)?;
+                recheck_authorization(authorization.as_ref(), &handle, &self.identity)?;
                 // Sample the clock AFTER bounded input/context comparison, never before it.
                 #[cfg(test)]
                 let now = self.final_now.take().unwrap_or_else(Instant::now);
@@ -434,7 +623,8 @@ macro_rules! immediate_dispatch {
                 check_expiry(&handle, now)?;
                 self.available = false; // cancellation/error leaves this session unusable
                 #[cfg(test)]
-                self.recorder.sent(record.sql(), record.args());
+                self.recorder
+                    .sent(record.sql(), record.args(), record.metadata());
                 let state = self.result_state;
                 let result = if matches!(family, Family::Update | Family::Delete)
                     && columns.is_empty()
@@ -563,7 +753,7 @@ macro_rules! compiled_dispatch {
                 session: self.identity.clone(),
                 expires,
             };
-            self.dispatch_prepared(current, None, handle).await
+            self.dispatch_prepared(current, None, handle, None).await
         }
     };
 }
@@ -603,6 +793,46 @@ macro_rules! atomic_dispatch {
             expected: ExpectedRows,
             handle: ValidatedAtomicOperation,
         ) -> std::result::Result<ExecutionResult, AtomicFailure> {
+            Box::pin(self.execute_atomic_inner(current, operation, expected, handle, None)).await
+        }
+        /// One authorized owned transaction: provider acquisition is separate and
+        /// precedes begin; the common dispatcher rechecks after begin and binding.
+        pub async fn execute_authorized_atomic(
+            &mut self,
+            current: &AuthorizationContext,
+            request: &AuthorizationExecutionRequest,
+            operation: &Operation,
+            expected: ExpectedRows,
+            handle: AuthorizedOperation,
+        ) -> std::result::Result<ExecutionResult, AtomicFailure> {
+            let AuthorizedOperation {
+                operation: validated,
+                binding,
+            } = handle;
+            Box::pin(self.execute_atomic_inner(
+                current.sensitive_database(),
+                operation,
+                expected,
+                ValidatedAtomicOperation {
+                    operation: validated,
+                    expected,
+                },
+                Some(AuthorizationCheck {
+                    binding: &binding,
+                    current,
+                    request,
+                }),
+            ))
+            .await
+        }
+        async fn execute_atomic_inner(
+            &mut self,
+            current: &DatabaseContext,
+            operation: &Operation,
+            expected: ExpectedRows,
+            handle: ValidatedAtomicOperation,
+            authorization: Option<AuthorizationCheck<'_>>,
+        ) -> std::result::Result<ExecutionResult, AtomicFailure> {
             quiet(async {
                 let before = |cause| AtomicFailure {
                     cause,
@@ -622,6 +852,8 @@ macro_rules! atomic_dispatch {
                     Some(operation),
                 )
                 .map_err(before)?;
+                recheck_authorization(authorization.as_ref(), &handle.operation, &self.identity)
+                    .map_err(before)?;
                 check_expiry(&handle.operation, Instant::now()).map_err(before)?;
                 let version = handle
                     .operation
@@ -660,11 +892,15 @@ macro_rules! atomic_dispatch {
                     runner.final_barrier = self.final_barrier.take();
                 }
                 let result = runner
-                    .execute_validated(current, operation, handle.operation)
+                    .dispatch_prepared(current, Some(operation), handle.operation, authorization)
                     .await;
                 #[cfg(test)]
                 {
                     self.recorder.calls.append(&mut runner.recorder.calls);
+                    self.recorder
+                        .sql_addresses
+                        .append(&mut runner.recorder.sql_addresses);
+                    self.recorder.metadata.append(&mut runner.recorder.metadata);
                     self.recorder.events.append(&mut runner.recorder.events);
                 }
                 drop(runner);
@@ -806,6 +1042,20 @@ macro_rules! borrowed_dispatch {
             ) -> Result<ValidatedAtomicOperation> {
                 Err(ExecutionError::Unsupported)
             }
+            /// Borrowed adapters never own atomic completion; consume and refuse.
+            pub async fn execute_authorized_atomic(
+                &mut self,
+                _: &AuthorizationContext,
+                _: &AuthorizationExecutionRequest,
+                _: &Operation,
+                _: ExpectedRows,
+                _: AuthorizedOperation,
+            ) -> std::result::Result<ExecutionResult, AtomicFailure> {
+                Err(AtomicFailure {
+                    cause: ExecutionError::Unsupported,
+                    disposition: AtomicDisposition::NotStarted,
+                })
+            }
             immediate_dispatch!($driver, $dialect, $affected);
         }
     };
@@ -826,6 +1076,7 @@ impl ExecutionError {
     pub fn public_view(&self) -> DiagnosticView {
         let code = match self {
             Self::Policy(e) => return e.public_view(),
+            Self::Authorization(_) => DiagnosticCode::ExecutionRiskRefused,
             Self::ContextMismatch => DiagnosticCode::ExecutionContextMismatch,
             Self::OperationMismatch => DiagnosticCode::ExecutionOperationMismatch,
             Self::InvalidTtl => DiagnosticCode::ExecutionInvalidTtl,

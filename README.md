@@ -1,3 +1,5 @@
+Current QT-AI-09 PR2: [explicit request/session-bound permits and final common gate](specs/authorization-gate-v1.md).
+
 Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](specs/review-ci-v1.md). Earlier PR-specific absence statements are historical.
 
 QT-AI-08 planned PR2: [bounded Rust source candidates, conservative coverage and independent precision](specs/source-review-v1.md).
@@ -16,7 +18,8 @@ Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
 **Status: finite typed repositories, inspection-only patches/regeneration, and bounded offline review through QT-AI-08 planned PR3.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
-Immediate execution uses the common policy/risk/capability gate; INSERT/High/Unknown refuse. Multi-operation transactions,
+Immediate execution uses the common policy/risk/capability gate; INSERT/Unknown refuse.
+Finite High UPDATE/physical DELETE require an explicit bound permit; ordinary High still refuses. Multi-operation transactions,
 migration, commands and MCP are future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
 Optional `review-ci` adds `quent-cli review-ci --json|--pretty|--sarif HEAD_INPUTS BASE_INPUTS BASELINE`.
 It compares exact supplied inputs and supports expiring display baselines; all original
@@ -30,8 +33,8 @@ OS/filesystem I/O deadlines; see the verification specification for symlink and 
 conditions. Other CLI routes retain fixed non-success refusal.
 Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
 connect/execute, dedicated catalog readers and explicit authorization acquisition
-(with a trusted application adapter) can perform I/O. Acquisition grants no
-execution permission in PR1. No release or crates.io publication is provided.
+(with a trusted application adapter) can perform I/O. Only runtime-bound acquisition
+can yield a finite executable permit; PR1 unbound acquisition remains non-executing. No release or crates.io publication is provided.
 
 - [Codegen config, naming/budgets, native/NULL/key/role matrix and PR2 responsibilities](specs/typed-codegen-v1.md)
 - [OperationSpec wire, budgets, application role assertions and PR2 boundary](specs/operation-spec-v1.md)
@@ -107,7 +110,7 @@ limited DB-free evidence and remaining runtime/Tx/authorization responsibilities
 QT-AI-03 PR1 adds owned immediate sessions, the private shared dispatcher, finite
 native binding/decoding and redacted bounded results. The app supplies authenticated
 current context and authoritative database semantics; routing key equality does not
-authenticate a physical DB. PR2 adds consumed delayed handles with exact current-operation/context/session checks and an exclusive monotonic deadline. PR3 adds one-operation owned atomic execution and borrowed uncommitted results. Provider permits remain future work.
+authenticate a physical DB. PR2 adds consumed delayed handles with exact current-operation/context/session checks and an exclusive monotonic deadline. PR3 adds one-operation owned atomic execution and borrowed uncommitted results. Explicit finite provider permits now use this same dispatcher; see the QT-AI-09 PR2 contract.
 
 Run both real DB acceptance suites against freshly created digest-pinned containers:
 
@@ -174,7 +177,7 @@ execution connection or generator CLI is added. See the
 Enable `quent-cli/review` and use `quent-cli review plan|spec|manifest --json|--pretty FILE` (one target and format). See [the finite grammar, precision axes, fixed exits and FIFO/OS limits](specs/review-v1.md). Valid offline input still has unverified runtime/authority and review never exits 0. For bounded Rust syntax candidates, enable `quent-cli/source-review` and use `quent-cli review rust --json|--pretty FILE`. See [source syntax/envelope/coverage and independent precision](specs/source-review-v1.md). Identity, SQL and runtime remain unverified; source coverage never becomes Complete. SARIF/baseline remain PR3. The new plan wire is independent from output-only local exports and public views.
 
 
-QT-AI-09 planned PR1: [explicit scoped authorization acquisition](specs/authorization-contract-v1.md) adds
-immutable per-DB trusted registration and consumed exact request-bound candidates.
-Successful acquisition has no dispatcher/Tx/permit conversion; existing Strict
-High/Destructive refusal and all 24 full runtime_pending markers remain.
+QT-AI-09 PR1 introduced immutable trusted registration and non-executing acquisition.
+[PR2 final permits](specs/authorization-gate-v1.md) add bound direct/owned/borrowed
+execution for finite scopes, with explicit support/refusal, currentness, expiry and
+cancellation limits. All 24 full runtime_pending markers remain.
