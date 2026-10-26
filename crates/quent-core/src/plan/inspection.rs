@@ -14,7 +14,7 @@ pub enum Key {
     Unique(Vec<Column>),
 }
 impl Key {
-    fn columns(&self) -> &[Column] {
+    pub(super) fn columns(&self) -> &[Column] {
         match self {
             Self::Primary(c) | Self::Unique(c) => c,
         }
@@ -27,7 +27,7 @@ pub struct ScopeFacts {
     pub(super) table: Table,
     pub(super) dialect: Dialect,
     pub(super) columns: Vec<Column>,
-    keys: Vec<Key>,
+    pub(super) keys: Vec<Key>,
     pub(super) context: TableContext,
 }
 impl ScopeFacts {
@@ -334,8 +334,16 @@ fn proof(
     }
     if matches!(d.body, Body::Insert(_)) {
         return (
-            S::NotApplicable,
-            C::Unknown,
+            if record.insert_proof.is_some() {
+                S::Single
+            } else {
+                S::NotApplicable
+            },
+            if record.insert_proof.is_some() {
+                C::Complete
+            } else {
+                C::Unknown
+            },
             A::ApplicationAsserted,
             E::InsertShape,
         );
@@ -416,9 +424,11 @@ impl Plan {
         let risk = if write && (d.predicate.is_none() || self.record.caller_missing_where) {
             add(FindingCode::MissingWhere);
             Risk::Blocked
-        } else if matches!(d.body, Body::Insert(_)) {
+        } else if matches!(d.body, Body::Insert(_)) && self.record.insert_proof.is_none() {
             add(FindingCode::InsertUnverified);
             Risk::High
+        } else if matches!(d.body, Body::Insert(_)) && self.record.insert_proof.is_some() {
+            Risk::Low
         } else {
             if scope == Scope::Unknown || completeness != Completeness::Complete {
                 add(FindingCode::UnknownProof);

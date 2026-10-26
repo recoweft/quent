@@ -1,3 +1,5 @@
+Current QT-AI-10 PR1: [finite command ledger and replay](command-ledger-v1.md) extends only the explicit command entry. Earlier command/INSERT absence statements describe their historical baseline; ordinary INSERT refusal remains.
+
 Current QT-AI-09 PR2: [scoped final execution permits](authorization-gate-v1.md)
 connect explicit request/session-bound acquisition to this same common dispatcher.
 Ordinary paths retain provider0 and High refusal. PR1 absence statements below are

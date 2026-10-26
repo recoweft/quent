@@ -71,6 +71,7 @@ impl PostgresSession {
     immediate_dispatch!(Postgres, Postgres, PostgresMatched);
     compiled_dispatch!(Postgres);
     atomic_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
+    command_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
 }
 fn bind<'q>(
     query: &mut sqlx::query::Query<'q, Postgres, <Postgres as sqlx::Database>::Arguments>,
@@ -174,3 +175,7 @@ borrowed_dispatch!(
     Postgres,
     PostgresMatched
 );
+
+impl BorrowedPostgresTransaction<'_> {
+    command_protocol!(Postgres, Postgres);
+}

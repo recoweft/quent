@@ -1,3 +1,5 @@
+Current QT-AI-10 PR1: [finite command ledger and replay](command-ledger-v1.md) extends only the explicit command entry. Earlier command/INSERT absence statements describe their historical baseline; ordinary INSERT refusal remains.
+
 Current PR3 additions: [finite owned atomic results, version/RETURNING IR and borrowed Tx boundaries](atomic-results-v1.md). Earlier PR-specific absence statements below describe their historical baseline.
 
 # QT-AI-02 PR2: finite DB-free policy preparation

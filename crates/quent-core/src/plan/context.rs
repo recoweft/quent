@@ -516,3 +516,98 @@ redacted!(SensitiveContextSource<'_>);
 
 mod policy;
 pub use policy::*;
+
+impl DatabaseContext {
+    fn encode_command_target_tenant(
+        &self,
+        e: &mut super::command_encoding::Encoder,
+    ) -> super::Result<()> {
+        let b = &self.settings.binding;
+        e.list(|e| {
+            e.text(&b.database.0)?;
+            e.text(&b.address.0)?;
+            e.text(&b.catalog.0)?;
+            e.number(if b.dialect == Dialect::Postgres { 1 } else { 2 })?;
+            e.list(|e| {
+                if let Some(t) = &self.application.tenant {
+                    e.column(&t.column)?;
+                    e.value(&t.value)?;
+                }
+                Ok(())
+            })
+        })
+    }
+    fn encode_command_context(
+        &self,
+        e: &mut super::command_encoding::Encoder,
+    ) -> super::Result<()> {
+        self.encode_command_target_tenant(e)?;
+        e.list(|e| {
+            let s = &self.settings;
+            e.text(&s.identity.0)?;
+            e.number(s.generation.0)?;
+            e.number(1)?;
+            e.text(&s.policies.identity.0)?;
+            e.number(s.policies.generation.0)?;
+            e.list(|e| {
+                for p in &s.policies.declarations {
+                    e.list(|e| {
+                        e.number(match p {
+                            PolicyDeclaration::Tenant(_) => 1,
+                            PolicyDeclaration::SoftDelete(_) => 2,
+                            PolicyDeclaration::Pii(_) => 3,
+                            PolicyDeclaration::RequiredFilter(_) => 4,
+                            PolicyDeclaration::Readonly(_) => 5,
+                            PolicyDeclaration::Generated(_) => 6,
+                        })?;
+                        e.column(p.column())
+                    })?;
+                }
+                Ok(())
+            })?;
+            e.list(|e| {
+                if let Some(schema) = &self.application.schema {
+                    e.text(&schema.identity.0)?;
+                    e.number(schema.generation.0)?;
+                    e.list(|e| {
+                        for f in &schema.facts {
+                            e.list(|e| {
+                                e.table(&f.table)?;
+                                e.number(if f.dialect == Dialect::Postgres { 1 } else { 2 })?;
+                                e.columns(&f.columns)?;
+                                e.number(
+                                    if f.context == TableContext::OrdinaryBaseTableWithoutEffects {
+                                        1
+                                    } else {
+                                        2
+                                    },
+                                )?;
+                                e.list(|e| {
+                                    for k in &f.keys {
+                                        e.list(|e| {
+                                            e.number(if matches!(k, Key::Primary(_)) {
+                                                1
+                                            } else {
+                                                2
+                                            })?;
+                                            e.columns(k.columns())
+                                        })?;
+                                    }
+                                    Ok(())
+                                })
+                            })?;
+                        }
+                        Ok(())
+                    })?;
+                }
+                Ok(())
+            })?;
+            e.list(|e| {
+                if let Some(s) = &self.application.subject {
+                    e.text(&s.0)?;
+                }
+                Ok(())
+            })
+        })
+    }
+}
