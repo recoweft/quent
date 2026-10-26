@@ -6,6 +6,8 @@ async fn poll_once<F: std::future::Future>(
     std::future::poll_fn(|cx| std::task::Poll::Ready(f.as_mut().poll(cx))).await
 }
 use super::*;
+#[macro_use]
+mod authorized;
 fn id(s: &str) -> Ident {
     Ident::new(s).unwrap()
 }
@@ -918,7 +920,7 @@ macro_rules! live_suite {
                 // Allowed DELETE reports matched observation; it is not atomic API.
                 let r=session.execute(&c,Draft::delete(table()).filter(filter(259)).freeze()).await.unwrap();
                 assert_eq!(r.affected_rows(),Some(expected_affected));
-                atomic_cases!($session, $borrowed, $connection, options, d, c, observer, $create, $seed);
+                Box::pin(async { atomic_cases!($session, $borrowed, $connection, options, d, c, observer, $create, $seed); }).await;
                 let mut failed_write=$session::connect(options.clone(),c.clone()).await.unwrap();
                 // Type mismatch fails redacted; no success truncation of results.
                 let bad=select(d).filter(filter(1)).freeze();

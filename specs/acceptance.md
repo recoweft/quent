@@ -270,7 +270,8 @@ remain unverified; this does not clear any full runtime_pending case. Actual
 [measurements](review-ci-v1-evidence.md) and exact-head hosted results are separate.
 
 
-QT-AI-09 planned PR1: [explicit scoped authorization acquisition](authorization-contract-v1.md) adds
-immutable per-DB trusted registration and consumed exact request-bound candidates.
-Successful acquisition has no dispatcher/Tx/permit conversion; existing Strict
-High/Destructive refusal and all 24 full runtime_pending markers remain.
+QT-AI-09 PR2: [request/session-bound final permits](authorization-gate-v1.md)
+adds explicit finite High UPDATE/physical DELETE execution through the common gate.
+Unbound PR1 acquisition remains non-executing; ordinary High/Destructive refusal,
+public output boundaries and all 24 full runtime_pending markers remain.
+See [finite measurements and limitations](authorization-gate-v1-evidence.md).

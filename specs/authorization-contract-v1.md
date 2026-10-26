@@ -1,3 +1,8 @@
+Current runtime extension: [QT-AI-09 PR2 scoped final gate](authorization-gate-v1.md).
+The PR1 baseline below is historical. Its unbound API remains non-executing and
+has no executable conversion; only candidates bound before provider invocation
+can yield PR2 permits.
+
 # QT-AI-09 planned PR1: scoped authorization acquisition
 
 This is an application-only facade contract, available without driver/runtime

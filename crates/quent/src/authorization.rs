@@ -1,4 +1,5 @@
-//! Application-only, explicit authorization acquisition. No dispatcher connection.
+//! Application-only explicit authorization. Unbound acquisition stays non-executable;
+//! runtime-bound candidates enter the one common dispatcher through linear permits.
 //! The application authenticates subjects and supplies trusted adapters. Identity
 //! labels and constructors do not authenticate servers, callers or providers.
 use quent_core::*;
@@ -134,7 +135,7 @@ impl AuthorizationContext {
     pub fn sensitive_database(&self) -> &DatabaseContext {
         &self.database
     }
-    fn matches(&self, other: &Self) -> bool {
+    pub(crate) fn matches(&self, other: &Self) -> bool {
         self.database.same_snapshot(&other.database)
             && match (&self.registration, &other.registration) {
                 (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -179,10 +180,11 @@ impl AuthorizationContext {
             context: self.clone(),
             scope,
             expires,
+            runtime: None,
         })
     }
 }
-fn eligible(p: &PolicyPreparation, scope: AuthorizationScope) -> Result<()> {
+pub(crate) fn eligible(p: &PolicyPreparation, scope: AuthorizationScope) -> Result<()> {
     let i = p.inspect();
     let source = p.sensitive_source();
     let final_source = source.final_source();
@@ -211,6 +213,53 @@ pub struct AuthorizationCandidate {
     context: AuthorizationContext,
     scope: AuthorizationScope,
     expires: Instant,
+    runtime: Option<RuntimeBinding>,
+}
+/// Private execution identity, installed before the provider sees the request.
+#[cfg_attr(
+    not(all(
+        feature = "runtime-tokio",
+        any(feature = "postgres", feature = "mysql")
+    )),
+    allow(dead_code)
+)]
+pub(crate) struct RuntimeBinding {
+    pub(crate) session: Arc<()>,
+    pub(crate) request: Arc<()>,
+}
+#[cfg(all(
+    feature = "runtime-tokio",
+    any(feature = "postgres", feature = "mysql")
+))]
+impl AuthorizationCandidate {
+    pub(crate) fn check_runtime(&self, session: &Arc<()>, request: &Arc<()>) -> Result<()> {
+        match &self.runtime {
+            Some(b) if Arc::ptr_eq(&b.session, session) && Arc::ptr_eq(&b.request, request) => {
+                Ok(())
+            }
+            _ => Err(AuthorizationError::Mismatch),
+        }
+    }
+    pub(crate) fn bind_runtime(&mut self, session: Arc<()>, request: Arc<()>) {
+        self.runtime = Some(RuntimeBinding { session, request });
+    }
+    pub(crate) fn into_execution(
+        self,
+    ) -> (
+        PolicyPreparation,
+        AuthorizationContext,
+        AuthorizationScope,
+        Instant,
+        RuntimeBinding,
+    ) {
+        (
+            self.prepared,
+            self.context,
+            self.scope,
+            self.expires,
+            self.runtime.expect("bound internal candidate"),
+        )
+    }
 }
 /// Borrowed sensitive review input. `respond` consumes this one request wrapper;
 /// the private invocation identity cannot be copied or manufactured by adapters.
@@ -228,6 +277,11 @@ impl AuthorizationRequest<'_> {
     pub fn sensitive_registration(&self) -> (&str, u64, &[u8]) {
         let r = self.candidate.context.registration.as_ref().unwrap();
         (&r.identity, r.generation, &r.configuration)
+    }
+    /// Whether an execution request/session was retained before this callback.
+    /// This is not authentication of an HTTP request or physical server.
+    pub fn is_runtime_bound(&self) -> bool {
+        self.candidate.runtime.is_some()
     }
     pub fn scope(&self) -> AuthorizationScope {
         self.candidate.scope
@@ -275,14 +329,23 @@ fn check_expiry(candidate: &AuthorizationCandidate, now: Instant) -> Result<()> 
     }
     Ok(())
 }
-/// The sole provider-calling API. Both snapshots are immutable for this borrow;
+/// Compatibility non-executing acquisition API. Both snapshots are immutable for this borrow;
 /// independently changed application routing/session state is not observable here.
-/// Final runtime session/current revalidation belongs to PR2. An adapter that never
+/// This unbound receipt has no executable conversion. An adapter that never
 /// completes is not automatically timed out; dropping cancels local polling only.
 pub async fn acquire_authorization(
     candidate: AuthorizationCandidate,
     current: &AuthorizationContext,
 ) -> Result<AuthorizationAcquisition> {
+    let candidate = acquire_candidate(candidate, current).await?;
+    Ok(AuthorizationAcquisition {
+        _candidate: candidate,
+    })
+}
+pub(crate) async fn acquire_candidate(
+    candidate: AuthorizationCandidate,
+    current: &AuthorizationContext,
+) -> Result<AuthorizationCandidate> {
     check_bindings(&candidate, current)?;
     check_expiry(&candidate, Instant::now())?;
     let r = candidate
@@ -305,9 +368,7 @@ pub async fn acquire_authorization(
     // Sample after *all* bounded comparisons, never before their work.
     check_expiry(&candidate, Instant::now())?;
     match decision.response {
-        AdapterResponse::AllowCandidate => Ok(AuthorizationAcquisition {
-            _candidate: candidate,
-        }),
+        AdapterResponse::AllowCandidate => Ok(candidate),
         AdapterResponse::Deny => Err(AuthorizationError::Denied),
         AdapterResponse::Error => Err(AuthorizationError::ProviderError),
         AdapterResponse::Cancelled => Err(AuthorizationError::Cancelled),

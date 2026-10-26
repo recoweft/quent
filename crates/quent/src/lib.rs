@@ -71,5 +71,5 @@ pub mod source_review;
 #[cfg(feature = "review-ci")]
 pub mod review_ci;
 
-/// Explicit application-only authorization; no execution gate integration in PR1.
+/// Explicit application-only authorization; unbound receipts cannot execute.
 pub mod authorization;

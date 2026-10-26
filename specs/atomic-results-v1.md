@@ -1,7 +1,7 @@
-Current QT-AI-09 PR1: [explicit authorization acquisition](authorization-contract-v1.md)
-adds a separate consumed application-only callback API. The execution paths below
-remain provider-free and retain Strict High/Destructive refusal. Earlier absence
-statements refer to the execution boundary, not this separate acquisition API.
+Current QT-AI-09 PR2: [scoped final execution permits](authorization-gate-v1.md)
+connect explicit request/session-bound acquisition to this same common dispatcher.
+Ordinary paths retain provider0 and High refusal. PR1 absence statements below are
+historical; its unbound acquisition remains non-executing.
 
 # QT-AI-03 planned PR3: finite atomic results
 
