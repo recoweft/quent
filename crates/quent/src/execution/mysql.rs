@@ -73,6 +73,19 @@ impl MysqlSession {
     atomic_dispatch!(MySql, Mysql, BorrowedMysqlTransaction);
     command_dispatch!(MySql, Mysql, BorrowedMysqlTransaction);
 }
+// SQLx MySQL integer/byte compatibility is broader than this private ledger
+// format. Check exact version width/sign and binary payload metadata first.
+fn command_storage_types(row: &MySqlRow) -> bool {
+    row.len() == 3
+        && *row.column(0).type_info() == <i16 as Type<MySql>>::type_info()
+        && (1..=2).all(|i| {
+            let info = row.column(i).type_info();
+            matches!(
+                info.name(),
+                "VARBINARY" | "BINARY" | "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB"
+            ) && !<str as Type<MySql>>::compatible(info)
+        })
+}
 fn bind<'q>(
     query: &mut sqlx::query::Query<'q, MySql, <MySql as sqlx::Database>::Arguments>,
     value: &'q Value,

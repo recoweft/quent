@@ -1117,7 +1117,7 @@ macro_rules! borrowed_dispatch {
 #[macro_use]
 mod command;
 pub use command::*;
-use command::{command_check, inspect_input, result_bytes, saved_result};
+use command::{check_command_result, command_check, inspect_input, result_bytes, saved_result};
 
 #[cfg(feature = "postgres")]
 mod postgres;

@@ -278,4 +278,19 @@ See [finite measurements and limitations](authorization-gate-v1-evidence.md).
 
 ## QT-AI-10 planned PR1 finite command evidence
 
-[Command ledger contract](command-ledger-v1.md) and [finite measurements](command-ledger-v1-evidence.md) track QT-C17/C18 and supporting C01/C02/C06/C08/C10/C11/C12/C13/C14/C15/C16/C19/C23 subcases. All 24 full runtime_pending markers and original fixtures remain unchanged. PR2 detailed concurrency/optimistic version/physical reply-loss recovery and PR3 audit/outbox remain pending.
+[Command ledger contract](command-ledger-v1.md) and [finite measurements](command-ledger-v1-evidence.md) track QT-C17/C18 and supporting C01/C02/C06/C08/C10/C11/C12/C13/C14/C15/C16/C19/C23 subcases. All 24 full runtime_pending markers and original fixtures remain unchanged. At the PR1 cutoff, PR2 detailed concurrency/version/physical reply-loss recovery and PR3 audit/outbox remained pending; the PR2 section below records the current finite extension.
+
+## QT-AI-10 planned PR2 finite command concurrency/results
+
+[Current command contract](command-ledger-v1.md) and [PR2 evidence](command-concurrency-v1-evidence.md)
+add finite QT-C16/C17/C18 measurements, with C01/C02/C06/C08/C10/C11/C12/C13/C14/C15/C19/C23
+regressions. Commands support exact1 only; unsupported expectations refuse before
+Tx/ledger/business/provider, not IdentityConflict. Version0 conflicts and ordinary0
+expectation mismatches roll back without saving results. Retained-record full-input
+comparison, server-observed same/different-input commit/rollback races (including
+rollback's vanished-history limit), actual loopback COMMIT reply loss and explicit
+fresh-session reconciliation are distinguished from completion seams/compile-only
+checks. Corrupt storage never becomes missing. PR1 measurements remain historical;
+PR3 audit/outbox remains pending. All24 full runtime_pending markers and original
+fixtures remain unchanged. Local WSL DB evidence is distinct from hosted Windows
+DB-free/compiler/CLI/output jobs and from unverified general network failures.
