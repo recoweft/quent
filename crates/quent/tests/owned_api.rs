@@ -1373,14 +1373,101 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&output.stderr)
         );
     }
+    let control = run(
+        "async fn control(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation){let b=quent::ObservationBudget::new(8,8,std::time::Duration::from_secs(1),2).unwrap();let mut r=quent::RequestCollector::new(c,b);{let mut scope=s.observe(&mut r).unwrap();let h=scope.validate(c,o,std::time::Duration::from_secs(1)).unwrap();let _=scope.execute_validated(c,o,h).await;let e=ExpectedRows::exactly(1).unwrap();let h=scope.validate_atomic(c,o,e,std::time::Duration::from_secs(1)).unwrap();let _=scope.execute_atomic(c,o,e,h).await;}let evidence=r.finish();let view=evidence.public_view();let _:serde_json::Value=serde_json::from_str(&view.to_json()).unwrap();}",
+    );
+    assert!(
+        control.status.success(),
+        "observation control: {}",
+        String::from_utf8_lossy(&control.stderr)
+    );
+    for (body, code) in [
+        ("fn f(r:quent::RequestCollector){let _=r.clone();}", "E0599"),
+        (
+            "fn f(){let _:quent::RequestCollector=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(r:&quent::RequestCollector){let _=serde_json::to_string(r);}",
+            "E0277",
+        ),
+        (
+            "fn f(){let _:quent::QueryObservation=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(){let _:quent::ObservationView=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::ObservationView)->quent::RequestCollector{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::ObservationView)->ValidatedOperation{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::ObservationView)->quent::AuthorizedOperation{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::QueryObservation)->ValidatedOperation{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::QueryObservation)->quent::RequestCollector{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:&mut quent::ObservedPostgresSession<'_>,replacement:PostgresSession){let _=std::mem::replace(&mut **v,replacement);}",
+            "E0614",
+        ),
+        (
+            "fn f(v:&mut quent::ObservedPostgresSession<'_>){let _=v.session;}",
+            "E0616",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,r:&mut quent::RequestCollector,c:&DatabaseContext,o:Operation){let mut scope=s.observe(r).unwrap();let _=s.execute(c,o).await;scope.is_available();}",
+            "E0499",
+        ),
+        (
+            "fn f(a:&mut PostgresSession,b:&mut PostgresSession,r:&mut quent::RequestCollector){let first=a.observe(r).unwrap();let _=b.observe(r);first.is_available();}",
+            "E0499",
+        ),
+        (
+            "fn f(r:quent::RequestCollector){let _=r.finish();let _=r.finish();}",
+            "E0382",
+        ),
+        (
+            "fn f(v:&mut quent::ObservedPostgresSession<'_>){let _=v.acquire_authorized;}",
+            "E0609",
+        ),
+        (
+            "fn f(v:&mut quent::ObservedPostgresSession<'_>){let _=v.acquire_performance;}",
+            "E0609",
+        ),
+        (
+            "fn f(v:&mut quent::ObservedPostgresSession<'_>){let _=v.execute_command;}",
+            "E0609",
+        ),
+    ] {
+        let output = run(body);
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains(&format!("error[{code}]")),
+            "observation negative {code}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        22,
-        "compiling positive controls (20 retained)"
+        23,
+        "compiling positive controls (22 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        391,
-        "diagnostic-checked negatives (361 retained)"
+        409,
+        "diagnostic-checked negatives (391 retained)"
     );
 }

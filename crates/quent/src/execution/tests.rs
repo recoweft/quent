@@ -9,6 +9,9 @@ use super::*;
 #[macro_use]
 mod authorized;
 mod authorized_network;
+#[macro_use]
+mod observation;
+use observation::check_public;
 mod command;
 mod command_network;
 fn id(s: &str) -> Ident {
@@ -408,6 +411,8 @@ macro_rules! atomic_cases {
         for fault in [AtomicFault::Begin,AtomicFault::Commit,AtomicFault::CommitReplyLost,AtomicFault::Rollback,AtomicFault::RollbackReplyLost] {
             sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11 AND id=1").execute(&mut *observer).await.unwrap();
             let mut faulted=$session::connect(options.clone(),c.clone()).await.unwrap();
+            let observed=RequestCollector::new(c,ObservationBudget::new(2,2,Duration::from_secs(300),2).unwrap());
+            faulted.observation=Some(super::observation::attach(&observed.shared,c).unwrap());
             let op=make(1); let expected=if matches!(fault,AtomicFault::Rollback|AtomicFault::RollbackReplyLost){zero}else{one};
             let h=faulted.validate_atomic(c,&op,expected,MAX_TTL).unwrap(); faulted.atomic_fault=Some(fault);
             let e=faulted.execute_atomic(c,&op,expected,h).await.unwrap_err();
@@ -416,6 +421,8 @@ macro_rules! atomic_cases {
             assert!(std::error::Error::source(&e).is_none());
             assert_eq!(faulted.execute(c,op).await.unwrap_err(),ExecutionError::SessionUnavailable);
             assert!(faulted.recorder.calls.len()<=1);
+            let view=observed.public_view();assert_eq!(view.entries()[0].transaction,ObservedTransaction::Unknown);assert!(view.is_closed());
+            assert_eq!(view.submissions(),u16::from(fault!=AtomicFault::Begin));
             drop(faulted);
             let actual=sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0);
             assert_eq!(actual,if fault==AtomicFault::CommitReplyLost {"atomic"}else{"before"});
@@ -440,6 +447,8 @@ macro_rules! atomic_cases {
             sqlx::query("UPDATE quent_dispatch_test.items SET txt=txt WHERE tenant=11 AND id=1").execute(&mut *lock).await.unwrap();
             let mut canceled=$session::connect(options.clone(),c.clone()).await.unwrap();
             let connection_id=canceled.test_connection_id().await;
+            let observed=RequestCollector::new(c,ObservationBudget::new(2,2,Duration::from_secs(300),2).unwrap());
+            canceled.observation=Some(super::observation::attach(&observed.shared,c).unwrap());
             let op=make(1); let h=canceled.validate_atomic(c,&op,one,MAX_TTL).unwrap();
             let trace=canceled.recorder.live.clone();
             let mut f=Box::pin(canceled.execute_atomic(c,&op,one,h));
@@ -459,6 +468,7 @@ macro_rules! atomic_cases {
                 assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown); assert_eq!(e.public_view().state,Some(ViewState::OutcomeUnknown));
             } else if mode==1 {assert!(tokio::time::timeout(Duration::from_millis(1),f.as_mut()).await.is_err());}
             drop(f); assert!(!canceled.is_available());
+            let view=observed.public_view();assert_eq!(view.submissions(),1);assert!(view.is_closed());assert_eq!(view.entries()[0].transaction,ObservedTransaction::Unknown);assert_eq!(view.entries()[0].consumption,Consumption::NotObserved);
             assert!(!trace.lock().unwrap().contains(&"commit")); assert!(!trace.lock().unwrap().contains(&"rolled_back"));
             drop(canceled); lock.rollback().await.unwrap();
             assert_eq!(sqlx::query(observe).fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
@@ -585,6 +595,7 @@ macro_rules! live_suite {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||runtime.block_on(async {
                 let d = $dialect; let c = context(d,11,"subject",vec![]);
                 let mut session = $session::connect(options.clone(),c.clone()).await.unwrap();
+                Box::pin(async { observation_cases!($session,$borrowed,$connection,options,d,c); }).await;
                 #[cfg(feature="performance-plan")]
                 Box::pin(async {
                     // C21/C01/C06/C08/C11-C15/C19/C23/C24: explicit finite
@@ -1063,7 +1074,10 @@ macro_rules! live_suite {
                     sqlx::query(sqlx::AssertSqlSafe(setup_sql.to_owned())).bind(n).bind(11_i64).execute(&mut observer).await.unwrap();
                 }
                 let only_keys=Draft::select(table(),vec![Projection::new(key(),None)]).freeze();
+                let partial=RequestCollector::new(&c,ObservationBudget::new(2,2,Duration::from_secs(300),2).unwrap());
+                limited.observation=Some(super::observation::attach(&partial.shared,&c).unwrap());
                 assert_eq!(limited.execute(&c,only_keys).await.unwrap_err(),ExecutionError::ResultLimit);
+                let view=partial.public_view();assert_eq!(view.submissions(),1);assert_eq!(view.entries()[0].decoded_rows,256);assert_eq!(view.entries()[0].consumption,Consumption::Partial);assert!(view.is_incomplete());check_public(&view);
                 assert_eq!(limited.recorder.calls.len(),1);
                 // Allowed DELETE reports matched observation; it is not atomic API.
                 let r=session.execute(&c,Draft::delete(table()).filter(filter(259)).freeze()).await.unwrap();

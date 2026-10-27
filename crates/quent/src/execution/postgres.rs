@@ -24,10 +24,11 @@ use sqlx::{
 /// ```
 pub struct PostgresSession {
     connection: PgConnection,
-    context: DatabaseContext,
+    pub(super) context: DatabaseContext,
     available: bool,
     identity: Arc<()>,
     result_state: ResultState,
+    pub(super) observation: Option<observation::Link>,
     #[cfg(all(test, feature = "performance-plan"))]
     pub(super) performance_return_barrier: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
@@ -62,6 +63,7 @@ impl PostgresSession {
             available: true,
             identity: Arc::new(()),
             result_state: ResultState::Observed,
+            observation: None,
             #[cfg(all(test, feature = "performance-plan"))]
             performance_return_barrier: None,
             #[cfg(test)]
