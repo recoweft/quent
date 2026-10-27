@@ -1,3 +1,5 @@
+Current QT-AI-11 PR2: [phase-bound finite migration observations](migration-preflight-v1.md). Earlier PR-specific absence statements describe their historical baseline.
+
 # QT-AI-11 PR1: offline immutable migration differences
 
 `quent_core::migration` is a dependency-free typed application API. It compares

@@ -445,6 +445,8 @@ fn integer_default(
     };
     Some(DefaultValue::Literal { value })
 }
+pub mod preflight;
+use preflight::preflight_reader;
 #[cfg(feature = "postgres")]
 mod postgres;
 #[cfg(feature = "postgres")]

@@ -1145,14 +1145,88 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&r.stderr)
         );
     }
+    let r = run(
+        "fn control(r:&quent::manifest::live::PostgresReader,c:&DatabaseContext,q:&quent::manifest::live::preflight::PreflightRequest<'_>,e:&quent::manifest::live::preflight::PreflightObservation<'_>,p:&quent_core::migration::MigrationPlan){let _=p.phases();let _=r.compare_migration(c,q,e).to_json();} async fn observe(r:&mut quent::manifest::live::PostgresReader,c:&DatabaseContext,q:&quent::manifest::live::preflight::PreflightRequest<'_>,b:quent::manifest::live::Budget){let _=r.observe_migration(c,q,b,std::time::Duration::from_secs(1)).await;}",
+    );
+    assert!(
+        r.status.success(),
+        "preflight positive control: {}",
+        String::from_utf8_lossy(&r.stderr)
+    );
+    for (body, diagnostic) in [
+        (
+            "fn f(p:&quent_core::migration::MigrationPlan){let _=p.phases;}",
+            "E0616",
+        ),
+        (
+            "fn f(q:&quent::manifest::live::preflight::PreflightRequest<'_>){let _=q.plan;}",
+            "E0616",
+        ),
+        (
+            "fn f(e:&quent::manifest::live::preflight::PreflightObservation<'_>){let _=e.observed;}",
+            "E0616",
+        ),
+        (
+            "fn f(e:&quent::manifest::live::preflight::PreflightObservation<'_>){let _=e.identity;}",
+            "E0616",
+        ),
+        (
+            "fn f(e:&quent::manifest::live::preflight::PreflightObservation<'_>){let _=e.deadline;}",
+            "E0616",
+        ),
+        (
+            "fn f(e:quent::manifest::live::preflight::PreflightObservation<'_>){let _=Clone::clone(&e);}",
+            "E0277",
+        ),
+        (
+            "fn f(q:quent::manifest::live::preflight::PreflightRequest<'_>){let _=Clone::clone(&q);}",
+            "E0277",
+        ),
+        (
+            "fn f(){let _:quent::manifest::live::preflight::PreflightObservation<'_>=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(e:&quent::manifest::live::preflight::PreflightObservation<'_>){let _=serde_json::to_string(e);}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::manifest::live::preflight::PreflightView)->quent::manifest::live::preflight::PreflightObservation<'static>{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::manifest::live::VerifySummary)->quent::manifest::live::preflight::PreflightObservation<'static>{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(e:&quent::manifest::live::preflight::PreflightObservation<'_>){e.apply();}",
+            "E0599",
+        ),
+        (
+            "fn f(e:&quent::manifest::live::preflight::PreflightObservation<'_>,s:&mut PostgresSession,c:&DatabaseContext){s.validate(c,e,std::time::Duration::from_secs(1));}",
+            "E0308",
+        ),
+        (
+            "fn f(p:&quent_core::migration::MigrationPlan){let _=quent_core::migration::PhaseView{phase:quent_core::migration::MigrationPhase::Expand,capability:quent_core::migration::PhaseCapability::NullableAppend,first_step:0,steps:1};}",
+            "E0451",
+        ),
+    ] {
+        let r = run(body);
+        assert!(
+            !r.status.success()
+                && String::from_utf8_lossy(&r.stderr).contains(&format!("error[{diagnostic}]")),
+            "preflight negative: {}",
+            String::from_utf8_lossy(&r.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        19,
-        "compiling positive controls (18 retained)"
+        20,
+        "compiling positive controls (19 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        347,
-        "diagnostic-checked negatives (319 retained)"
+        361,
+        "diagnostic-checked negatives (347 retained)"
     );
 }
