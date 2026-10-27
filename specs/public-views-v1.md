@@ -145,3 +145,11 @@ passed; Core has no dependencies and default normal tree has only local crates.
 CLI was run separately: exit 1, empty stdout, fixed QUENT_NOT_IMPLEMENTED stderr.
 Hosted Ubuntu/Windows and live CI results must be read from the actual PR head;
 these local measurements do not establish branch protection or local Windows ACLs.
+
+
+QT-AI-11 PR1: [offline immutable migration plan](migration-plan-v1.md) adds a separate
+Core typed schema/difference API, output-only migration view and protected local
+migration detail export. Existing manifest v1/fingerprint and CRUD output formats
+are unchanged; no preflight/apply/provider/handle/CLI/MCP execution is added.
+See [finite C22-centered evidence](migration-plan-v1-evidence.md). All 24 full
+runtime_pending markers and original fixtures remain unchanged.

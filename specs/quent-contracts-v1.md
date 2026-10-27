@@ -289,3 +289,11 @@ QT-AI-09 planned PR1: [explicit scoped authorization acquisition](authorization-
 immutable per-DB trusted registration and consumed exact request-bound candidates.
 Successful acquisition has no dispatcher/Tx/permit conversion; existing Strict
 High/Destructive refusal and all 24 full runtime_pending markers remain.
+
+
+QT-AI-11 PR1: [offline immutable migration plan](migration-plan-v1.md) adds a separate
+Core typed schema/difference API, output-only migration view and protected local
+migration detail export. Existing manifest v1/fingerprint and CRUD output formats
+are unchanged; no preflight/apply/provider/handle/CLI/MCP execution is added.
+See [finite C22-centered evidence](migration-plan-v1-evidence.md). All 24 full
+runtime_pending markers and original fixtures remain unchanged.

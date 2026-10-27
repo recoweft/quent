@@ -89,14 +89,50 @@ pub fn create_new(
     path: &Path,
     source: SensitiveSource<'_>,
 ) -> Result<CreatedLocalDetail, DetailError> {
+    check_surface(surface)?;
+    write_source(path, source)
+}
+fn check_surface(surface: Surface) -> Result<(), DetailError> {
     if surface != Surface::LocalApplication {
         return Err(DetailError::SurfaceDenied);
     }
     if DENIED_ENV.iter().any(|k| std::env::var_os(k).is_some()) {
         return Err(DetailError::EnvironmentDenied);
     }
-    write_source(path, source)
+    Ok(())
 }
+/// Explicit protected local export of migration SQL/difference identifiers. This
+/// output-only artifact cannot restore a plan or supply an execution permission.
+pub fn create_new_migration(
+    _opt_in: LocalOptIn,
+    surface: Surface,
+    path: &Path,
+    source: quent_core::migration::SensitiveMigration<'_>,
+) -> Result<CreatedLocalDetail, DetailError> {
+    check_surface(surface)?;
+    write_migration(path, source)
+}
+#[cfg(target_os = "linux")]
+fn write_migration(
+    path: &Path,
+    source: quent_core::migration::SensitiveMigration<'_>,
+) -> Result<CreatedLocalDetail, DetailError> {
+    let mut file = protection::create(path)?;
+    let bytes = encoding::migration(source)?;
+    use std::io::Write;
+    file.write_all(bytes.as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(|_| DetailError::WriteFailed)?;
+    Ok(CreatedLocalDetail(()))
+}
+#[cfg(not(target_os = "linux"))]
+fn write_migration(
+    _path: &Path,
+    _source: quent_core::migration::SensitiveMigration<'_>,
+) -> Result<CreatedLocalDetail, DetailError> {
+    Err(DetailError::UnsupportedOs)
+}
+
 #[cfg(target_os = "linux")]
 fn write_source(
     path: &Path,
@@ -129,6 +165,23 @@ mod tests {
             .finalize(Dialect::Postgres)
             .unwrap()
     }
+    fn migration_plan() -> quent_core::migration::MigrationPlan {
+        use quent_core::{migration::*, *};
+        let s = MigrationSchema::new(
+            MigrationTarget::new(
+                "test".into(),
+                "test".into(),
+                Ident::new("ns").unwrap(),
+                Dialect::Postgres,
+            )
+            .unwrap(),
+            SchemaAuthority::UnverifiedSource,
+            Knowledge::Unknown,
+            vec![],
+        )
+        .unwrap();
+        plan_migration(&s, &s)
+    }
     #[cfg(not(target_os = "linux"))]
     #[test]
     fn native_unsupported_backend_never_touches_filesystem() {
@@ -139,6 +192,11 @@ mod tests {
         let path = dir.join("new");
         assert_eq!(
             write_source(&path, source().sensitive_source()).unwrap_err(),
+            DetailError::UnsupportedOs
+        );
+        assert!(!path.exists());
+        assert_eq!(
+            write_migration(&path, migration_plan().sensitive_source()).unwrap_err(),
             DetailError::UnsupportedOs
         );
         assert!(!path.exists());
@@ -159,6 +217,17 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(e, DetailError::EnvironmentDenied);
+        assert!(!path.exists());
+        assert_eq!(
+            create_new_migration(
+                LocalOptIn::acknowledge_sensitive_local_file(),
+                Surface::LocalApplication,
+                &path,
+                migration_plan().sensitive_source()
+            )
+            .unwrap_err(),
+            DetailError::EnvironmentDenied
+        );
         assert!(!path.exists());
     }
     #[test]
