@@ -377,7 +377,7 @@ impl PreparationContext {
         {
             return Err(PolicyError::Unsupported);
         }
-        if !d.returning.is_empty() || d.version.is_some() {
+        if !d.returning.is_empty() {
             return Err(PolicyError::Unsupported);
         }
         match &d.body {
@@ -403,6 +403,8 @@ impl SensitivePolicySource<'_> {
     /// complete context and final immutable record. No decoder/restoration exists.
     pub fn canonical_command_input(&self, ledger: &Table) -> PolicyResult<CommandCanonical> {
         use crate::plan::command_encoding::Encoder;
+        // QCC1 fixes exact-one in the protocol; version is already retained in
+        // BOTH original/final operations and the sole renderer's native args.
         let mut e = Encoder::new(b"QCC1");
         e.table(ledger)?;
         e.operation(&self.prepared.original)?;

@@ -73,6 +73,16 @@ impl PostgresSession {
     atomic_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
     command_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
 }
+// The private ledger requires native SMALLINT and BYTEA, not coercion from
+// otherwise decodable numeric/text values.
+fn command_storage_types(row: &PgRow) -> bool {
+    row.len() == 3
+        && *row.column(0).type_info() == <i16 as Type<Postgres>>::type_info()
+        && (1..=2).all(|i| {
+            let info = row.column(i).type_info();
+            *info == <Vec<u8> as Type<Postgres>>::type_info()
+        })
+}
 fn bind<'q>(
     query: &mut sqlx::query::Query<'q, Postgres, <Postgres as sqlx::Database>::Arguments>,
     value: &'q Value,

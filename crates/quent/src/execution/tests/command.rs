@@ -94,6 +94,58 @@ fn command_context(
     )
     .unwrap()
 }
+// Dedicated native-width / deliberately false key fixtures share the production
+// context constructors. No capability bypass or alternative business executor.
+fn extra_context(d: Dialect, table: Table, columns: Vec<Column>) -> DatabaseContext {
+    let b = DatabaseBinding::application_supplied(
+        DatabaseIdentity::new("command_target").unwrap(),
+        TargetAddress::new("command_route").unwrap(),
+        id("quent_dispatch_test"),
+        d,
+    );
+    let g = Generation::new(1).unwrap();
+    let tenant = columns[0].clone();
+    let key = columns[1].clone();
+    let facts = ScopeFacts::application_asserted(
+        table,
+        d,
+        columns,
+        vec![Key::Primary(vec![tenant.clone(), key])],
+        TableContext::OrdinaryBaseTableWithoutEffects,
+    )
+    .unwrap();
+    DatabaseContext::new(
+        Settings::new(
+            b.clone(),
+            SettingsIdentity::new("settings").unwrap(),
+            g,
+            PolicySet::new(
+                b.clone(),
+                PolicyIdentity::new("policies").unwrap(),
+                g,
+                vec![PolicyDeclaration::Tenant(tenant.clone())],
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+        ApplicationContext::application_supplied(
+            b.clone(),
+            Some(
+                SchemaSnapshot::application_supplied(
+                    b.clone(),
+                    SchemaIdentity::new("schema").unwrap(),
+                    g,
+                    vec![facts],
+                )
+                .unwrap(),
+            ),
+            Some(SubjectIdentity::new("CANARY_command_subject").unwrap()),
+            Some(TenantSnapshot::application_supplied(b, tenant, Value::I64(11)).unwrap()),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
 fn ci(n: i64, note: Value, explicit: bool) -> Operation {
     let mut pairs = vec![
         (cc("id"), Input::Value(Value::I64(n))),
@@ -268,7 +320,7 @@ macro_rules! borrowed_command_cases {
 }
 
 macro_rules! command_suite {
-($test:ident,$feature:literal,$session:ident,$connection:ty,$options:ty,$dialect:expr,$dsn:literal,$ddl:literal) => {
+($test:ident,$feature:literal,$session:ident,$connection:ty,$options:ty,$dialect:expr,$dsn:literal,$ddl:literal,$ssl:expr) => {
 #[cfg(feature=$feature)]
 #[test]
 fn $test(){
@@ -429,6 +481,204 @@ fn $test(){
         assert_eq!(sqlx::query("SELECT COUNT(*) FROM quent_dispatch_test.command_items WHERE tenant=11 AND id=3").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),1);
         assert_eq!(sqlx::query(sqlx::AssertSqlSafe(count_query.to_owned())).bind(&key).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),1);
         let h=loser.validate_command(&c,&op,&namespace,CommandId::new([60;16]),&l,MAX_TTL).unwrap();assert_eq!(loser.lookup_command(&c,&op,h).await.unwrap().unwrap().kind(),CommandResultKind::Replayed);replays+=1;assert!(loser.recorder.calls.is_empty());
+        // Frozen key/input emitted by the MERGED PR1 Core writer, not by this
+        // revision's encoder. Seed an old saved record then replay with both APIs.
+        let old_key=if d==Dialect::Postgres{include_bytes!("../../../../../fixtures/command-ledger/legacy-pr1-postgres-key.bin").as_slice()}else{include_bytes!("../../../../../fixtures/command-ledger/legacy-pr1-mysql-key.bin").as_slice()};
+        let old_input=if d==Dialect::Postgres{include_bytes!("../../../../../fixtures/command-ledger/legacy-pr1-postgres-input.bin").as_slice()}else{include_bytes!("../../../../../fixtures/command-ledger/legacy-pr1-mysql-input.bin").as_slice()};
+        let old_result=[b"QCR1".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&1u64.to_be_bytes()].concat();
+        sqlx::query("INSERT INTO quent_dispatch_test.command_items(tenant,id,amount,flag,note) VALUES(11,888,0,FALSE,NULL)").execute(&mut observer).await.unwrap();
+        let insert_old=if d==Dialect::Postgres{"INSERT INTO quent_dispatch_test.command_ledger(identity,input,result,version) VALUES($1,$2,$3,1)"}else{"INSERT INTO quent_dispatch_test.command_ledger(identity,input,result,version) VALUES(?,?,?,1)"};sqlx::query(sqlx::AssertSqlSafe(insert_old.to_owned())).bind(old_key).bind(old_input).bind(&old_result).execute(&mut observer).await.unwrap();
+        for explicit in [false,true] {let mut fresh=$session::connect(options.clone(),c.clone()).await.unwrap();let op=ci(888,Value::Null(SqlType::Text),false);let h=if explicit{fresh.validate_command_expected(&c,&op,&namespace,CommandId::new([150;16]),&l,ExpectedRows(1),MAX_TTL)}else{fresh.validate_command(&c,&op,&namespace,CommandId::new([150;16]),&l,MAX_TTL)}.unwrap();assert_eq!(h.key.sensitive_bytes(),old_key);assert_eq!(h.input.sensitive_bytes(),old_input);let r=fresh.execute_command(&c,&op,h).await.unwrap();assert_eq!(r.kind(),CommandResultKind::Replayed);assert_eq!(result_bytes(r.sensitive_result(),d).unwrap(),old_result);assert!(fresh.recorder.calls.is_empty());}
+        println!("PR2 {:?} merged PR1 canonical fixtures byte-equal; old ledger replay via implicit/explicit exact1 APIs business0 each",d);
+        // PR2 finite optimistic commands, exact expectations, and saved results.
+        for (i, expected_version, actual_success) in [(100u8,0,true),(101,0,false),(102,1,true)] {
+            let op=Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("CANARY_version_result".into())))])
+                .filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(2)))
+                .optimistic_version(cc("amount"),Value::I64(expected_version)).unwrap().freeze();
+            let mut v=$session::connect(options.clone(),c.clone()).await.unwrap();
+            let h=v.validate_command_expected(&c,&op,&namespace,CommandId::new([i;16]),&l,ExpectedRows(1),MAX_TTL).unwrap();
+            let key=h.key.sensitive_bytes().to_vec();let input=h.input.sensitive_bytes().to_vec();
+            let source=h.operation.prepared.sensitive_source();let sql=source.final_source().sql().to_owned();let address=source.final_source().sql().as_ptr() as usize;let metadata=source.final_source().metadata().clone();let args=source.final_source().args().to_vec();
+            let result=v.execute_command(&c,&op,h).await;
+            assert_eq!(v.recorder.calls,vec![(sql,args)]);assert_eq!(v.recorder.sql_addresses,[address]);assert_eq!(v.recorder.metadata,[metadata]);
+            if actual_success {
+                assert_eq!(result.unwrap().kind(),CommandResultKind::FirstCommit);
+                let mut replay=$session::connect(options.clone(),c.clone()).await.unwrap();
+                let h=replay.validate_command(&c,&op,&namespace,CommandId::new([i;16]),&l,MAX_TTL).unwrap();
+                let r=replay.execute_command(&c,&op,h).await.unwrap();assert_eq!(r.kind(),CommandResultKind::Replayed);assert!(replay.recorder.calls.is_empty());
+                let select=if d==Dialect::Postgres{"SELECT input,result FROM quent_dispatch_test.command_ledger WHERE identity=$1"}else{"SELECT input,result FROM quent_dispatch_test.command_ledger WHERE identity=?"};
+                let row=sqlx::query(sqlx::AssertSqlSafe(select.to_owned())).bind(&key).fetch_one(&mut observer).await.unwrap();assert_eq!(row.get::<Vec<u8>,_>(0),input);assert_eq!(row.get::<Vec<u8>,_>(1),result_bytes(r.sensitive_result(),d).unwrap());
+            } else {let e=result.unwrap_err();assert_eq!(e.cause(),ExecutionError::Conflict);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);}
+            println!("PR2 {:?} version case={} business1 success={} replay business0 on success",d,i,actual_success);
+        }
+        assert_eq!(sqlx::query("SELECT amount FROM quent_dispatch_test.command_items WHERE tenant=11 AND id=2").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),2);
+        // Each supported native signed width reaches its maximum by a checked
+        // successor, then refuses overflow before any SQL. PG i8 stays unsupported.
+        for (j,ty,sql_type,expected,max) in [(0,SqlType::I8,"TINYINT",Value::I8(i8::MAX-1),Value::I8(i8::MAX)),(1,SqlType::I16,"SMALLINT",Value::I16(i16::MAX-1),Value::I16(i16::MAX)),(2,SqlType::I32,"INTEGER",Value::I32(i32::MAX-1),Value::I32(i32::MAX)),(3,SqlType::I64,"BIGINT",Value::I64(i64::MAX-1),Value::I64(i64::MAX))] {
+            let table=Table::new(vec![id("quent_dispatch_test"),id("command_native")],None).unwrap();let tenant=table.column(id("tenant"),SqlType::I64,false);let key=table.column(id("id"),SqlType::I64,false);let version=table.column(id("version"),ty,false);let note=table.column(id("note"),SqlType::Text,false);
+            let native_context=extra_context(d,table.clone(),vec![tenant.clone(),key.clone(),version.clone(),note.clone()]);
+            let insert=Draft::insert(table.clone(),vec![(key.clone(),Input::Value(Value::I64(1))),(version.clone(),Input::Value(expected.clone())),(note.clone(),Input::Value(Value::Text("CANARY_native_version".into())))]).freeze();
+            let mut native=$session::connect(options.clone(),native_context.clone()).await.unwrap();
+            if d==Dialect::Postgres && ty==SqlType::I8 {assert_eq!(native.validate_command(&native_context,&insert,&namespace,CommandId::new([130;16]),&l,MAX_TTL).unwrap_err(),ExecutionError::Policy(PolicyError::InvalidPlan(quent_core::PlanError::Unsupported)));assert!(native.recorder.events.is_empty());continue;}
+            let ddl=format!("CREATE TABLE quent_dispatch_test.command_native(tenant BIGINT NOT NULL,id BIGINT NOT NULL,version {sql_type} NOT NULL,note TEXT NOT NULL,PRIMARY KEY(tenant,id)){}",if d==Dialect::Mysql{" ENGINE=InnoDB"}else{""});sqlx::query(sqlx::AssertSqlSafe(ddl)).execute(&mut observer).await.unwrap();
+            let h=native.validate_command(&native_context,&insert,&namespace,CommandId::new([130+j*3;16]),&l,MAX_TTL).unwrap();assert_eq!(native.execute_command(&native_context,&insert,h).await.unwrap().kind(),CommandResultKind::FirstCommit);native.recorder=Recorder::default();
+            let update=||Draft::update(table.clone(),vec![(note.clone(),Input::Value(Value::Text("CANARY_native_next".into())))]).filter(Predicate::Compare(key.clone(),Compare::Eq,Value::I64(1)));
+            assert!(update().optimistic_version(version.clone(),max.clone()).is_err());assert!(native.recorder.events.is_empty());
+            let op=update().optimistic_version(version.clone(),expected.clone()).unwrap().freeze();let h=native.validate_command(&native_context,&op,&namespace,CommandId::new([131+j*3;16]),&l,MAX_TTL).unwrap();assert_eq!(native.execute_command(&native_context,&op,h).await.unwrap().kind(),CommandResultKind::FirstCommit);assert_eq!(native.recorder.calls.len(),1);
+            let mut fresh=$session::connect(options.clone(),native_context.clone()).await.unwrap();let h=fresh.validate_command(&native_context,&op,&namespace,CommandId::new([131+j*3;16]),&l,MAX_TTL).unwrap();assert_eq!(fresh.execute_command(&native_context,&op,h).await.unwrap().kind(),CommandResultKind::Replayed);assert!(fresh.recorder.calls.is_empty());
+            let row=sqlx::query("SELECT version FROM quent_dispatch_test.command_native WHERE tenant=11 AND id=1").persistent(false).fetch_one(&mut observer).await.unwrap();let actual=match ty{SqlType::I8=>Value::I8(row.get(0)),SqlType::I16=>Value::I16(row.get(0)),SqlType::I32=>Value::I32(row.get(0)),_=>Value::I64(row.get(0))};assert_eq!(actual,max);
+            sqlx::query("DROP TABLE quent_dispatch_test.command_native").execute(&mut observer).await.unwrap();
+            println!("PR2 {:?} native version width case={} INSERT1/version1/replay0business/max observed/overflow construction refusal",d,j);
+        }
+        // Deliberately inaccurate asserted key: multiple real matches must not
+        // become a successful saved result even though the ordinary gate proved
+        // Single from supplied facts. This does not support missing physical keys.
+        let table=Table::new(vec![id("quent_dispatch_test"),id("command_bad_key")],None).unwrap();let tenant=table.column(id("tenant"),SqlType::I64,false);let key=table.column(id("id"),SqlType::I64,false);let amount=table.column(id("amount"),SqlType::I64,false);
+        let bad_context=extra_context(d,table.clone(),vec![tenant,key.clone(),amount.clone()]);let mut bad=$session::connect(options.clone(),bad_context.clone()).await.unwrap();
+        let ddl=format!("CREATE TABLE quent_dispatch_test.command_bad_key(tenant BIGINT NOT NULL,id BIGINT NOT NULL,amount BIGINT NOT NULL){}",if d==Dialect::Mysql{" ENGINE=InnoDB"}else{""});sqlx::query(sqlx::AssertSqlSafe(ddl)).execute(&mut observer).await.unwrap();sqlx::query("INSERT INTO quent_dispatch_test.command_bad_key VALUES(11,1,0),(11,1,0)").execute(&mut observer).await.unwrap();
+        for version in [false,true] {let mut draft=Draft::update(table.clone(),vec![]).filter(Predicate::Compare(key.clone(),Compare::Eq,Value::I64(1)));if version {draft=draft.optimistic_version(amount.clone(),Value::I64(0)).unwrap();}else{draft=Draft::update(table.clone(),vec![(amount.clone(),Input::Value(Value::I64(1)))]).filter(Predicate::Compare(key.clone(),Compare::Eq,Value::I64(1)));}
+            let op=draft.freeze();let h=bad.validate_command(&bad_context,&op,&namespace,CommandId::new([145+u8::from(version);16]),&l,MAX_TTL).unwrap();let key=h.key.sensitive_bytes().to_vec();let e=bad.execute_command(&bad_context,&op,h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::ExpectationMismatch);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert_eq!(bad.recorder.calls.len(),1);assert!(!bad.recorder.events.contains(&"ledger_result"));assert_eq!(sqlx::query("SELECT COUNT(*) FROM quent_dispatch_test.command_bad_key WHERE amount<>0").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),0);assert_eq!(sqlx::query(sqlx::AssertSqlSafe(count_query.to_owned())).bind(key).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),0);bad.recorder=Recorder::default();}
+        sqlx::query("DROP TABLE quent_dispatch_test.command_bad_key").execute(&mut observer).await.unwrap();
+        let mut zero=$session::connect(options.clone(),c.clone()).await.unwrap();
+        for expected in [0,2,256] {for op in [ci(900,Value::Null(SqlType::Text),false),cu(999,1),Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("x".into())))]).filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(2))).optimistic_version(cc("amount"),Value::I64(2)).unwrap().freeze()] {
+            // Includes an already committed identity; unsupported expectation is
+            // rejected without reading/disclosing whether that identity exists.
+            assert_eq!(zero.validate_command_expected(&c,&op,&namespace,CommandId::new([100;16]),&l,ExpectedRows::exactly(expected).unwrap(),MAX_TTL).unwrap_err(),ExecutionError::Unsupported);
+            assert!(zero.recorder.events.is_empty());assert!(zero.recorder.calls.is_empty());
+        }}
+        for (index,op,cause) in [(103,cu(999,1),ExecutionError::ExpectationMismatch),(104,Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("x".into())))]).filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(999))).optimistic_version(cc("amount"),Value::I64(0)).unwrap().freeze(),ExecutionError::Conflict)] {
+            let h=zero.validate_command_expected(&c,&op,&namespace,CommandId::new([index;16]),&l,ExpectedRows(1),MAX_TTL).unwrap();let key=h.key.sensitive_bytes().to_vec();
+            let e=zero.execute_command(&c,&op,h).await.unwrap_err();assert_eq!(e.cause(),cause);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert_eq!(zero.recorder.calls.len(),1);assert!(!zero.recorder.events.contains(&"ledger_result"));assert!(!zero.recorder.events.contains(&"commit"));
+            assert_eq!(sqlx::query(sqlx::AssertSqlSafe(count_query.to_owned())).bind(key).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),0);zero.recorder=Recorder::default();
+        }
+        let different_version=Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("CANARY_version_result".into())))])
+            .filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(2))).optimistic_version(cc("amount"),Value::I64(1)).unwrap().freeze();
+        let original_version=Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("CANARY_version_result".into())))])
+            .filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(2))).optimistic_version(cc("amount"),Value::I64(0)).unwrap().freeze();
+        let h=zero.validate_command(&c,&original_version,&namespace,CommandId::new([100;16]),&l,MAX_TTL).unwrap();let e=zero.execute_command(&c,&different_version,h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::OperationMismatch);assert_eq!(e.disposition(),AtomicDisposition::NotStarted);assert!(zero.recorder.events.is_empty());
+        let h=zero.validate_command(&c,&different_version,&namespace,CommandId::new([100;16]),&l,MAX_TTL).unwrap();let e=zero.execute_command(&c,&different_version,h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::IdentityConflict);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert!(zero.recorder.calls.is_empty());zero.recorder=Recorder::default();
+        println!("PR2 {:?} unsupported expectations0/2/256 x INSERT/UPDATE/version: activity0; missing/version0: rollback/no reservation; same ID different version: IdentityConflict business0",d);
+        // Native changed-row control versus unchanged production command match.
+        let target=std::net::SocketAddr::new(options.get_host().parse().unwrap(),options.get_port());
+        let proxy=super::command_network::Proxy::new(target,d==Dialect::Postgres,super::command_network::Mode::ChangedRows);
+        let plain=options.clone().host("127.0.0.1").port(proxy.address.port()).ssl_mode($ssl).disable_statement_logging();
+        let mut native=<$connection>::connect_with(&plain).await.unwrap();
+        let changed=sqlx::query("UPDATE quent_dispatch_test.command_items SET amount=amount WHERE tenant=11 AND id=2").execute(&mut native).await.unwrap().rows_affected();
+        assert_eq!(changed,if d==Dialect::Mysql{0}else{1});drop(native);drop(proxy);
+        let op=cu(2,2);let h=zero.validate_command(&c,&op,&namespace,CommandId::new([105;16]),&l,MAX_TTL).unwrap();assert_eq!(zero.execute_command(&c,&op,h).await.unwrap().sensitive_result().affected_rows(),Some(if d==Dialect::Postgres{AffectedRows::PostgresMatched(1)}else{AffectedRows::MysqlFoundRows(1)}));
+        println!("PR2 {:?} unchanged native control={} production matched1 (same observer value2)",d,changed);
+        // Invalid version assignments keep the same policy/native/key gate.
+        for column in [cc("tenant"),cc("note"),cc("flag")] {
+            let value=match column.sql_type(){SqlType::Text=>Value::Text("bad".into()),SqlType::Bool=>Value::Bool(false),_=>Value::I64(11)};
+            let draft=Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("x".into())))]).filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(2))).optimistic_version(column,value);
+            if let Ok(draft)=draft {assert!(zero.validate_command(&c,&draft.freeze(),&namespace,CommandId::new([106;16]),&l,MAX_TTL).is_err());}
+        }
+        for policy in [PolicyDeclaration::Readonly(cc("amount")),PolicyDeclaration::Generated(cc("amount")),PolicyDeclaration::Pii(cc("amount"))] {
+            let protected=command_context(d,11,0,vec![policy]);let session=$session::connect(options.clone(),protected.clone()).await.unwrap();
+            let op=Draft::update(ct(),vec![(cc("note"),Input::Value(Value::Text("x".into())))]).filter(Predicate::Compare(cc("id"),Compare::Eq,Value::I64(2))).optimistic_version(cc("amount"),Value::I64(2)).unwrap().freeze();assert!(session.validate_command(&protected,&op,&namespace,CommandId::new([106;16]),&l,MAX_TTL).is_err());assert!(session.recorder.events.is_empty());
+        }
+        // Four actual two-session reservation interleavings. Server wait is the
+        // scheduling evidence; a clock wait is used only to expire the leader.
+        for rollback in [false,true] {for different in [false,true] {
+            let index=110+u8::from(rollback)*2+u8::from(different);let op=cu(2,200+i64::from(index));let other=if different{cu(2,400+i64::from(index))}else{op.clone()};
+            let mut lead=$session::connect(options.clone(),c.clone()).await.unwrap();let barrier=Arc::new(tokio::sync::Notify::new());lead.final_barrier=Some(barrier.clone());let trace=lead.recorder.live.clone();
+            let h=lead.validate_command(&c,&op,&namespace,CommandId::new([index;16]),&l,if rollback{Duration::from_secs(1)}else{MAX_TTL}).unwrap();let key=h.key.sensitive_bytes().to_vec();let mut first=Box::pin(lead.execute_command(&c,&op,h));
+            tokio::time::timeout(Duration::from_secs(10),async{loop{assert!(poll_once(first.as_mut()).await.is_pending());if trace.lock().unwrap().contains(&"command_ready"){break;}tokio::task::yield_now().await;}}).await.unwrap();
+            let mut follow=$session::connect(options.clone(),c.clone()).await.unwrap();let connection_id=follow.test_connection_id().await;let h=follow.validate_command(&c,&other,&namespace,CommandId::new([index;16]),&l,MAX_TTL).unwrap();let mut second=Box::pin(follow.execute_command(&c,&other,h));
+            tokio::time::timeout(Duration::from_secs(10),async{loop{assert!(poll_once(second.as_mut()).await.is_pending());if sqlx::query(sqlx::AssertSqlSafe(waiting.to_owned())).bind(connection_id).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0)>0{break;}tokio::task::yield_now().await;}}).await.unwrap();
+            let mut lookup=$session::connect(options.clone(),c.clone()).await.unwrap();let h=lookup.validate_command(&c,&op,&namespace,CommandId::new([index;16]),&l,MAX_TTL).unwrap();assert!(lookup.lookup_command(&c,&op,h).await.unwrap().is_none());assert!(lookup.recorder.calls.is_empty()); // no retry authorization
+            if rollback{tokio::time::sleep(Duration::from_millis(1010)).await;}
+            barrier.notify_one();let first_result=first.await;
+            if rollback {let e=first_result.unwrap_err();assert_eq!(e.cause(),ExecutionError::Expired);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert_eq!(second.await.unwrap().kind(),CommandResultKind::FirstCommit);assert!(lead.recorder.calls.is_empty());assert_eq!(follow.recorder.calls.len(),1);}
+            else {assert_eq!(first_result.unwrap().kind(),CommandResultKind::FirstCommit);let e=second.await.unwrap_err();assert_eq!(e.cause(),ExecutionError::LedgerFailed);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert_eq!(lead.recorder.calls.len(),1);assert!(follow.recorder.calls.is_empty());}
+            // Explicit reconciliation on a NEW connection/snapshot after ACK.
+            let mut fresh=$session::connect(options.clone(),c.clone()).await.unwrap();let h=fresh.validate_command(&c,&other,&namespace,CommandId::new([index;16]),&l,MAX_TTL).unwrap();let result=fresh.lookup_command(&c,&other,h).await;
+            if !rollback && different {assert_eq!(result.unwrap_err().cause(),ExecutionError::IdentityConflict);}else{assert_eq!(result.unwrap().unwrap().kind(),CommandResultKind::Replayed);}assert!(fresh.recorder.calls.is_empty());
+            assert_eq!(sqlx::query(sqlx::AssertSqlSafe(count_query.to_owned())).bind(key).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),1);
+            println!("PR2 {:?} race case={} server wait observed; leader rollback={} different={} durable record1; reconciliation business0",d,index,rollback,different);
+        }}
+        // Both attempts actually send business after the first one's UPDATE
+        // waited on a real row lock, expired, completed, and ACK-rolled back.
+        // This is the explicit counterexample to total business-send exactly-one.
+        for different in [false,true] {
+            let index=114+u8::from(different);let op=cu(2,700+i64::from(index));let other=if different{cu(2,800+i64::from(index))}else{op.clone()};
+            let mut locker=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();let mut lock=locker.begin().await.unwrap();sqlx::query("UPDATE quent_dispatch_test.command_items SET amount=amount WHERE tenant=11 AND id=2").execute(&mut *lock).await.unwrap();
+            let mut lead=$session::connect(options.clone(),c.clone()).await.unwrap();let lead_id=lead.test_connection_id().await;let h=lead.validate_command(&c,&op,&namespace,CommandId::new([index;16]),&l,Duration::from_secs(1)).unwrap();let key=h.key.sensitive_bytes().to_vec();let mut first=Box::pin(lead.execute_command(&c,&op,h));
+            let row_wait=if d==Dialect::Postgres{"SELECT COUNT(*) FROM pg_stat_activity WHERE pid=$1 AND usename=current_user AND wait_event_type='Lock' AND query LIKE 'UPDATE %'"}else{waiting};
+            tokio::time::timeout(Duration::from_secs(10),async{loop{assert!(poll_once(first.as_mut()).await.is_pending());if sqlx::query(sqlx::AssertSqlSafe(row_wait.to_owned())).bind(lead_id).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0)>0{break;}tokio::task::yield_now().await;}}).await.unwrap();
+            let mut follow=$session::connect(options.clone(),c.clone()).await.unwrap();let follow_id=follow.test_connection_id().await;let h=follow.validate_command(&c,&other,&namespace,CommandId::new([index;16]),&l,MAX_TTL).unwrap();let mut second=Box::pin(follow.execute_command(&c,&other,h));
+            tokio::time::timeout(Duration::from_secs(10),async{loop{assert!(poll_once(second.as_mut()).await.is_pending());if sqlx::query(sqlx::AssertSqlSafe(waiting.to_owned())).bind(follow_id).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0)>0{break;}tokio::task::yield_now().await;}}).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(1010)).await;lock.rollback().await.unwrap();let e=first.await.unwrap_err();assert_eq!(e.cause(),ExecutionError::Expired);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert_eq!(second.await.unwrap().kind(),CommandResultKind::FirstCommit);
+            assert_eq!(lead.recorder.calls.len(),1);assert_eq!(follow.recorder.calls.len(),1);assert!(lead.recorder.events.contains(&"rolled_back"));assert!(!lead.recorder.events.contains(&"ledger_result"));assert!(follow.recorder.events.contains(&"committed"));
+            assert_eq!(sqlx::query("SELECT amount FROM quent_dispatch_test.command_items WHERE tenant=11 AND id=2").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),if different{800+i64::from(index)}else{700+i64::from(index)});
+            assert_eq!(sqlx::query(sqlx::AssertSqlSafe(count_query.to_owned())).bind(key).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),1);
+            println!("PR2 {:?} business-wait race case={} both server waits observed; different={} lead business1/ACKrollback, follow business1/ACKcommit, durable ledger1",d,index,different);
+        }
+
+        // Dedicated real transport fixture. The driver sends native COMMIT;
+        // its real acknowledgement is either forwarded, suppressed, or COMMIT
+        // itself is stopped before forwarding. No completion fault is injected.
+        let before_network=sqlx::query("SELECT amount FROM quent_dispatch_test.command_items WHERE tenant=11 AND id=2").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0);
+        for (i,mode) in [super::command_network::Mode::BeforeCommit,super::command_network::Mode::LoseReply,super::command_network::Mode::Pass].into_iter().enumerate() {
+            use std::sync::atomic::Ordering;
+            let target=std::net::SocketAddr::new(options.get_host().parse().unwrap(),options.get_port());
+            let proxy=super::command_network::Proxy::new(target,d==Dialect::Postgres,mode);
+            let plain=options.clone().host("127.0.0.1").port(proxy.address.port()).ssl_mode($ssl);
+            let mut network=$session::connect(plain,c.clone()).await.unwrap();let op=cu(2,600+i as i64);
+            let h=network.validate_command(&c,&op,&namespace,CommandId::new([120+i as u8;16]),&l,MAX_TTL).unwrap();let key=h.key.sensitive_bytes().to_vec();let network_input=h.input.sensitive_bytes().to_vec();
+            let result=tokio::time::timeout(Duration::from_secs(10),network.execute_command(&c,&op,h)).await.unwrap();
+            if i==2{assert_eq!(result.unwrap().kind(),CommandResultKind::FirstCommit);}else{let e=result.unwrap_err();assert_eq!(e.cause(),ExecutionError::OutcomeUnknown);assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown);assert!(!network.is_available());}
+            assert_eq!(network.recorder.calls.len(),1);assert_eq!(proxy.sent.load(Ordering::SeqCst),i!=0);assert_eq!(proxy.reply.load(Ordering::SeqCst),i!=0);drop(network);drop(proxy);
+            let mut fresh=$session::connect(options.clone(),c.clone()).await.unwrap();let h=fresh.validate_command(&c,&op,&namespace,CommandId::new([120+i as u8;16]),&l,MAX_TTL).unwrap();let result=fresh.lookup_command(&c,&op,h).await.unwrap();
+            if i==0{assert!(result.is_none());assert_eq!(sqlx::query("SELECT amount FROM quent_dispatch_test.command_items WHERE tenant=11 AND id=2").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),before_network);}else{assert_eq!(result.unwrap().kind(),CommandResultKind::Replayed);assert_eq!(sqlx::query("SELECT amount FROM quent_dispatch_test.command_items WHERE tenant=11 AND id=2").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),600+i as i64);}
+            if i!=0 {let select=if d==Dialect::Postgres{"SELECT input,result,version FROM quent_dispatch_test.command_ledger WHERE identity=$1"}else{"SELECT input,result,version FROM quent_dispatch_test.command_ledger WHERE identity=?"};let row=sqlx::query(sqlx::AssertSqlSafe(select.to_owned())).bind(&key).fetch_one(&mut observer).await.unwrap();assert_eq!(row.get::<Vec<u8>,_>(0),network_input);assert_eq!(row.get::<Vec<u8>,_>(1),[b"QCR1".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&1u64.to_be_bytes()].concat());assert_eq!(row.get::<i16,_>(2),1);}
+            assert!(fresh.recorder.calls.is_empty());assert_eq!(sqlx::query(sqlx::AssertSqlSafe(count_query.to_owned())).bind(key).fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),i64::from(i!=0));
+            println!("PR2 {:?} network case={} business1 commit_forwarded={} real_server_ack={} client_ack={} fresh_lookup_business0",d,120+i,i!=0,i!=0,i==2);
+        }
+
+        // Invalid installation/storage fixture has no CHECK/length protection:
+        // exercise the production bounded read + strict decoder, never a mock.
+        let corrupt=ledger("command_ledger_corrupt");
+        let ddl=if d==Dialect::Postgres{"CREATE TABLE quent_dispatch_test.command_ledger_corrupt(identity BYTEA PRIMARY KEY,input BYTEA NULL,result BYTEA NULL,version SMALLINT NULL)"}else{"CREATE TABLE quent_dispatch_test.command_ledger_corrupt(identity VARBINARY(2048) PRIMARY KEY,input LONGBLOB NULL,result LONGBLOB NULL,version SMALLINT NULL) ENGINE=InnoDB"};
+        sqlx::query(sqlx::AssertSqlSafe(ddl.to_owned())).execute(&mut observer).await.unwrap();
+        let op=cu(2,777);let mut decoder=$session::connect(options.clone(),c.clone()).await.unwrap();
+        let h=decoder.validate_command(&c,&op,&namespace,CommandId::new([125;16]),&corrupt,MAX_TTL).unwrap();let key=h.key.sensitive_bytes().to_vec();let input=h.input.sensitive_bytes().to_vec();drop(h);
+        let good_result=[b"QCR1".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&1u64.to_be_bytes()].concat();
+        let insert=if d==Dialect::Postgres{"INSERT INTO quent_dispatch_test.command_ledger_corrupt(identity,input,result,version) VALUES($1,$2,$3,1)"}else{"INSERT INTO quent_dispatch_test.command_ledger_corrupt(identity,input,result,version) VALUES(?,?,?,1)"};
+        sqlx::query(sqlx::AssertSqlSafe(insert.to_owned())).bind(&key).bind(&input).bind(&good_result).execute(&mut observer).await.unwrap();
+        let mut cases:Vec<(Option<Vec<u8>>,Option<Vec<u8>>,Option<i16>,ExecutionError)>=vec![];
+        for bad in [b"QCC9".to_vec(),input[..input.len()-1].to_vec(),[input.as_slice(),&[255,0,0,0,0]].concat(),[input.as_slice(),&[1,0,0,0,2,0,0]].concat(),[input.as_slice(),&[9,0,0,0,1,2]].concat(),[input.as_slice(),&[10,0,0,0,1,255]].concat(),vec![0;1_048_577]] {cases.push((Some(bad),Some(good_result.clone()),Some(1),ExecutionError::LedgerInvalid));}
+        // Structurally valid extra/duplicate semantic content is unequal to
+        // EVERY byte of the current canonical record; no partial/hash compare.
+        for bad in [[input.as_slice(),&[9,0,0,0,1,0]].concat(),[input.as_slice(),&input[4..]].concat()] {cases.push((Some(bad),Some(good_result.clone()),Some(1),ExecutionError::IdentityConflict));}
+        for bad in [b"QCR9".to_vec(),good_result[..12].to_vec(),[good_result.as_slice(),&[0]].concat(),[b"QCR1".as_slice(),&[if d==Dialect::Postgres{2}else{1}],&1u64.to_be_bytes()].concat(),[b"QCR1".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&2u64.to_be_bytes()].concat(),[b"QCR1".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&0u64.to_be_bytes()].concat(),[b"QCR2".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&1u64.to_be_bytes()].concat(),[b"QCR2".as_slice(),&[if d==Dialect::Postgres{1}else{2}],&0u64.to_be_bytes()].concat(),vec![0;10000]] {cases.push((Some(input.clone()),Some(bad),Some(1),ExecutionError::LedgerInvalid));}
+        cases.extend([(None,Some(good_result.clone()),Some(1),ExecutionError::LedgerInvalid),(Some(input.clone()),None,Some(1),ExecutionError::ReservationUnresolved),(Some(input.clone()),Some(good_result.clone()),Some(2),ExecutionError::LedgerInvalid),(Some(input.clone()),Some(good_result.clone()),None,ExecutionError::LedgerInvalid)]);
+        let update=if d==Dialect::Postgres{"UPDATE quent_dispatch_test.command_ledger_corrupt SET input=$1,result=$2,version=$3 WHERE identity=$4"}else{"UPDATE quent_dispatch_test.command_ledger_corrupt SET input=?,result=?,version=? WHERE identity=?"};
+        let count=cases.len();
+        for (input,result,version,cause) in cases {
+            sqlx::query(sqlx::AssertSqlSafe(update.to_owned())).bind(input).bind(result).bind(version).bind(&key).execute(&mut observer).await.unwrap();
+            let h=decoder.validate_command(&c,&op,&namespace,CommandId::new([125;16]),&corrupt,MAX_TTL).unwrap();let e=decoder.execute_command(&c,&op,h).await.unwrap_err();assert_eq!(e.cause(),cause);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert!(decoder.recorder.calls.is_empty());assert_eq!(decoder.recorder.events,["begin","begun","ledger_lookup","rollback","rolled_back"]);decoder.recorder=Recorder::default();
+        }
+        sqlx::query(sqlx::AssertSqlSafe(update.to_owned())).bind(&input).bind(&good_result).bind(1i16).bind(&key).execute(&mut observer).await.unwrap();
+        let h=decoder.validate_command(&c,&op,&namespace,CommandId::new([125;16]),&corrupt,MAX_TTL).unwrap();assert_eq!(decoder.execute_command(&c,&op,h).await.unwrap().kind(),CommandResultKind::Replayed);assert!(decoder.recorder.calls.is_empty());
+        println!("PR2 {:?} storage counterexamples={} each business0/reserve0/ACKrollback; valid restored control Replayed business0",d,count);
+        // Wrong installation: two rows with the same binary identity. LIMIT2
+        // must reject before any individual matching record can authorize replay.
+        let drop_key=if d==Dialect::Postgres{"ALTER TABLE quent_dispatch_test.command_ledger_corrupt DROP CONSTRAINT command_ledger_corrupt_pkey"}else{"ALTER TABLE quent_dispatch_test.command_ledger_corrupt DROP PRIMARY KEY"};sqlx::query(sqlx::AssertSqlSafe(drop_key.to_owned())).execute(&mut observer).await.unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(insert.to_owned())).bind(&key).bind(&input).bind(&good_result).execute(&mut observer).await.unwrap();
+        let h=decoder.validate_command(&c,&op,&namespace,CommandId::new([125;16]),&corrupt,MAX_TTL).unwrap();let e=decoder.execute_command(&c,&op,h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::LedgerInvalid);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert!(decoder.recorder.calls.is_empty());
+        sqlx::query("DROP TABLE quent_dispatch_test.command_ledger_corrupt").execute(&mut observer).await.unwrap();
+        // INTEGER1 is decodable as i16 by SQLx MySQL's broad compatibility;
+        // native ledger width checking must still refuse this valid payload.
+        let ddl=if d==Dialect::Postgres{"CREATE TABLE quent_dispatch_test.command_ledger_corrupt(identity BYTEA PRIMARY KEY,input BYTEA,result BYTEA,version INTEGER)"}else{"CREATE TABLE quent_dispatch_test.command_ledger_corrupt(identity VARBINARY(2048) PRIMARY KEY,input LONGBLOB,result LONGBLOB,version INTEGER) ENGINE=InnoDB"};sqlx::query(sqlx::AssertSqlSafe(ddl.to_owned())).execute(&mut observer).await.unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(insert.to_owned())).bind(&key).bind(&input).bind(&good_result).execute(&mut observer).await.unwrap();
+        let mut decoder=$session::connect(options.clone(),c.clone()).await.unwrap();
+        let row=sqlx::query("SELECT version FROM quent_dispatch_test.command_ledger_corrupt").fetch_one(&mut observer).await.unwrap();if d==Dialect::Mysql{assert_eq!(row.try_get::<i16,_>(0).unwrap(),1);} // detecting control
+        let h=decoder.validate_command(&c,&op,&namespace,CommandId::new([125;16]),&corrupt,MAX_TTL).unwrap();let e=decoder.execute_command(&c,&op,h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::LedgerInvalid);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert!(decoder.recorder.calls.is_empty());
+        sqlx::query("DROP TABLE quent_dispatch_test.command_ledger_corrupt").execute(&mut observer).await.unwrap();
+        println!("PR2 {:?} additional duplicate-key + wrong-native-width ledger cases: business0/ACKrollback; native decode control distinguished",d);
+
+
         // Actual pending future before business dispatch, with a test-only await
         // seam. Timeout/drop consumes the carrier; no acknowledged rollback claim.
         for timeout in [false,true] {
@@ -461,7 +711,8 @@ command_suite!(
     sqlx::postgres::PgConnectOptions,
     Dialect::Postgres,
     "QUENT_TEST_POSTGRES_DSN",
-    "../../../../../fixtures/command-ledger/postgres.sql"
+    "../../../../../fixtures/command-ledger/postgres.sql",
+    sqlx::postgres::PgSslMode::Disable
 );
 command_suite!(
     live_command_mysql,
@@ -471,5 +722,6 @@ command_suite!(
     sqlx::mysql::MySqlConnectOptions,
     Dialect::Mysql,
     "QUENT_TEST_MYSQL_DSN",
-    "../../../../../fixtures/command-ledger/mysql.sql"
+    "../../../../../fixtures/command-ledger/mysql.sql",
+    sqlx::mysql::MySqlSslMode::Disabled
 );

@@ -45,6 +45,7 @@ pub struct ValidatedCommand {
     pub(super) key: CommandCanonical,
     pub(super) input: CommandCanonical,
     pub(super) ledger: CommandLedger,
+    pub(super) expected: ExpectedRows,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandResultKind {
@@ -131,7 +132,7 @@ pub(super) fn inspect_input(bytes: &[u8], expected: &[u8]) -> Result<()> {
         }
         Ok(())
     }
-    if bytes.len() > 1_048_576 || bytes.get(..4) != Some(b"QCC1") {
+    if bytes.len() > 1_048_576 || bytes.get(..4) != Some(b"QCC1") || bytes.len() <= 4 {
         return Err(ExecutionError::LedgerInvalid);
     }
     tokens(&bytes[4..], 0, &mut 0)?;
@@ -182,6 +183,33 @@ pub(super) fn result_bytes(result: &ExecutionResult, dialect: Dialect) -> Result
     Ok(bytes)
 }
 
+pub(super) fn check_command_result(h: &ValidatedCommand, result: &ExecutionResult) -> Result<()> {
+    let actual = match result.affected {
+        Some(AffectedRows::PostgresMatched(n) | AffectedRows::MysqlFoundRows(n)) => n,
+        None => return Err(ExecutionError::Unsupported),
+    };
+    if !result.rows.is_empty() || result.count.is_some() {
+        return Err(ExecutionError::Unsupported);
+    }
+    if actual != u64::from(h.expected.0) {
+        return Err(
+            if actual == 0
+                && h.operation
+                    .prepared
+                    .sensitive_source()
+                    .final_source()
+                    .metadata()
+                    .optimistic_version()
+            {
+                ExecutionError::Conflict
+            } else {
+                ExecutionError::ExpectationMismatch
+            },
+        );
+    }
+    Ok(())
+}
+
 macro_rules! command_dispatch {
     ($driver:ident,$dialect:ident,$runner:ident) => {
         /// DB/provider-free, single INSERT/all-column or existing Low UPDATE.
@@ -195,8 +223,35 @@ macro_rules! command_dispatch {
             ledger: &CommandLedger,
             ttl: Duration,
         ) -> Result<ValidatedCommand> {
+            self.validate_command_expected(
+                current,
+                operation,
+                namespace,
+                id,
+                ledger,
+                ExpectedRows(1),
+                ttl,
+            )
+        }
+        /// Only exact one is supported for commands; other expectations refuse
+        /// before transaction/ledger/business/provider activity.
+        /// Expectation is retained privately and cannot change during execution.
+        #[allow(clippy::too_many_arguments)]
+        pub fn validate_command_expected(
+            &self,
+            current: &DatabaseContext,
+            operation: &Operation,
+            namespace: &CommandNamespace,
+            id: CommandId,
+            ledger: &CommandLedger,
+            expected: ExpectedRows,
+            ttl: Duration,
+        ) -> Result<ValidatedCommand> {
             if !self.available {
                 return Err(ExecutionError::SessionUnavailable);
+            }
+            if expected.0 != 1 {
+                return Err(ExecutionError::Unsupported);
             }
             let expires = deadline(Instant::now(), ttl)?;
             let prepared = current
@@ -234,6 +289,7 @@ macro_rules! command_dispatch {
                 key,
                 input,
                 ledger: ledger.clone(),
+                expected,
             })
         }
         /// Consumes the handle even when this future is never polled. No retry.
@@ -394,12 +450,14 @@ macro_rules! command_protocol {
             command_check(h,&self.identity,&self.context,current,operation)?;
             if rows.len()>1 {return Err(ExecutionError::LedgerInvalid);}
             if let Some(row)=rows.pop() {
+                if !command_storage_types(&row) {return Err(ExecutionError::LedgerInvalid);}
                 let version:i16=row.try_get(0).map_err(|_|ExecutionError::LedgerInvalid)?;
                 let input:Vec<u8>=row.try_get(1).map_err(|_|ExecutionError::LedgerInvalid)?;
                 let result:Option<Vec<u8>>=row.try_get(2).map_err(|_|ExecutionError::LedgerInvalid)?;
                 if version!=1 {return Err(ExecutionError::LedgerInvalid);}
                 inspect_input(&input,h.input.sensitive_bytes())?;
                 let result=saved_result(result.as_deref().ok_or(ExecutionError::ReservationUnresolved)?,Dialect::$dialect)?;
+                check_command_result(h, &result).map_err(|_|ExecutionError::LedgerInvalid)?;
                 command_check(h,&self.identity,&self.context,current,operation)?;
                 return Ok(Some(CommandResult{result,kind:CommandResultKind::Replayed}));
             }
@@ -414,6 +472,7 @@ macro_rules! command_protocol {
             #[cfg(test)] self.recorder.event("command_ready");
             let mut result=self.dispatch_retained(current,Some(operation),&h.operation,None).await?;
             command_check(h,&self.identity,&self.context,current,operation)?;
+            check_command_result(h, &result)?;
             let bytes=result_bytes(&result,Dialect::$dialect)?;
             let update=format!("UPDATE {table} SET result = {p1} WHERE identity = {p2} AND result IS NULL AND version = 1");
             let query=sqlx::query::<$driver>(sqlx::AssertSqlSafe(update)).bind(bytes).bind(h.key.sensitive_bytes());

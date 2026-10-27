@@ -913,7 +913,7 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         );
     }
     let output = run(
-        "async fn control(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,n:&quent::CommandNamespace,l:&quent::CommandLedger){let id=quent::CommandId::new([1;16]);let h=s.validate_command(c,o,n,id.clone(),l,std::time::Duration::from_secs(1)).unwrap();let _=s.execute_command(c,o,h).await;let h=s.validate_command(c,o,n,id,l,std::time::Duration::from_secs(1)).unwrap();let _=s.lookup_command(c,o,h).await;}",
+        "async fn control(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,n:&quent::CommandNamespace,l:&quent::CommandLedger){let id=quent::CommandId::new([1;16]);let h=s.validate_command(c,o,n,id.clone(),l,std::time::Duration::from_secs(1)).unwrap();let _=s.execute_command(c,o,h).await;let h=s.validate_command_expected(c,o,n,id,l,quent::ExpectedRows::exactly(1).unwrap(),std::time::Duration::from_secs(1)).unwrap();let _=s.lookup_command(c,o,h).await;}",
     );
     assert!(
         output.status.success(),
@@ -960,6 +960,10 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
         ),
         ("fn f(h:&quent::ValidatedCommand){let _=&h.key;}", "E0616"),
         (
+            "fn f(h:&mut quent::ValidatedCommand){h.expected=quent::ExpectedRows::exactly(0).unwrap();}",
+            "E0616",
+        ),
+        (
             "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,h:quent::ValidatedCommand){let _=s.execute_command(c,o,h).await;let _=s.execute_command(c,o,h).await;}",
             "E0382",
         ),
@@ -998,7 +1002,7 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
     );
     assert_eq!(
         runs.get() - controls.get(),
-        294,
+        295,
         "diagnostic-checked negatives (272 retained)"
     );
 }

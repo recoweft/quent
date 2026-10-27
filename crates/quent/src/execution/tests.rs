@@ -9,6 +9,7 @@ use super::*;
 #[macro_use]
 mod authorized;
 mod command;
+mod command_network;
 fn id(s: &str) -> Ident {
     Ident::new(s).unwrap()
 }
