@@ -111,7 +111,7 @@ would require a separate permission boundary and are absent here.
 | --- | --- | --- |
 | Observation | Fixed read-only repeatable-read BEGIN, finite SELECT, ACK ROLLBACK | Fixed read-only START, finite SELECT, ACK ROLLBACK; no whole-catalog MVCC claim |
 | Apply begin | Separate explicitly owned BEGIN; failed/unknown response = BeginUnknown | No business Tx wrapper around ALTER |
-| DDL | Exact retained final SQL in order, end-of-result ACK and DDL rows_affected=0 accepted | Same; ALTER implicit commit means ACK prefix can persist |
+| DDL | Exact retained final SQL in order and end-of-result ACK; DDL row counts have no CRUD exact cardinality contract | Same; ALTER implicit commit means ACK prefix can persist |
 | All steps ACK + valid current | COMMIT ACK required for Committed | ImplicitCommitPrefix includes all steps if acknowledged==steps and unsent==0 |
 | Server error | rejected_step retained; explicit ROLLBACK ACK required for RolledBack | StepRejected, rejected step distinct from unacknowledged step; earlier ACKs may persist |
 | Unacknowledged step | StepUnknown; cleanup may yield RolledBack or RollbackUnknown | StepUnknown, step may have applied; ACK prefix/unsent suffix remain separate |
@@ -134,6 +134,12 @@ ROLLBACK cleanup on failure is allowed even after current authority changes, wit
 the original deadline only. It sends no new DDL and claims rollback only on ACK.
 No fresh timeout is created. ACK completion plus a later invalid current record is
 reported separately, never converted into valid success.
+
+Real MySQL COPY ALTER can report copied rows: the dedicated fixture measures
+rows_affected=1 for each of two successful steps, as well as ordinary zero-count
+ALTERs. Neither exact0 nor exact1 gates DDL completion. The fixture sets
+`old_alter_table=ON` only on its dedicated session before capture; no production
+API for that control or algorithm callback is added.
 
 There is no general exactly-once, universal DDL rollback, lock-free, data-loss-free,
 full effects or physical identity guarantee. DDL can block workloads. Borrowed and

@@ -78,7 +78,13 @@ polling guard can refuse before resuming SQLx. Concrete positive ACKs prove the
 measured statement completion; the proxy additionally counts actual forwarded DDL
 Execute packets. Handshake/preparation and protocol traffic are outside catalog
 SELECT counters. The shared observation budget remains PR2's finite ceilings.
-No DDL exact-one CRUD rule is used: real successful ALTER rows_affected=0 is accepted.
+No CRUD cardinality rule is used for DDL: real successful ordinary ALTER
+rows_affected=0 and COPY ALTER rows_affected=1 are both accepted. The COPY case sets
+old_alter_table=ON only on the dedicated MySQL session through a test-only fixed
+setup statement (one separate fixture session-control count), then executes the
+unchanged original private SQL twice. Both real responses report1; independent
+observer checks three columns, native/order/null/default and data7/new NULL values.
+The production library exposes no session-control method.
 
 Per DB, the general suite separately exercises provider-response/current mismatch,
 each of five Unknown assertion responses, independent human deny, wrong invocation,
@@ -203,7 +209,7 @@ The final full263 run includes the final product and strengthened fixture code.
 Earlier calibration full runs260/263 and focused selections are superseded by this
 final result rather than summed into a larger acceptance count.
 
-All eight local dedicated-DB runs (five full runs and three focused live runs,
+All ten local dedicated-DB runs (six full runs and four focused live runs,
 including the two initial failing focused runs) printed successful per-run
 container/owned-anonymous-volume removal and absence verification. No production
 DB was used. In the final lock-wait observer snapshots, PG cancel and timeout each
@@ -217,3 +223,19 @@ Before PR creation remote main was still the expected8d38d3d; PR43/45/46/26/28
 were confirmed merged via worker API, their relevant ancestors checked, specified
 remote apply branch absent, and Issue12 still OPEN. Actual final commit/push/PR
 and hosted CI are the separate execution report's final API evidence.
+
+Final review removed an inappropriate exact-zero result guard before the final
+follow-up commit. It would conservatively misclassify a successful COPY ALTER's
+positive copied-row count as unknown. The explicit real MySQL COPY response control
+now detects this case (two real ACKs, rows_affected1 each), in addition to the zero
+responses retained by both dialects. Its initial focused selection passed one
+with48 filters; it is included in the final unfiltered full263 rerun. Earlier
+head5078eb2 and its CI runs are superseded by the actual final PR head recorded
+in the execution report; they are not substituted for final-head CI.
+The COPY follow-up's final full263 rerun passed with0 failure/ignore/filter and
+verified dedicated cleanup. All14 affected verification groups were rerun again
+after that change and passed, including all262 feature checks, final114 default,
+239 DB-free plus the three exact incidental controls, Clippy and rustdoc. The
+same final-head CI requirement applies to the follow-up commit. Its test-only
+session setup is absent from the production build; no public/raw driver route was
+introduced by measuring COPY responses.

@@ -496,6 +496,8 @@ macro_rules! apply_session {
         pub struct $session {
             pub(super) reader: $reader,
             progress: super::apply::ApplyOutcome,
+            #[cfg(test)]
+            expected_ddl_rows: Option<u64>,
         }
         redacted!($session);
         impl $session {
@@ -509,7 +511,21 @@ macro_rules! apply_session {
                         .await
                         .map_err(|_| super::apply::ApplyError::Unavailable)?,
                     progress: super::apply::ApplyOutcome::new(0),
+                    #[cfg(test)]
+                    expected_ddl_rows: None,
                 })
+            }
+            // Fixture-only session setup for real MySQL COPY ALTER response counts.
+            // No driver access, arbitrary SQL argument or production entry point.
+            #[cfg(test)]
+            pub(super) async fn fixture_copy_ddl(&mut self) {
+                if !$pg {
+                    sqlx::raw_sql("SET SESSION old_alter_table=ON")
+                        .execute(self.reader.connection.as_mut().unwrap())
+                        .await
+                        .unwrap();
+                    self.expected_ddl_rows = Some(1);
+                }
             }
             /// Last finite progress, retained even when a polled future is dropped.
             /// Unknown remains unknown until independent human reconciliation.
@@ -752,7 +768,26 @@ macro_rules! apply_session {
                     // even when driver result is error/unknown.
                     let current_result = check();
                     match result {
-                        Ok(Ok(result)) if result.rows_affected() == 0 => {
+                        Ok(Ok(result)) => {
+                            // DDL completion is not a CRUD cardinality contract.
+                            // COPY ALTER may acknowledge copied rows; zero is also
+                            // a successful completion for this exact finite SQL.
+                            #[cfg(test)]
+                            {
+                                if let Some(expected) = self.expected_ddl_rows {
+                                    assert_eq!(result.rows_affected(), expected);
+                                }
+                                if result.rows_affected() > 0 {
+                                    self.reader
+                                        .trace
+                                        .lock()
+                                        .unwrap()
+                                        .push("ddl_nonzero_rows_ack");
+                                }
+                            }
+                            #[cfg(not(test))]
+                            let _ = result;
+
                             out.acknowledged += 1;
                             out.unacknowledged_step = None;
                             #[cfg(test)]

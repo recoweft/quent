@@ -333,7 +333,7 @@ macro_rules! live_apply {
                 #[cfg(feature="output-tracing")] let capture=crate::output_capture::Capture::default();
                 #[cfg(feature="output-tracing")] let guard=tracing::subscriber::set_default(capture.clone());
                 // Each case starts with a new fixture table and dedicated product connection.
-                for case in 0..38 {
+                for case in 0..39 {
                     sqlx::query("DROP TABLE IF EXISTS apply_probe").execute(&mut setup).await.unwrap();
                     sqlx::query($create).execute(&mut setup).await.unwrap();
                     sqlx::query("INSERT INTO apply_probe(a) VALUES(7)").execute(&mut setup).await.unwrap();
@@ -341,6 +341,10 @@ macro_rules! live_apply {
                     eprintln!("C22/{}/fixture_case_{case}: setup_DDL=2 setup_DML=1",stringify!($name));
                     let mut session=$session::connect(opts.clone(),db.clone(),Duration::from_secs(5)).await.unwrap();
                     #[cfg(feature="output-tracing")] assert!(capture.0.lock().unwrap().is_empty());
+                    if case==38 && !$pg {
+                        session.fixture_copy_ddl().await;
+                        eprintln!("C22/fixture_COPY: session_control=1 old_alter_table=ON (dedicated connection only)");
+                    }
                     let initial=current(context.clone(),session.identity(),request(&p,$ns,$role));
                     let source=Source {base:initial.retained(),trace:session.reader.trace.clone(),change_after:Cell::new(None),calls:Cell::new(0)};
                     let mut candidate=session.candidate(initial,Duration::from_secs(20)).unwrap();
@@ -454,6 +458,10 @@ macro_rules! live_apply {
                     let out=session.apply(handle,&source).await;
                     #[cfg(feature="output-tracing")] assert!(capture.0.lock().unwrap().is_empty());
                     record(&format!("{}/apply_{case}",stringify!($name)),&session.reader.trace,out);
+                    if case==38 && !$pg {
+                        assert_eq!(session.reader.trace.lock().unwrap().iter().filter(|e|**e=="ddl_nonzero_rows_ack").count(),2);
+                        eprintln!("C22/live_apply_mysql/COPY: real_DDL_rows_affected=1_each ACK=2, no CRUD exact0/exact1 gate");
+                    }
                     assert!(session.candidate(source.base.retained(),Duration::from_secs(1)).is_err() || case==13 || (24..=33).contains(&case) || case==37);
                     if (24..=33).contains(&case) || case==37 {
                         assert_eq!(out.attempted,0);assert_eq!(out.completion,Completion::NotSent);
