@@ -1219,14 +1219,96 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&r.stderr)
         );
     }
+    let r = run(
+        "use quent::manifest::live::apply::*; async fn control<'p>(s:&mut PostgresApply,c:Current<'p>,source:&impl CurrentSource<'p>,b:quent::manifest::live::Budget){let h=s.candidate(c,std::time::Duration::from_secs(1)).unwrap(); let h=s.prepare(h,source,b).await.unwrap(); let _=s.apply(h,source).await; let _=s.progress();} fn operation_control(r:&ApprovalRequest<'_>,o:&ApplyRequest){let _=r.matches_operation(o);let _=ApplyRequest::new(\"app_request\".into());}",
+    );
+    assert!(
+        r.status.success(),
+        "apply positive: {}",
+        String::from_utf8_lossy(&r.stderr)
+    );
+    for (body, diagnostic) in [
+        (
+            "use quent::manifest::live::apply::*; fn f(h:ApplyRequest){let _=Clone::clone(&h);}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(){let _:ApplyRequest=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:ApplyHandle<'_>){let _=Clone::clone(&h);}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:ApplyCandidate<'_>){let _=Clone::clone(&h);}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:ApprovalDecision){let _=Clone::clone(&h);}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:&ApplyHandle<'_>){let _=h.candidate;}",
+            "E0616",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:&PostgresApply){let _=h.reader;}",
+            "E0616",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(){let _:ApplyHandle<'static>=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:&ApplyHandle<'_>){let _=serde_json::to_string(h);}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:quent::manifest::live::preflight::PreflightView)->ApplyHandle<'static>{h.into()}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:quent::manifest::live::PostgresReader)->PostgresApply{h.into()}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; async fn f<'p>(s:&mut PostgresApply,h:ApplyHandle<'p>,c:&impl CurrentSource<'p>){drop(s.apply(h,c));drop(s.apply(h,c));}",
+            "E0382",
+        ),
+        (
+            "use quent::manifest::live::apply::*; async fn f<'p>(s:&mut PostgresApply,h:quent::manifest::live::preflight::PreflightObservation<'p>,c:&impl CurrentSource<'p>){s.apply(h,c).await;}",
+            "E0308",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:quent_core::migration::MigrationView)->ApplyCandidate<'static>{h.into()}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:ApprovalDecision)->ApplyHandle<'static>{h.into()}",
+            "E0277",
+        ),
+        (
+            "use quent::manifest::live::apply::*; fn f(h:quent::authorization::AuthorizationAcquisition)->ApplyHandle<'static>{h.into()}",
+            "E0277",
+        ),
+    ] {
+        let r = run(body);
+        assert!(
+            !r.status.success()
+                && String::from_utf8_lossy(&r.stderr).contains(&format!("error[{diagnostic}]")),
+            "apply negative: {}",
+            String::from_utf8_lossy(&r.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        20,
-        "compiling positive controls (19 retained)"
+        21,
+        "compiling positive controls (20 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        361,
-        "diagnostic-checked negatives (347 retained)"
+        377,
+        "diagnostic-checked negatives (361 retained)"
     );
 }

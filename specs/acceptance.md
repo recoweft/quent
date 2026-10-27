@@ -317,3 +317,5 @@ no rollback is inferred from quarantine/drop/no ACK, including owned explicit Tx
 Explicit ACKrollback/ACKcommit and business0 pre-send controls remain separate.
 Original PR43 failure and every fixed repetition remain in the evidence; rerun
 success alone proves no stability. All 24 full runtime_pending markers remain.
+
+Current QT-AI-11 PR3: [explicit human-controlled finite application](migration-apply-v1.md), [finite evidence](migration-apply-v1-evidence.md). Historical PR1/PR2 absence statements retain their original scope; no full runtime_pending marker is cleared.
