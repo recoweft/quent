@@ -216,7 +216,9 @@ unverified by WSL tests. Hosted per-job results must be checked at the final hea
 Performance comparison is an observation, not acceptance of improvement. Both
 variants use the same already connected session, SQL/native args/settings and
 unchanged data: ten complete SELECTs alternating with ten exact1 committed owned
-updates per measured round. Collector construction is outside the monotonic span;
+updates per measured round. Collector construction is outside the monotonic span; baseline also constructs an unattached collector outside timing for symmetric
+setup. Construction/destruction and public-view readout/serialization overhead
+are not measured;
 scope attachment/detachment and full execute/validation/consumption/Tx completion
 are inside. Four paired warmup rounds precede nine paired measurement rounds;
 order alternates baseline-first/collector-first. Each measured variant round has

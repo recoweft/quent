@@ -263,6 +263,19 @@ macro_rules! observation_cases {
     borrowed.observe(&mut request).unwrap().execute(c,op()).await.unwrap();drop(borrowed);tx.rollback().await.unwrap();
     assert_eq!(request.public_view().entries()[0].transaction,ObservedTransaction::BorrowedUnconfirmed);
     assert_eq!(request.public_view().entries()[0].rollback_attempts,0);
+    // A retained borrowed attachment must close after an unsupported execution,
+    // even through a deliberately forgotten scope; caller Tx is still untouched.
+    let unsupported_write=Draft::update(table(),write(Value::Text("CANARY_unsupported".into()),changed())).filter(filter(1)).freeze();
+    let namespace=CommandNamespace::new(b"observation".to_vec()).unwrap();
+    let ledger=CommandLedger::application_supplied(Table::new(vec![id("quent_dispatch_test"),id("observation_ledger_never_installed")],None).unwrap()).unwrap();
+    let h=baseline.validate_command(c,&unsupported_write,&namespace,CommandId::new([19;16]),&ledger,MAX_TTL).unwrap();
+    let mut raw=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();let mut tx=raw.begin().await.unwrap();
+    let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();let mut request=RequestCollector::new(c,limits(2,2));
+    std::mem::forget(borrowed.observe(&mut request).unwrap());
+    let failure=borrowed.execute_command(c,&unsupported_write,h).await.unwrap_err();assert_eq!(failure.cause(),ExecutionError::Unsupported);assert_eq!(failure.disposition(),AtomicDisposition::NotStarted);
+    assert!(request.public_view().is_closed());assert!(request.public_view().is_incomplete());assert_eq!(request.public_view().submissions(),0);assert!(borrowed.recorder.calls.is_empty());assert!(borrowed.recorder.events.is_empty());
+    assert_eq!(borrowed.execute(c,op()).await.unwrap_err(),ExecutionError::ObservationClosed);
+    drop(borrowed);tx.rollback().await.unwrap();
     // Paired same-session baseline/collector measurements. All reads fully consumed,
     // all updates exact matched1 and Tx committed. No setup I/O inside measured span.
     let mut bench=$session::connect(options.clone(),c.clone()).await.unwrap();

@@ -62,6 +62,7 @@ versions/settings are WSL fixture evidence, not extrapolation to Windows.
 | Owned expected0 versus actual1 |1 | begin1/ACK1, rollback1/ACK1; independent observer retains earlier committed value, rejects this attempt's different value |
 | Owned budget0 |0 business | begin1/ACK1, rollback1/ACK1; earlier committed value persists; no refund |
 | Borrowed ordinary read |1 | BorrowedUnconfirmed; library begin/commit/rollback0. Caller setup begin/rollback is separate and unobserved |
+| Retained borrowed command execution after forgotten scope |0 business/ledger | Unsupported/NotStarted, closed/incomplete; next ordinary dispatch0; library Tx attempts0, caller retains completion |
 | Existing 256-row limit counterexample |1 | 256 completely decoded rows, Partial, failed/incomplete/closed; no truncated success |
 | Existing owned begin/commit/rollback errors and lost-success ACK cases |0 for begin failure;1 otherwise | Unknown; **artificial completion seams**, ACKs not fabricated, independent observer distinguishes committed data |
 | Existing real row-lock drop/timeout/connection termination |1 each | begin ACK1, no commit ACK or confirmed rollback, Unknown/not-consumed, closed; exact connection server wait observed before cancellation |
@@ -92,7 +93,9 @@ Same already connected per-engine session, same SQL/args/settings/unchanged data
 workload. Four paired warmup rounds, then nine measured pairs, order alternates
 baseline-first/collector-first. Each variant round has ten fully consumed SELECTs
 and ten exact1 owned UPDATEs with ten begin ACKs and ten commit ACKs:20 business SQL,
-auxiliary/EXPLAIN/provider0. Collector construction is outside the span; scope
+auxiliary/EXPLAIN/provider0. Collector construction is outside the span in both variants
+(baseline constructs an unattached collector for symmetric setup). Construction/
+destruction and public-view readout/serialization are unmeasured; scope
 attach/detach, validation, gates, native bind, awaits, complete decoding/consumption
 and Tx termination are inside the std::time::Instant span. An extra expected-result
 control SELECT is outside measurement. Each variant has260 business submissions
@@ -103,17 +106,17 @@ only **after** verifying a completed round.
 
 | Engine / collector | Median ns | Min ns | Max ns | MAD ns |
 | --- | ---: | ---: | ---: | ---: |
-| PG / absent |21558111|14199900|32848414|3901776|
-| PG / present |18394082|15329396|41490475|3064686|
-| MySQL / absent |19391651|15013070|24800562|1350517|
-| MySQL / present |19032949|14661518|20923635|545583|
+| PG / absent |18448363|17418203|20633994|1030160|
+| PG / present |18784505|14523627|26409916|1079790|
+| MySQL / absent |11688767|10816145|17468916|646925|
+| MySQL / present |12048480|10785769|16655379|1262711|
 
 Raw measurements in chronological variant order, ns per20-operation round:
 
-- PG absent: [22910269,32848414,28836439,21228287,17656335,21558111,22586826,14199900,14953273]
-- PG present: [31724991,41490475,37274297,26368595,18068770,18394082,17025318,16011922,15329396]
-- MySQL absent: [18775685,20742168,19391651,24800562,18893099,20001312,24033871,15013070,15544707]
-- MySQL present: [19653293,19578532,18675616,20923635,19032949,19176661,18649870,15069716,14661518]
+- PG absent: [19510108,17418203,20251447,18286685,18049382,17709465,19962689,20633994,18448363]
+- PG present: [26409916,21996437,17711591,18784505,19864295,20045503,18211842,17933606,14523627]
+- MySQL absent: [15319807,17468916,15251758,11466635,11212276,11688767,10816145,11041842,11854780]
+- MySQL present: [16269130,16655379,14850072,12048480,11747589,12011656,10785769,11932563,13978985]
 
 This small noisy local paired sample does not establish an improvement, overhead
 bound or Windows performance. Differences vary within observed dispersion/cache/

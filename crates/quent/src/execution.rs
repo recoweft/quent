@@ -1181,6 +1181,10 @@ macro_rules! borrowed_dispatch {
                 _: ExpectedRows,
                 _: AuthorizedOperation,
             ) -> std::result::Result<ExecutionResult, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1205,6 +1209,10 @@ macro_rules! borrowed_dispatch {
                 _: &CommandBundle,
                 _: ValidatedCommandBundle,
             ) -> std::result::Result<CommandResult, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1216,6 +1224,10 @@ macro_rules! borrowed_dispatch {
                 _: &CommandBundle,
                 _: ValidatedCommandBundle,
             ) -> std::result::Result<Option<CommandResult>, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1239,6 +1251,10 @@ macro_rules! borrowed_dispatch {
                 _: &Operation,
                 _: ValidatedCommand,
             ) -> std::result::Result<CommandResult, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1250,6 +1266,10 @@ macro_rules! borrowed_dispatch {
                 _: &Operation,
                 _: ValidatedCommand,
             ) -> std::result::Result<Option<CommandResult>, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
