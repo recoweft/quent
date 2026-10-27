@@ -372,3 +372,5 @@ async fn read(
 }
 
 preflight_reader!(MysqlReader);
+
+super::apply::apply_session!(MysqlApply, MysqlReader, MySqlConnectOptions, false);

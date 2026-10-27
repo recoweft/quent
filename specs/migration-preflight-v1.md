@@ -174,3 +174,5 @@ PG transactional DDL and MySQL ALTER implicit commit remain PR1/PR3 limitations;
 observation ROLLBACK is not a migration/business transaction rollback.
 
 Finite tests and actual measurements: [PR2 evidence](migration-preflight-v1-evidence.md).
+
+Current QT-AI-11 PR3: [explicit human-controlled finite application](migration-apply-v1.md), [finite evidence](migration-apply-v1-evidence.md). Historical PR1/PR2 absence statements retain their original scope; no full runtime_pending marker is cleared.

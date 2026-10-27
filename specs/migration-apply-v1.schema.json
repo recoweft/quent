@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Quent finite migration apply output only v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "live_coverage",
+    "residual_trust_source",
+    "human_trust_source",
+    "evidence_record",
+    "full_effects",
+    "completion",
+    "steps",
+    "attempted",
+    "acknowledged",
+    "unsent",
+    "unacknowledged_step",
+    "rejected_step",
+    "refusal"
+  ],
+  "properties": {
+    "kind": {
+      "const": "quent_migration_apply_view"
+    },
+    "version": {
+      "const": 1
+    },
+    "live_coverage": {
+      "const": "Partial"
+    },
+    "residual_trust_source": {
+      "const": "RegisteredApplicationAdapter"
+    },
+    "human_trust_source": {
+      "const": "ApplicationAdapter"
+    },
+    "evidence_record": {
+      "enum": [
+        "NotAcquired",
+        "FiniteObservationAndApplicationDecision"
+      ]
+    },
+    "full_effects": {
+      "const": "UnverifiedByQuent"
+    },
+    "completion": {
+      "enum": [
+        "NotSent",
+        "BeginUnknown",
+        "StepUnknown",
+        "StepRejected",
+        "CommitUnknown",
+        "RollbackUnknown",
+        "RolledBack",
+        "Committed",
+        "CommitAcknowledgedCurrentInvalid",
+        "ImplicitCommitPrefix"
+      ]
+    },
+    "steps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4080
+    },
+    "attempted": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4080
+    },
+    "acknowledged": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4080
+    },
+    "unsent": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4080
+    },
+    "unacknowledged_step": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 4079
+    },
+    "rejected_step": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 4079
+    },
+    "refusal": {
+      "enum": [
+        null,
+        "Invalid",
+        "MissingAdapter",
+        "MissingSubject",
+        "Mismatch",
+        "Expired",
+        "Refused",
+        "Attestation",
+        "HumanDenied",
+        "Observation",
+        "Unavailable"
+      ]
+    }
+  }
+}

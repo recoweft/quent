@@ -154,3 +154,5 @@ Sensitive getters are an explicit trusted application boundary, not protection
 against application code deliberately logging secrets.
 
 Finite validation results and remaining work: [evidence](migration-plan-v1-evidence.md).
+
+Current QT-AI-11 PR3: [explicit human-controlled finite application](migration-apply-v1.md), [finite evidence](migration-apply-v1-evidence.md). Historical PR1/PR2 absence statements retain their original scope; no full runtime_pending marker is cleared.

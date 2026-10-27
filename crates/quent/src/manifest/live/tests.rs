@@ -7,7 +7,7 @@ use serde_json::json;
 pub(super) fn context(d: Dialect, g: u64, address: &str) -> DatabaseContext {
     context_at(d, g, address, "quent_dispatch_test", None)
 }
-fn context_at(
+pub(super) fn context_at(
     d: Dialect,
     g: u64,
     address: &str,

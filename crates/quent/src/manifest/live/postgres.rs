@@ -384,3 +384,5 @@ fn append_keys(t: &mut Table, rows: Vec<Vec<Option<String>>>, max: usize) -> Res
 }
 
 preflight_reader!(PostgresReader);
+
+super::apply::apply_session!(PostgresApply, PostgresReader, PgConnectOptions, true);

@@ -17,8 +17,8 @@ redacted!(DdlExclusion);
 /// additionally checked by the finite adapter. This does not authenticate a role.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Visibility {
-    role: String,
-    generation: std::num::NonZeroU64,
+    pub(super) role: String,
+    pub(super) generation: std::num::NonZeroU64,
 }
 impl Visibility {
     pub fn new(role: &str, generation: std::num::NonZeroU64) -> Result<Self> {
@@ -90,7 +90,7 @@ impl<'p> PreflightRequest<'p> {
             exclusion,
         })
     }
-    fn same(&self, other: &Self) -> bool {
+    pub(super) fn same(&self, other: &Self) -> bool {
         self.plan.same_record(other.plan)
             && self.phase == other.phase
             && self.scope == other.scope
