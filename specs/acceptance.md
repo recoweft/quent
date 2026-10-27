@@ -294,3 +294,5 @@ checks. Corrupt storage never becomes missing. PR1 measurements remain historica
 PR3 audit/outbox remains pending. All24 full runtime_pending markers and original
 fixtures remain unchanged. Local WSL DB evidence is distinct from hosted Windows
 DB-free/compiler/CLI/output jobs and from unverified general network failures.
+
+QT-AI-10 PR3 adds finite C16/C17/C18 bundle evidence, with C01/C02/C06/C08/C10–15/C19/C23 boundaries retained. See [bundle contract](command-bundle-v1.md) and [finite measurements](command-bundle-v1-evidence.md). All24 full runtime_pending markers above and original fixtures remain; finite support is not Issue-wide completion or external delivery exactly-once.

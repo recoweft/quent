@@ -725,3 +725,5 @@ command_suite!(
     "../../../../../fixtures/command-ledger/mysql.sql",
     sqlx::mysql::MySqlSslMode::Disabled
 );
+
+mod bundle;

@@ -33,6 +33,8 @@ pub struct MysqlSession {
     #[cfg(test)]
     pub(super) final_barrier: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
+    pub(super) command_barrier: Option<(bool, Arc<tokio::sync::Notify>)>,
+    #[cfg(test)]
     pub(super) recorder: Recorder,
     #[cfg(test)]
     pub(super) atomic_fault: Option<AtomicFault>,
@@ -62,6 +64,8 @@ impl MysqlSession {
             final_now: None,
             #[cfg(test)]
             final_barrier: None,
+            #[cfg(test)]
+            command_barrier: None,
             #[cfg(test)]
             recorder: Recorder::default(),
             #[cfg(test)]
