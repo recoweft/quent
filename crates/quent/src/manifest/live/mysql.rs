@@ -96,7 +96,7 @@ impl MysqlReader {
         };
         let observed = quiet(tokio::time::timeout(
             budget.timeout,
-            read(connection, &self.target, scope, &mut meter),
+            read(connection, &self.target, scope, &mut meter, None),
         ))
         .await
         .map_err(|_| VerifyError::Expired)??;
@@ -186,11 +186,16 @@ const ID: &str = "SELECT CAST(JSON_ARRAY(DATABASE(),DATABASE(),VERSION(),CAST(@@
 const HEADER: &str = "SELECT CAST(JSON_ARRAY(t.TABLE_TYPE,t.ENGINE,CAST((SELECT COUNT(*) FROM information_schema.SCHEMA_PRIVILEGES p WHERE p.TABLE_SCHEMA=t.TABLE_SCHEMA AND p.GRANTEE=CONCAT(CHAR(39),SUBSTRING_INDEX(CURRENT_USER(),'@',1),CHAR(39),'@',CHAR(39),SUBSTRING_INDEX(CURRENT_USER(),'@',-1),CHAR(39)) AND p.PRIVILEGE_TYPE IN ('SELECT','TRIGGER')) AS CHAR),CAST((SELECT COUNT(*) FROM information_schema.TRIGGERS g WHERE g.EVENT_OBJECT_SCHEMA=t.TABLE_SCHEMA AND g.EVENT_OBJECT_TABLE=t.TABLE_NAME) AS CHAR),CAST((SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS x WHERE x.TABLE_SCHEMA=t.TABLE_SCHEMA AND x.TABLE_NAME=t.TABLE_NAME AND x.CONSTRAINT_TYPE NOT IN ('PRIMARY KEY','UNIQUE')) AS CHAR),CAST((SELECT COUNT(*) FROM information_schema.PARTITIONS p WHERE p.TABLE_SCHEMA=t.TABLE_SCHEMA AND p.TABLE_NAME=t.TABLE_NAME AND p.PARTITION_NAME IS NOT NULL) AS CHAR)) AS CHAR) FROM information_schema.TABLES t WHERE t.TABLE_SCHEMA=? AND t.TABLE_NAME=? LIMIT 2";
 const COLUMNS: &str = "SELECT CAST(JSON_ARRAY(LEFT(COLUMN_NAME,4097),LEFT(DATA_TYPE,4097),IS_NULLABLE,LEFT(COLUMN_DEFAULT,4097),LEFT(EXTRA,4097),LEFT(GENERATION_EXPRESSION,4097),COLLATION_NAME,CAST(ORDINAL_POSITION AS CHAR),LEFT(COLUMN_TYPE,4097)) AS CHAR) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? ORDER BY ORDINAL_POSITION LIMIT 257";
 const KEYS: &str = "SELECT CAST(JSON_ARRAY(LEFT(INDEX_NAME,4097),CAST(SEQ_IN_INDEX AS CHAR),LEFT(COLUMN_NAME,4097),LEFT(EXPRESSION,4097),CAST(SUB_PART AS CHAR),INDEX_TYPE,IS_VISIBLE,COLLATION,CAST(NON_UNIQUE AS CHAR)) AS CHAR) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? ORDER BY INDEX_NAME,SEQ_IN_INDEX LIMIT 257";
+
+// PR2-only finite extension. This proves no represented local indexes/constraints,
+// not absence of every possible effect or an authenticated physical target.
+const PREFLIGHT: &str = "SELECT CAST(JSON_ARRAY(LEFT(t.TABLE_SCHEMA,4097),LEFT(t.TABLE_NAME,4097),LEFT(CURRENT_USER(),4097),CAST((SELECT COUNT(*) FROM information_schema.STATISTICS i WHERE i.TABLE_SCHEMA=t.TABLE_SCHEMA AND i.TABLE_NAME=t.TABLE_NAME) AS CHAR),CAST((SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS x WHERE x.TABLE_SCHEMA=t.TABLE_SCHEMA AND x.TABLE_NAME=t.TABLE_NAME) AS CHAR),'false') AS CHAR) FROM information_schema.TABLES t WHERE t.TABLE_SCHEMA=? AND t.TABLE_NAME=? LIMIT 2";
 async fn read(
     c: &mut MySqlConnection,
     target: &Target,
     scope: &Scope,
     m: &mut Meter,
+    mut extension: Option<&mut Vec<Vec<Option<String>>>>,
 ) -> Result<Schema> {
     // MySQL information_schema metadata does NOT promise one MVCC DDL snapshot.
     // This read-only transaction is a bounded observation under a caller-enforced
@@ -224,6 +229,13 @@ async fn read(
             if header.len() != 1 {
                 return Err(VerifyError::Unknown);
             }
+            if let Some(extra) = extension.as_deref_mut() {
+                let result = rows(&mut tx, PREFLIGHT, &scope.namespace, name, m).await?;
+                if result.len() != 1 || result[0].len() != 6 {
+                    return Err(VerifyError::Unknown);
+                }
+                extra.push(result.into_iter().next().ok_or(VerifyError::Unknown)?);
+            }
             let h = &header[0];
             if field(h, 0)? != "BASE TABLE" {
                 return Err(VerifyError::Unsupported);
@@ -252,7 +264,14 @@ async fn read(
             if columns.len() > m.b.columns {
                 return Err(VerifyError::Budget);
             }
-            for v in columns {
+            for (ordinal, v) in columns.into_iter().enumerate() {
+                if extension.is_some()
+                    && (v.len() != 9
+                        || !matches!(field(&v, 2)?, "YES" | "NO")
+                        || field(&v, 7)?.parse::<usize>().ok() != Some(ordinal + 1))
+                {
+                    return Err(VerifyError::Unknown);
+                }
                 let unsigned = field(&v, 8)?.contains(" unsigned");
                 let native = match (field(&v, 1)?, unsigned) {
                     ("tinyint", false) => Native::I8,
@@ -351,3 +370,5 @@ async fn read(
     m.event("rolled_back");
     result
 }
+
+preflight_reader!(MysqlReader);

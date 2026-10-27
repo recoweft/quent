@@ -682,3 +682,64 @@ fn c24_maximum_retained_plan_and_last_table_refusal_are_bounded() {
         refused(&b, &a);
     }
 }
+
+#[test]
+fn c22_phases_are_ordered_exact_and_never_upgrade_unknown() {
+    for d in [Dialect::Postgres, Dialect::Mysql] {
+        let b = schema(d);
+        let mut a = b.clone();
+        a.tables[0].columns.push(col("tail", SqlType::I64));
+        let plan = plan_migration(&b, &a);
+        let phases = plan.phases();
+        assert_eq!(
+            phases.map(|p| p.phase()),
+            [
+                MigrationPhase::Expand,
+                MigrationPhase::Backfill,
+                MigrationPhase::Contract
+            ]
+        );
+        assert_eq!(
+            phases.map(|p| p.capability()),
+            [
+                PhaseCapability::NullableAppend,
+                PhaseCapability::NoWork,
+                PhaseCapability::NoWork
+            ]
+        );
+        assert_eq!(
+            phases.map(|p| (p.first_step(), p.steps())),
+            [(0, 1), (1, 0), (1, 0)]
+        );
+        assert_eq!(
+            plan.phase_conditions(MigrationPhase::Expand),
+            &[
+                PhaseCondition::BeforeColumns,
+                PhaseCondition::NoIndexesOrConstraints,
+                PhaseCondition::FiniteTableSemantics
+            ]
+        );
+        assert!(plan.same_record(&plan_migration(&b, &a)));
+        let mut changed = a.clone();
+        changed.tables[0].columns[2].name = id("different_tail");
+        assert!(!plan.same_record(&plan_migration(&b, &changed)));
+        assert!(
+            plan_migration(&b, &b)
+                .phases()
+                .iter()
+                .all(|p| p.capability() == PhaseCapability::NoWork)
+        );
+        changed.coverage = Knowledge::Partial;
+        let refused = plan_migration(&b, &changed);
+        assert!(
+            refused
+                .phases()
+                .iter()
+                .all(|p| p.capability() == PhaseCapability::Unsupported && p.steps() == 0)
+        );
+        assert!(refused.sensitive_source().sql().is_empty());
+        for p in phases {
+            assert!(!format!("{p:?}").contains("CANARY"));
+        }
+    }
+}

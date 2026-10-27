@@ -1,3 +1,5 @@
+Current QT-AI-11 PR2: [phase-bound finite migration observations](migration-preflight-v1.md). Earlier PR-specific absence statements describe their historical baseline.
+
 # QT-AI-05 PR2: explicit finite catalog verification
 
 This extends [source v1](schema-manifest-v1.md); offline source canonicalization,

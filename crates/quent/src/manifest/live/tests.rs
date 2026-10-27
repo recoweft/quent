@@ -4,7 +4,7 @@ use quent_core::{
     PolicySet, Settings, SettingsIdentity, TargetAddress,
 };
 use serde_json::json;
-fn context(d: Dialect, g: u64, address: &str) -> DatabaseContext {
+pub(super) fn context(d: Dialect, g: u64, address: &str) -> DatabaseContext {
     context_at(d, g, address, "quent_dispatch_test", None)
 }
 fn context_at(
@@ -52,7 +52,7 @@ fn context_at(
 fn source(d: Dialect, ns: &str, address: &str) -> ManifestSource {
     ManifestSource::parse(&serde_json::to_vec(&json!({"kind":"quent_manifest_source","version":1,"schema":{"kind":"quent_schema","version":1,"target":{"database":"probe","address":address,"catalog":"quent_dispatch_test","dialect":if d==Dialect::Postgres {"postgres"}else{"mysql"}},"coverage":"complete","tables":[{"path":[ns,"manifest_probe"],"semantics":"ordinary","columns_coverage":"complete","keys_coverage":"complete","columns":[{"name":"a","native":"i64","nullability":"nonnull","default":{"state":"literal","value":{"type":"i64","value":0}}},{"name":"b","native":"i32","nullability":"nonnull","default":{"state":"literal","value":{"type":"i32","value":7}}}],"keys":[{"kind":"primary","columns":["a","b"],"coverage":"complete"}]}]}})).unwrap()).unwrap()
 }
-fn budget() -> Budget {
+pub(super) fn budget() -> Budget {
     Budget {
         queries: 65,
         rows: 8192,

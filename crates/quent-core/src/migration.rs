@@ -549,6 +549,7 @@ pub struct MigrationPlan {
     differences: Vec<Difference>,
     sql: Vec<String>,
     view: MigrationView,
+    phases: [PhaseRecord; 3],
 }
 pub struct SensitiveMigration<'a> {
     plan: &'a MigrationPlan,
@@ -1007,6 +1008,7 @@ pub fn plan_migration(before: &MigrationSchema, after: &MigrationSchema) -> Migr
         after: after.clone(),
         differences: p.differences,
         sql: p.sql,
+        phases: phase_records(status, view.steps),
         view,
     }
 }
@@ -1014,3 +1016,139 @@ pub fn plan_migration(before: &MigrationSchema, after: &MigrationSchema) -> Migr
 #[cfg(test)]
 #[path = "migration_tests.rs"]
 mod tests;
+
+/// Fixed ordering. Backfill writes and destructive contract are not implemented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MigrationPhase {
+    Expand,
+    Backfill,
+    Contract,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhaseCapability {
+    NullableAppend,
+    NoWork,
+    Unsupported,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhaseView {
+    phase: MigrationPhase,
+    capability: PhaseCapability,
+    first_step: usize,
+    steps: usize,
+}
+impl PhaseView {
+    pub fn phase(self) -> MigrationPhase {
+        self.phase
+    }
+    pub fn capability(self) -> PhaseCapability {
+        self.capability
+    }
+    pub fn first_step(self) -> usize {
+        self.first_step
+    }
+    pub fn steps(self) -> usize {
+        self.steps
+    }
+}
+#[derive(PartialEq, Eq)]
+struct PhaseRecord {
+    view: PhaseView,
+    conditions: [PhaseCondition; 3],
+}
+/// Finite observations, not full schema/effects coverage or application permission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhaseCondition {
+    BeforeColumns,
+    NoIndexesOrConstraints,
+    FiniteTableSemantics,
+}
+fn phase_records(status: MigrationStatus, steps: usize) -> [PhaseRecord; 3] {
+    use MigrationPhase::*;
+    [Expand, Backfill, Contract].map(|phase| PhaseRecord {
+        view: PhaseView {
+            phase,
+            capability: if status == MigrationStatus::Refused {
+                PhaseCapability::Unsupported
+            } else if phase == Expand && steps > 0 {
+                PhaseCapability::NullableAppend
+            } else {
+                PhaseCapability::NoWork
+            },
+            first_step: if phase == Expand { 0 } else { steps },
+            steps: if phase == Expand { steps } else { 0 },
+        },
+        conditions: [
+            PhaseCondition::BeforeColumns,
+            PhaseCondition::NoIndexesOrConstraints,
+            PhaseCondition::FiniteTableSemantics,
+        ],
+    })
+}
+impl MigrationPlan {
+    pub fn phases(&self) -> [PhaseView; 3] {
+        self.phases.each_ref().map(|p| p.view)
+    }
+    pub fn phase_conditions(&self, phase: MigrationPhase) -> &[PhaseCondition; 3] {
+        &self
+            .phases
+            .iter()
+            .find(|p| p.view.phase == phase)
+            .expect("fixed phase")
+            .conditions
+    }
+    /// Exact private record equality; hashes/public projections do not participate.
+    pub fn same_record(&self, other: &Self) -> bool {
+        self.before == other.before
+            && self.after == other.after
+            && self.differences == other.differences
+            && self.sql == other.sql
+            && self.phases == other.phases
+    }
+}
+impl MigrationSchema {
+    pub fn sensitive_target(&self) -> &MigrationTarget {
+        &self.target
+    }
+    pub fn authority(&self) -> SchemaAuthority {
+        self.authority
+    }
+    pub fn coverage(&self) -> Knowledge {
+        self.coverage
+    }
+    pub fn sensitive_tables(&self) -> &[MigrationTable] {
+        &self.tables
+    }
+}
+impl MigrationTarget {
+    pub fn sensitive_parts(&self) -> (&str, &str, &Ident, Dialect) {
+        (&self.database, &self.address, &self.catalog, self.dialect)
+    }
+}
+impl MigrationTable {
+    pub fn sensitive_name(&self) -> &MigrationName {
+        &self.name
+    }
+    pub fn sensitive_columns(&self) -> &[MigrationColumn] {
+        &self.columns
+    }
+    pub fn constraint_counts(&self) -> [usize; 3] {
+        [
+            self.indexes.len(),
+            self.foreign_keys.len(),
+            self.checks.len(),
+        ]
+    }
+}
+impl MigrationColumn {
+    pub fn sensitive_parts(
+        &self,
+    ) -> (
+        &Ident,
+        &Observed<SqlType>,
+        &Observed<bool>,
+        &MigrationDefault,
+    ) {
+        (&self.name, &self.native, &self.nullable, &self.default)
+    }
+}

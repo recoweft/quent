@@ -96,7 +96,7 @@ impl PostgresReader {
         };
         let observed = quiet(tokio::time::timeout(
             budget.timeout,
-            read(connection, &self.target, scope, &mut meter),
+            read(connection, &self.target, scope, &mut meter, None),
         ))
         .await
         .map_err(|_| VerifyError::Expired)??;
@@ -204,11 +204,16 @@ WHERE n.nspname=$1 AND c.relname=$2 LIMIT 2
 "#;
 const COLUMNS: &str = "SELECT json_build_array(left(a.attname,4097),CASE WHEN t.typnamespace='pg_catalog'::regnamespace THEN t.typname ELSE 'unsupported' END,a.attnotnull::text,CASE WHEN d.adbin IS NULL THEN NULL WHEN pg_catalog.octet_length(d.adbin::text)<=4096 AND NOT EXISTS(SELECT 1 FROM pg_catalog.regexp_matches(d.adbin::text, ':consttype ([0-9]+)', 'g') AS m(type_oid) WHERE m.type_oid[1] NOT IN ('16','20','21','23')) THEN left(pg_catalog.pg_get_expr(d.adbin,d.adrelid),4097) ELSE 'unsupported_default' END,a.attgenerated::text,a.attidentity::text,a.attcollation::text,a.attnum::text)::text FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid=a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace JOIN pg_catalog.pg_type t ON t.oid=a.atttypid LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE n.nspname=$1 AND c.relname=$2 AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum LIMIT 257";
 const KEYS: &str = "SELECT json_build_array(i.indexrelid::text,i.indisprimary::text,k.ordinality::text,a.attname,i.indisunique::text)::text FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid=i.indrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY k(attnum,ordinality) LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.attnum WHERE n.nspname=$1 AND c.relname=$2 AND i.indisunique ORDER BY i.indisprimary DESC,i.indexrelid,k.ordinality LIMIT 257";
+
+// PR2-only finite extension. This proves no represented local indexes/constraints,
+// not absence of every possible effect or an authenticated physical target.
+const PREFLIGHT: &str = "SELECT pg_catalog.json_build_array(n.nspname::text,c.relname::text,left(current_user::text,4097),(SELECT count(*) FROM pg_catalog.pg_index i WHERE i.indrelid=c.oid)::text,(SELECT count(*) FROM pg_catalog.pg_constraint x WHERE x.conrelid=c.oid)::text,EXISTS(SELECT 1 FROM pg_catalog.pg_attribute a WHERE a.attrelid=c.oid AND a.attisdropped)::text)::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2 LIMIT 2";
 async fn read(
     c: &mut PgConnection,
     target: &Target,
     scope: &Scope,
     m: &mut Meter,
+    mut extension: Option<&mut Vec<Vec<Option<String>>>>,
 ) -> Result<Schema> {
     // PostgreSQL catalogs use one REPEATABLE READ snapshot, no DDL locks claimed.
     m.event("begin_attempt");
@@ -240,6 +245,13 @@ async fn read(
             if header.len() != 1 {
                 return Err(VerifyError::Unknown);
             }
+            if let Some(extra) = extension.as_deref_mut() {
+                let result = rows(&mut tx, PREFLIGHT, &scope.namespace, name, m).await?;
+                if result.len() != 1 || result[0].len() != 6 {
+                    return Err(VerifyError::Unknown);
+                }
+                extra.push(result.into_iter().next().ok_or(VerifyError::Unknown)?);
+            }
             let h = &header[0];
             if field(h, 0)? != "r" {
                 return Err(VerifyError::Unsupported);
@@ -267,7 +279,14 @@ async fn read(
             if columns.len() > m.b.columns {
                 return Err(VerifyError::Budget);
             }
-            for v in columns {
+            for (ordinal, v) in columns.into_iter().enumerate() {
+                if extension.is_some()
+                    && (v.len() != 8
+                        || !matches!(field(&v, 2)?, "true" | "false")
+                        || field(&v, 7)?.parse::<usize>().ok() != Some(ordinal + 1))
+                {
+                    return Err(VerifyError::Unknown);
+                }
                 let native = match field(&v, 1)? {
                     "int2" => Native::I16,
                     "int4" => Native::I32,
@@ -363,3 +382,5 @@ fn append_keys(t: &mut Table, rows: Vec<Vec<Option<String>>>, max: usize) -> Res
     }
     Ok(())
 }
+
+preflight_reader!(PostgresReader);
