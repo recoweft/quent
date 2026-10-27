@@ -233,6 +233,26 @@ pub(super) fn encode(source: SensitiveSource<'_>) -> Result<String, DetailError>
     Ok(json.0)
 }
 
+/// Restricted output-only migration artifact: no source parser or apply transport.
+pub(super) fn migration(
+    source: quent_core::migration::SensitiveMigration<'_>,
+) -> Result<String, DetailError> {
+    let mut out = Json(String::new());
+    (|| -> fmt::Result {
+        out.write_str("{\"kind\":\"quent_local_migration\",\"version\":1,\"sql\":")?;
+        out.array(source.sql(), |o, s| o.text(s))?;
+        out.write_str(",\"differences\":[")?;
+        for (i, (area, kind, support, table, name)) in source.differences().enumerate() {
+            if i > 0 { out.write_char(',')?; }
+            write!(out, "{{\"area\":\"{area:?}\",\"change\":\"{kind:?}\",\"support\":\"{support:?}\",\"table\":")?;
+            if let Some(table) = table { let (namespace, table) = table.sensitive_parts(); out.write_char('[')?; out.ident(namespace)?; out.write_char(',')?; out.ident(table)?; out.write_char(']')?; } else { out.write_str("null")?; }
+            out.write_str(",\"name\":")?; out.alias(name)?; out.write_char('}')?;
+        }
+        out.write_str("]}")
+    })().map_err(|_| DetailError::Budget)?;
+    Ok(out.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

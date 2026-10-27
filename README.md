@@ -1,3 +1,4 @@
+Current QT-AI-11 PR1: [offline migration differences, capability and unknown coverage](specs/migration-plan-v1.md).
 Current QT-AI-10 PR3: [fixed business/audit/outbox owned command bundle](specs/command-bundle-v1.md).
 
 Current QT-AI-10 PR1/PR2: [finite durable command identity, owned ledger/results and explicit replay](specs/command-ledger-v1.md).
@@ -20,14 +21,14 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, and bounded offline review.**
+**Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, bounded offline review, and finite offline migration planning.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; ordinary INSERT/Unknown refuse.
 Application-only commands support all-column single INSERT (tenant supplementation only) and finite Low UPDATE (including checked optimistic versions), exact-one results, an explicit installed ledger and saved-result replay.
 Fixed business1 + audit INSERT1 + outbox INSERT1 bundles use the same Core preparation/gate/owned Tx and replay all three results without additional record sends; explicit bundle tenant mapping and installation/version requirements are in the PR3 contract. No external delivery worker or callback is provided.
 Finite concurrent reservation outcomes and real loopback COMMIT-reply loss are measured in the [PR2 evidence](specs/command-concurrency-v1-evidence.md); they do not establish general exactly-once.
-Finite High UPDATE/physical DELETE require an explicit bound permit; ordinary High still refuses. Multi-operation transactions,
-migration, audit/outbox and MCP remain future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
+Finite High UPDATE/physical DELETE require an explicit bound permit; ordinary High still refuses. General multi-operation transactions remain future work.
+Offline finite migration differences and SQL planning are available in `quent_core::migration`; preflight/apply and MCP remain future work. Fixed DB business/audit/outbox bundles are implemented; external delivery is outside that guarantee (Refs #42). Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
 Optional `review-ci` adds `quent-cli review-ci --json|--pretty|--sarif HEAD_INPUTS BASE_INPUTS BASELINE`.
 It compares exact supplied inputs and supports expiring display baselines; all original
 findings remain non-suppressible. Git-head coverage and runtime remain unverified;

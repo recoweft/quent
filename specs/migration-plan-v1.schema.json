@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quent.invalid/migration-plan-v1.schema.json",
+  "title": "Output-only MigrationView v1; never authority or source input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "dialect",
+    "status",
+    "risk",
+    "ddl_transaction",
+    "authority",
+    "live",
+    "steps",
+    "areas"
+  ],
+  "properties": {
+    "kind": {
+      "const": "quent_migration_view"
+    },
+    "version": {
+      "const": 1
+    },
+    "dialect": {
+      "enum": [
+        "Postgres",
+        "Mysql"
+      ]
+    },
+    "status": {
+      "enum": [
+        "NoChange",
+        "SqlPlanned",
+        "Refused"
+      ]
+    },
+    "risk": {
+      "enum": [
+        "Low",
+        "High",
+        "Blocked"
+      ]
+    },
+    "ddl_transaction": {
+      "enum": [
+        "PostgresTransactional",
+        "MysqlImplicitCommit"
+      ]
+    },
+    "authority": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "enum": [
+          "UnverifiedSource",
+          "ApplicationDeclared"
+        ]
+      }
+    },
+    "live": {
+      "const": "Unverified"
+    },
+    "steps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4080
+    },
+    "areas": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Target"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Tables"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Effects"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Columns"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Types"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Nullability"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Defaults"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Indexes"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "ForeignKeys"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area",
+            "changes",
+            "unknown",
+            "unsupported"
+          ],
+          "properties": {
+            "area": {
+              "const": "Checks"
+            },
+            "changes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16384
+            },
+            "unknown": {
+              "type": "boolean"
+            },
+            "unsupported": {
+              "type": "boolean"
+            }
+          }
+        }
+      ],
+      "items": false
+    }
+  }
+}

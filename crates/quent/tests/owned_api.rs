@@ -1083,14 +1083,76 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "bundle boundary {d}"
         );
     }
+    let output = run(
+        "fn control(b:&quent_core::migration::MigrationSchema,a:&quent_core::migration::MigrationSchema,path:&std::path::Path){use quent_core::migration::*;let p=plan_migration(b,a);let _:MigrationView=p.public_view();let _:serde_json::Value=serde_json::from_str(&p.public_view().to_json()).unwrap();let _=p.sensitive_source().sql();use quent::local_details::*;let _=create_new_migration(LocalOptIn::acknowledge_sensitive_local_file(),Surface::LocalApplication,path,p.sensitive_source());}",
+    );
+    assert!(
+        output.status.success(),
+        "migration control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for carrier in [
+        "quent_core::migration::MigrationPlan",
+        "quent_core::migration::MigrationView",
+        "quent_core::migration::MigrationSchema",
+    ] {
+        for authority in [
+            "quent_core::ApplicationContext",
+            "quent_core::SchemaSnapshot",
+            "quent_core::ScopeFacts",
+            "DatabaseContext",
+            "ValidatedOperation",
+            "ValidatedAtomicOperation",
+        ] {
+            let r = run(&format!("fn f(v:{carrier}){{let _:{authority}=v.into();}}"));
+            assert!(
+                !r.status.success() && String::from_utf8_lossy(&r.stderr).contains("error[E0277]")
+            );
+        }
+        for body in [
+            format!("fn f(){{let _:{carrier}=serde_json::from_str(\"{{}}\").unwrap();}}"),
+            format!("fn f(v:&{carrier}){{serde_json::to_string(v).unwrap();}}"),
+        ] {
+            let r = run(&body);
+            assert!(
+                !r.status.success() && String::from_utf8_lossy(&r.stderr).contains("error[E0277]")
+            );
+        }
+    }
+    for (body, diagnostic) in [
+        (
+            "fn f(v:quent_core::migration::MigrationView)->quent_core::migration::MigrationPlan{v.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(v:&mut quent_core::migration::MigrationPlan){v.sql.clear();}",
+            "E0616",
+        ),
+        (
+            "fn f(v:&quent_core::migration::MigrationPlan){v.apply();}",
+            "E0599",
+        ),
+        (
+            "fn f(s:&mut PostgresSession,c:&DatabaseContext,p:&quent_core::migration::MigrationPlan){s.validate(c,p,std::time::Duration::from_secs(1));}",
+            "E0308",
+        ),
+    ] {
+        let r = run(body);
+        assert!(
+            !r.status.success()
+                && String::from_utf8_lossy(&r.stderr).contains(&format!("error[{diagnostic}]")),
+            "migration negative {}",
+            String::from_utf8_lossy(&r.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        18,
-        "compiling positive controls (14 retained)"
+        19,
+        "compiling positive controls (18 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        319,
-        "diagnostic-checked negatives (272 retained)"
+        347,
+        "diagnostic-checked negatives (319 retained)"
     );
 }

@@ -296,3 +296,11 @@ fixtures remain unchanged. Local WSL DB evidence is distinct from hosted Windows
 DB-free/compiler/CLI/output jobs and from unverified general network failures.
 
 QT-AI-10 PR3 adds finite C16/C17/C18 bundle evidence, with C01/C02/C06/C08/C10–15/C19/C23 boundaries retained. See [bundle contract](command-bundle-v1.md) and [finite measurements](command-bundle-v1-evidence.md). All24 full runtime_pending markers above and original fixtures remain; finite support is not Issue-wide completion or external delivery exactly-once.
+
+
+QT-AI-11 PR1: [offline immutable migration plan](migration-plan-v1.md) adds a separate
+Core typed schema/difference API, output-only migration view and protected local
+migration detail export. Existing manifest v1/fingerprint and CRUD output formats
+are unchanged; no preflight/apply/provider/handle/CLI/MCP execution is added.
+See [finite C22-centered evidence](migration-plan-v1-evidence.md). All 24 full
+runtime_pending markers and original fixtures remain unchanged.
