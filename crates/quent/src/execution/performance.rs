@@ -461,7 +461,7 @@ macro_rules! performance_dispatch {
                 self.available = false;
                 let result = tokio::time::timeout(budget.timeout, async {
                     let version_sql = if Dialect::$dialect == Dialect::Postgres {
-                        "SELECT current_setting('server_version_num')"
+                        "SELECT pg_catalog.current_setting('server_version_num')"
                     } else {
                         "SELECT VERSION()"
                     };

@@ -33,7 +33,7 @@ Each acquisition performs exactly one fixed auxiliary statement:
 
 | Dialect | Version statement | Exact supported value | EXPLAIN prefix |
 | --- | --- | --- | --- |
-| PostgreSQL | `SELECT current_setting('server_version_num')` | `160014` (16.14) | `EXPLAIN (FORMAT JSON) ` |
+| PostgreSQL | `SELECT pg_catalog.current_setting('server_version_num')` | `160014` (16.14) | `EXPLAIN (FORMAT JSON) ` |
 | MySQL | `SELECT VERSION()` | `8.4.8` | `EXPLAIN FORMAT=JSON ` |
 
 Only the literal prefix is joined to the **unaltered** retained finalized SQL.
