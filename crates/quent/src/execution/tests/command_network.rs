@@ -23,7 +23,7 @@ pub(super) struct Proxy {
     pub reply: Arc<AtomicBool>,
     task: Option<JoinHandle<()>>,
 }
-fn read_frame(s: &mut TcpStream, pg: bool, startup: bool) -> std::io::Result<Vec<u8>> {
+pub(super) fn read_frame(s: &mut TcpStream, pg: bool, startup: bool) -> std::io::Result<Vec<u8>> {
     let header = if pg && !startup { 5 } else { 4 };
     let mut b = vec![0; header];
     s.read_exact(&mut b)?;

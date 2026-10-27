@@ -110,6 +110,12 @@ quarantines the session; the outcome is unknown. A future drop returns no error.
 Driver loss returns OutcomeUnknown; only explicit acknowledged Tx completion is
 reported as confirmed. No exactly-once guarantee follows from Rust ownership.
 Provider calls, responses, business sends and Tx events are separate measurements.
+In particular, an ordinary/direct autocommit write may already be applied after
+submission even if the client never receives completion. Quarantine, socket drop,
+no commit event and no rollback ACK do not prove rollback. An owned explicit Tx
+without completion ACK is not promoted to RolledBack. Test-only server termination
+before lock release and ordinary UPDATE response withholding distinguish these
+finite observations; see [maintenance evidence](authorized-cancel-v1-evidence.md).
 
 All new carriers have constant redacted Debug, private fields and no serialization,
 Display export, public constructor/restoration or sensitive handle getter. Errors
@@ -138,5 +144,5 @@ canary, driver-notice positive control, CLI/FIFO, codegen consumers and all prev
 DB suites remain regressions. Finite measured results/OS/CI/cleanup are recorded in
 [the PR2 evidence](authorization-gate-v1-evidence.md), not inferred from test names.
 All 24 full runtime_pending markers remain. External service authentication,
-physical routing, concurrent DDL, TLS/completion loss, Windows live DB and local
+physical routing, concurrent DDL, general TLS/completion loss, Windows live DB and local
 Windows SDK/ACL behavior are not established by these finite tests.

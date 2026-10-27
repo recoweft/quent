@@ -8,6 +8,7 @@ async fn poll_once<F: std::future::Future>(
 use super::*;
 #[macro_use]
 mod authorized;
+mod authorized_network;
 mod command;
 mod command_network;
 fn id(s: &str) -> Ident {

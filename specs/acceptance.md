@@ -304,3 +304,14 @@ migration detail export. Existing manifest v1/fingerprint and CRUD output format
 are unchanged; no preflight/apply/provider/handle/CLI/MCP execution is added.
 See [finite C22-centered evidence](migration-plan-v1-evidence.md). All 24 full
 runtime_pending markers and original fixtures remain unchanged.
+
+## QT-MAINT-01 finite cancellation maintenance
+
+[Authorized cancellation evidence](authorized-cancel-v1-evidence.md) records
+QT-C13/C14/C16 controls on both drivers: server termination independently observed
+before locker release, and an ordinary autocommit UPDATE applied while its real
+completion response is withheld from SQLx. Client post-send outcome remains unknown;
+no rollback is inferred from quarantine/drop/no ACK, including owned explicit Tx.
+Explicit ACKrollback/ACKcommit and business0 pre-send controls remain separate.
+Original PR43 failure and every fixed repetition remain in the evidence; rerun
+success alone proves no stability. All 24 full runtime_pending markers remain.

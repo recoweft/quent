@@ -1,3 +1,8 @@
+Current cancellation controls and historical PR43 failure audit:
+[QT-MAINT-01 PR1 evidence](authorized-cancel-v1-evidence.md). The measurements
+below describe their original PR; the maintenance evidence supersedes cancellation
+fixture ordering and finite ordinary UPDATE completion-loss coverage.
+
 # QT-AI-09 planned PR2 finite measurements
 
 Work 667df304-29e2-4970-a39f-870b679cd312 revision 1, public execution

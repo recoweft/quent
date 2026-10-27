@@ -77,7 +77,7 @@ impl Probe {
     }
 }
 macro_rules! authorized_cases {
-    ($session:ident, $borrowed:ident, $connection:ty, $options:ident, $d:ident, $c:ident, $observer:ident, $create:literal, $seed:literal) => {{
+    ($session:ident, $borrowed:ident, $connection:ty, $options:ident, $d:ident, $c:ident, $observer:ident, $create:literal, $seed:literal, $ssl:expr) => {{
         use $crate::execution::tests::authorized::Probe;
         use $crate::authorization::{AuthorizationScope::*, AdapterResponse::*};
         use std::sync::atomic::Ordering;
@@ -263,10 +263,53 @@ macro_rules! authorized_cases {
             // For a dropped owned future the runner recorder is also dropped;
             // the shared live trace above retains the actual business send count.
             if !atomic {probe.compare(&canceled.recorder,index);}
-            drop(canceled);lock.rollback().await.unwrap();
+            // Socket drop is not server termination. Explicitly terminate only this
+            // fixture connection while the locker still holds the row, then observe
+            // backend absence independently before allowing the UPDATE to resume.
+            if mode!=2 {
+                if d==Dialect::Postgres {sqlx::query("SELECT pg_terminate_backend(CAST($1 AS INT))").bind(connection_id).execute(&mut *observer).await.unwrap();}else{sqlx::query(sqlx::AssertSqlSafe(format!("KILL CONNECTION {connection_id}"))).execute(&mut *observer).await.unwrap();}
+            }
+            drop(canceled);
+            let present=if d==Dialect::Postgres {"SELECT COUNT(*) FROM pg_stat_activity WHERE pid=$1 AND usename=current_user"}else{"SELECT COUNT(*) FROM performance_schema.threads WHERE PROCESSLIST_ID=?"};
+            tokio::time::timeout(Duration::from_secs(10),async {loop {if sqlx::query(sqlx::AssertSqlSafe(present.to_owned())).bind(connection_id).fetch_one(&mut *observer).await.unwrap().get::<i64,_>(0)==0 {break;}tokio::task::yield_now().await;}}).await.expect("fixture backend did not terminate before locker release");
+            lock.rollback().await.unwrap();
             assert_eq!(sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1").fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"before");
-            println!("PR2 authorized {:?}: server lock wait observed; atomic={atomic} mode={mode}; provider1/send1; unknown outcome/quarantined, no confirmed completion",d);
+            println!("MAINT-CANCEL {:?}: wait -> cancel atomic={atomic} mode={mode} -> fixture termination -> backend absent -> locker ACKrollback; provider1/send1; available=false; commit0/rollbackACK0; observer=before; product outcome unknown",d);
         }}
+        // Ordinary UPDATE completion boundary, distinct from native COMMIT.
+        // Both controls run through SQLx extended/prepared execution. No injected
+        // product error seam, server setting change, or automatic resend is used.
+        for hold in [false,true] {
+            use super::authorized_network::Proxy;
+            sqlx::query("UPDATE quent_dispatch_test.items SET txt='before' WHERE tenant=11 AND id=1").execute(&mut *observer).await.unwrap();
+            let target=std::net::SocketAddr::new(options.get_host().parse().unwrap(),options.get_port());
+            let proxy=Proxy::new(target,d==Dialect::Postgres,hold);
+            let plain=options.clone().host("127.0.0.1").port(proxy.address.port()).ssl_mode($ssl);
+            let mut network=$session::connect(plain,c.clone()).await.unwrap();
+            let index=probe.calls();let h=network.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=network.acquire_authorized(&auth,&request,h).await.unwrap();
+            let trace=network.recorder.live.clone();
+            let mut f=Box::pin(network.execute_authorized(&auth,&request,&op,h));
+            if hold {
+                tokio::time::timeout(Duration::from_secs(10),async {loop {
+                    assert!(poll_once(f.as_mut()).await.is_pending());
+                    let updated=sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1").fetch_one(&mut *observer).await.unwrap().get::<String,_>(0)=="CANARY_AUTHORIZED";
+                    if updated && proxy.reply.load(Ordering::SeqCst) {break;}
+                    tokio::task::yield_now().await;
+                }}).await.expect("ordinary UPDATE applied/withheld response not independently observed");
+                assert!(!trace.lock().unwrap().contains(&"decoded"));
+                assert!(tokio::time::timeout(Duration::from_millis(1),f.as_mut()).await.is_err());
+                drop(f);assert!(!network.is_available());
+            } else {
+                assert_eq!(tokio::time::timeout(Duration::from_secs(10),f.as_mut()).await.unwrap().unwrap().state(),ResultState::Observed);
+                drop(f);assert!(network.is_available());assert!(trace.lock().unwrap().contains(&"decoded"));
+            }
+            assert_eq!(probe.calls(),index+1);probe.compare(&network.recorder,index);
+            assert_eq!(proxy.sent.load(Ordering::SeqCst),1);assert!(proxy.reply.load(Ordering::SeqCst));assert_eq!(proxy.withheld.load(Ordering::SeqCst),hold);
+            assert!(!trace.lock().unwrap().contains(&"commit"));assert!(!trace.lock().unwrap().contains(&"rolled_back"));
+            assert_eq!(sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1").fetch_one(&mut *observer).await.unwrap().get::<String,_>(0),"CANARY_AUTHORIZED");
+            drop(network);drop(proxy);
+            println!("MAINT-UPDATE {:?}: ordinary prepared execute1/server completion1; hold={hold}; provider1/send1; Tx0; observer=updated; client completion={}; no retry",d,!hold);
+        }
         // Borrowed Tx has a fresh identity, uncommitted output, no completion ownership.
         let mut raw=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
         let mut tx=raw.begin().await.unwrap();let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
@@ -292,7 +335,7 @@ macro_rules! authorized_cases {
 }
 
 macro_rules! suite {
-    ($name:ident, $feature:literal, $session:ident, $borrowed:ident, $connection:ty, $options:ty, $dialect:expr, $dsn:literal, $create:literal, $seed:literal) => {
+    ($name:ident, $feature:literal, $session:ident, $borrowed:ident, $connection:ty, $options:ty, $dialect:expr, $dsn:literal, $create:literal, $seed:literal, $ssl:expr) => {
         #[cfg(feature=$feature)]
         #[test]
         fn $name() {
@@ -328,7 +371,8 @@ macro_rules! suite {
                         c,
                         observer,
                         $create,
-                        $seed
+                        $seed,
+                        $ssl
                     );
                 });
                 use futures_util::FutureExt;
@@ -374,7 +418,8 @@ suite!(
     Dialect::Postgres,
     "QUENT_TEST_POSTGRES_DSN",
     "CREATE TABLE quent_dispatch_test.items (id BIGINT NOT NULL,tenant BIGINT NOT NULL,small SMALLINT NULL,normal INT NULL,big BIGINT NULL,flag BOOLEAN NULL,txt TEXT NULL,optional BIGINT NULL,PRIMARY KEY(tenant,id))",
-    "INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'before'),(2,22,'other')"
+    "INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'before'),(2,22,'other')",
+    sqlx::postgres::PgSslMode::Disable
 );
 suite!(
     live_authorized_mysql,
@@ -386,5 +431,6 @@ suite!(
     Dialect::Mysql,
     "QUENT_TEST_MYSQL_DSN",
     "CREATE TABLE quent_dispatch_test.items (id BIGINT NOT NULL,tenant BIGINT NOT NULL,small SMALLINT NULL,normal INT NULL,big BIGINT NULL,flag BOOLEAN NULL,txt TEXT NULL,optional BIGINT NULL,tiny TINYINT NULL,u_tiny TINYINT UNSIGNED NULL,u_small SMALLINT UNSIGNED NULL,u_normal INT UNSIGNED NULL,u_big BIGINT UNSIGNED NULL,PRIMARY KEY(tenant,id))",
-    "INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'before'),(2,22,'other')"
+    "INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'before'),(2,22,'other')",
+    sqlx::mysql::MySqlSslMode::Disabled
 );
