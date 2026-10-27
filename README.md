@@ -1,3 +1,5 @@
+Current QT-AI-10 PR3: [fixed business/audit/outbox owned command bundle](specs/command-bundle-v1.md).
+
 Current QT-AI-10 PR1/PR2: [finite durable command identity, owned ledger/results and explicit replay](specs/command-ledger-v1.md).
 
 Current QT-AI-09 PR2: [explicit request/session-bound permits and final common gate](specs/authorization-gate-v1.md).
@@ -22,6 +24,7 @@ Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; ordinary INSERT/Unknown refuse.
 Application-only commands support all-column single INSERT (tenant supplementation only) and finite Low UPDATE (including checked optimistic versions), exact-one results, an explicit installed ledger and saved-result replay.
+Fixed business1 + audit INSERT1 + outbox INSERT1 bundles use the same Core preparation/gate/owned Tx and replay all three results without additional record sends; explicit bundle tenant mapping and installation/version requirements are in the PR3 contract. No external delivery worker or callback is provided.
 Finite concurrent reservation outcomes and real loopback COMMIT-reply loss are measured in the [PR2 evidence](specs/command-concurrency-v1-evidence.md); they do not establish general exactly-once.
 Finite High UPDATE/physical DELETE require an explicit bound permit; ordinary High still refuses. Multi-operation transactions,
 migration, audit/outbox and MCP remain future work. Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.

@@ -995,14 +995,102 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             "command ownership/restoration: {d}"
         );
     }
+    let output = run(
+        "async fn control(s:&mut PostgresSession,c:&DatabaseContext,b:&quent_core::CommandBundle,n:&quent::CommandNamespace,l:&quent::CommandLedger){let h=s.validate_command_bundle(c,b,n,quent::CommandId::new([1;16]),l,std::time::Duration::from_secs(1)).unwrap();let _=s.execute_command_bundle(c,b,h).await;let h=s.validate_command_bundle(c,b,n,quent::CommandId::new([1;16]),l,std::time::Duration::from_secs(1)).unwrap();let _=s.lookup_command_bundle(c,b,h).await;}",
+    );
+    assert!(
+        output.status.success(),
+        "bundle control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let output = run(
+        "fn control(b:quent_core::CommandBundle,p:quent_core::CommandBundlePreparation,c:&DatabaseContext,r:&quent::CommandResult){let _=b.sensitive_business();let _=b.same_bounded_input(&b);let _=p.sensitive_records();let _=r.sensitive_companion_results();let _=c.prepare().prepare_command_bundle(&b,b\"ns\",&[1;16]);}",
+    );
+    assert!(
+        output.status.success(),
+        "bundle pure control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for ty in [
+        "quent_core::CommandBundle",
+        "quent_core::CommandCompanion",
+        "quent_core::CommandBundlePreparation",
+        "quent::ValidatedCommandBundle",
+    ] {
+        for bound in ["Clone", "Copy"] {
+            let output = run(&format!(
+                "fn require<T:{bound}>(){{}} fn f(){{require::<{ty}>();}}"
+            ));
+            let d = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success() && d.contains("error[E0277]"),
+                "bundle ownership {d}"
+            );
+        }
+        let output = run(&format!("fn f(v:&{ty}){{let _=serde_json::to_string(v);}}"));
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]"),
+            "bundle serialization {d}"
+        );
+        let output = run(&format!(
+            "fn f(){{let _:{ty}=serde_json::from_str(\"{{}}\").unwrap();}}"
+        ));
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains("error[E0277]"),
+            "bundle restoration {d}"
+        );
+    }
+    for (body, diagnostic) in [
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,b:&quent_core::CommandBundle,h:quent::ValidatedCommandBundle){let _=s.execute_command_bundle(c,b,h).await;let _=s.execute_command_bundle(c,b,h).await;}",
+            "E0382",
+        ),
+        (
+            "fn f(s:&mut PostgresSession,c:&DatabaseContext,b:&quent_core::CommandBundle,h:quent::ValidatedCommandBundle){let f=s.execute_command_bundle(c,b,h);drop(f);let _=s.execute_command_bundle(c,b,h);}",
+            "E0382",
+        ),
+        (
+            "fn f(s:&mut PostgresSession,c:&DatabaseContext,b:&quent_core::CommandBundle,h:quent::ValidatedCommandBundle){let f=s.lookup_command_bundle(c,b,h);drop(f);let _=s.lookup_command_bundle(c,b,h);}",
+            "E0382",
+        ),
+        (
+            "fn f(h:&quent::ValidatedCommandBundle){let _=&h.inner;}",
+            "E0616",
+        ),
+        (
+            "fn f(b:&quent_core::CommandBundle){let _=&b.audit;}",
+            "E0616",
+        ),
+        (
+            "fn f(h:quent::ValidatedCommandBundle)->ValidatedOperation{h}",
+            "E0308",
+        ),
+        (
+            "fn f(h:quent_core::CommandBundlePreparation)->ValidatedOperation{h}",
+            "E0308",
+        ),
+        (
+            "fn f(h:quent::CommandResult)->quent::ValidatedCommandBundle{h}",
+            "E0308",
+        ),
+    ] {
+        let output = run(body);
+        let d = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && d.contains(&format!("error[{diagnostic}]")),
+            "bundle boundary {d}"
+        );
+    }
     assert_eq!(
         controls.get(),
-        16,
+        18,
         "compiling positive controls (14 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        295,
+        319,
         "diagnostic-checked negatives (272 retained)"
     );
 }

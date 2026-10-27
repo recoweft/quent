@@ -1,3 +1,5 @@
+Current PR3 extension: [fixed audit/outbox bundle](command-bundle-v1.md). The plain-command byte/API contracts below remain unchanged; PR3-pending statements describe the earlier PR1/PR2 baseline.
+
 # QT-AI-10 planned PR1/PR2: finite durable commands
 
 Application-only `PostgresSession` / `MysqlSession` APIs, under the existing

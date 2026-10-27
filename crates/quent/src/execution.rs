@@ -400,6 +400,7 @@ struct Recorder {
     sql_addresses: Vec<usize>,
     metadata: Vec<Metadata>,
     events: Vec<&'static str>,
+    responses: Vec<&'static str>,
     live: Arc<std::sync::Mutex<Vec<&'static str>>>,
 }
 #[cfg(test)]
@@ -585,7 +586,7 @@ macro_rules! immediate_dispatch {
             handle: ValidatedOperation,
             authorization: Option<AuthorizationCheck<'_>>,
         ) -> Result<ExecutionResult> {
-            self.dispatch_retained(current, operation, &handle, authorization)
+            self.dispatch_retained(current, operation, &handle, authorization, None)
                 .await
         }
         async fn dispatch_retained(
@@ -594,6 +595,7 @@ macro_rules! immediate_dispatch {
             operation: Option<&Operation>,
             handle: &ValidatedOperation,
             authorization: Option<AuthorizationCheck<'_>>,
+            command: Option<(&ValidatedCommand, &Operation, Option<&CommandBundle>)>,
         ) -> Result<ExecutionResult> {
             quiet(async {
                 if !self.available {
@@ -633,6 +635,16 @@ macro_rules! immediate_dispatch {
                 }
                 recheck(handle, &self.identity, &self.context, current, operation)?;
                 recheck_authorization(authorization.as_ref(), handle, &self.identity)?;
+                if let Some((command, business, bundle)) = command {
+                    command_check(
+                        command,
+                        &self.identity,
+                        &self.context,
+                        current,
+                        business,
+                        bundle,
+                    )?;
+                }
                 // Sample the clock AFTER bounded input/context comparison, never before it.
                 #[cfg(test)]
                 let now = self.final_now.take().unwrap_or_else(Instant::now);
@@ -725,6 +737,10 @@ macro_rules! immediate_dispatch {
                 } else {
                     Err(ExecutionError::Unsupported)
                 };
+                #[cfg(test)]
+                if result.is_ok() {
+                    self.recorder.responses.push("operation");
+                }
                 #[cfg(test)]
                 self.recorder.event(if result.is_ok() {
                     "decoded"
@@ -1015,6 +1031,8 @@ macro_rules! borrowed_dispatch {
             #[cfg(test)]
             final_barrier: Option<Arc<tokio::sync::Notify>>,
             #[cfg(test)]
+            command_barrier: Option<(bool, Arc<tokio::sync::Notify>)>,
+            #[cfg(test)]
             pub(super) recorder: Recorder,
         }
         impl fmt::Debug for $name<'_> {
@@ -1048,6 +1066,8 @@ macro_rules! borrowed_dispatch {
                     #[cfg(test)]
                     final_barrier: None,
                     #[cfg(test)]
+                    command_barrier: None,
+                    #[cfg(test)]
                     recorder: Recorder::default(),
                 }
             }
@@ -1075,6 +1095,40 @@ macro_rules! borrowed_dispatch {
                 })
             }
             /// Borrowed transactions cannot own ledger/business/result completion.
+            #[allow(clippy::too_many_arguments)]
+            pub fn validate_command_bundle(
+                &self,
+                _: &DatabaseContext,
+                _: &CommandBundle,
+                _: &CommandNamespace,
+                _: CommandId,
+                _: &CommandLedger,
+                _: Duration,
+            ) -> Result<ValidatedCommandBundle> {
+                Err(ExecutionError::Unsupported)
+            }
+            pub async fn execute_command_bundle(
+                &mut self,
+                _: &DatabaseContext,
+                _: &CommandBundle,
+                _: ValidatedCommandBundle,
+            ) -> std::result::Result<CommandResult, AtomicFailure> {
+                Err(AtomicFailure {
+                    cause: ExecutionError::Unsupported,
+                    disposition: AtomicDisposition::NotStarted,
+                })
+            }
+            pub async fn lookup_command_bundle(
+                &mut self,
+                _: &DatabaseContext,
+                _: &CommandBundle,
+                _: ValidatedCommandBundle,
+            ) -> std::result::Result<Option<CommandResult>, AtomicFailure> {
+                Err(AtomicFailure {
+                    cause: ExecutionError::Unsupported,
+                    disposition: AtomicDisposition::NotStarted,
+                })
+            }
             pub fn validate_command(
                 &self,
                 _: &DatabaseContext,
@@ -1116,8 +1170,13 @@ macro_rules! borrowed_dispatch {
 
 #[macro_use]
 mod command;
+#[cfg(test)]
+use command::saved_result;
 pub use command::*;
-use command::{check_command_result, command_check, inspect_input, result_bytes, saved_result};
+use command::{
+    ValidatedBundle, check_command_result, command_check, command_result_bytes, inspect_input,
+    result_bytes, saved_command_result,
+};
 
 #[cfg(feature = "postgres")]
 mod postgres;

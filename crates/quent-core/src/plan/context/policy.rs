@@ -183,6 +183,14 @@ impl PreparationContext {
     /// qualified identity and complete asserted ordinary-table coverage required.
     /// No connection/provider/clock/authorization/transaction is consulted.
     pub fn prepare_operation(&self, operation: &Operation) -> PolicyResult<PolicyPreparation> {
+        self.prepare_with_mapping(operation, None)
+    }
+    // Only the fixed bundle entry may provide a previously checked companion column.
+    fn prepare_with_mapping(
+        &self,
+        operation: &Operation,
+        mapping: Option<&Column>,
+    ) -> PolicyResult<PolicyPreparation> {
         // Before any recursive clone or traversal. Raw finalize uses this too.
         operation.check_budget()?;
         let snapshot = &self.snapshot;
@@ -229,9 +237,18 @@ impl PreparationContext {
         }) {
             return Err(PolicyError::Identity);
         }
+        let mapped_policy = mapping.cloned().map(PolicyDeclaration::Tenant);
+        let effective_tenant = snapshot.application.tenant.as_ref().map(|t| {
+            let mut t = t.clone();
+            if let Some(c) = mapping {
+                t.column = c.clone();
+            }
+            t
+        });
         let applicable: Vec<_> = declarations
             .iter()
             .filter(|p| p.column().table == d.table)
+            .chain(mapped_policy.as_ref())
             .collect();
         for p in &applicable {
             if !facts.columns.contains(p.column()) {
@@ -250,9 +267,7 @@ impl PreparationContext {
             let c = policy.column();
             match policy {
                 PolicyDeclaration::Tenant(_) => {
-                    let tenant = snapshot
-                        .application
-                        .tenant
+                    let tenant = effective_tenant
                         .as_ref()
                         .ok_or(PolicyError::MissingTenant)?;
                     if tenant.column != *c || tenant.binding != *binding {
@@ -324,7 +339,7 @@ impl PreparationContext {
                 {
                     ds.push((
                         c.clone(),
-                        Input::Value(snapshot.application.tenant.as_ref().unwrap().value.clone()),
+                        Input::Value(effective_tenant.as_ref().unwrap().value.clone()),
                     ));
                 }
             }
@@ -380,21 +395,7 @@ impl PreparationContext {
         if !d.returning.is_empty() {
             return Err(PolicyError::Unsupported);
         }
-        match &d.body {
-            Body::Insert(data) => {
-                let columns = &p.facts().columns;
-                if data.len() != columns.len()
-                    || !columns
-                        .iter()
-                        .all(|c| data.iter().filter(|(supplied, _)| supplied == c).count() == 1)
-                {
-                    return Err(PolicyError::Unsupported);
-                }
-                p.plan.record.insert_proof = Some(FiniteInsertProof::AllAssertedColumns);
-            }
-            Body::Update(_) => (),
-            _ => return Err(PolicyError::Unsupported),
-        }
+        check_command_shape(&mut p)?;
         Ok(p)
     }
 }
@@ -442,3 +443,28 @@ impl SensitivePolicySource<'_> {
         Ok(CommandCanonical(bytes))
     }
 }
+
+fn check_command_shape(p: &mut PolicyPreparation) -> PolicyResult<()> {
+    let d = &p.plan.record.metadata.operation.0;
+    if !d.returning.is_empty() {
+        return Err(PolicyError::Unsupported);
+    }
+    match &d.body {
+        Body::Insert(data) => {
+            let columns = &p.facts().columns;
+            if data.len() != columns.len()
+                || !columns
+                    .iter()
+                    .all(|c| data.iter().filter(|(supplied, _)| supplied == c).count() == 1)
+            {
+                return Err(PolicyError::Unsupported);
+            }
+            p.plan.record.insert_proof = Some(FiniteInsertProof::AllAssertedColumns);
+        }
+        Body::Update(_) => (),
+        _ => return Err(PolicyError::Unsupported),
+    }
+    Ok(())
+}
+mod bundle;
+pub use bundle::*;
