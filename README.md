@@ -191,3 +191,10 @@ QT-AI-09 PR1 introduced immutable trusted registration and non-executing acquisi
 [PR2 final permits](specs/authorization-gate-v1.md) add bound direct/owned/borrowed
 execution for finite scopes, with explicit support/refusal, currentness, expiry and
 cancellation limits. All 24 full runtime_pending markers remain.
+
+QT-AI-12 PR1 adds optional application-only
+[finite non-ANALYZE PerformancePlan acquisition](specs/performance-plan-v1.md).
+Explicit SELECT estimates have Partial coverage, separate from QueryPlan, measured
+performance and authorization. Ordinary Plan/compile/review and CRUD never acquire
+EXPLAIN implicitly; COUNT/DML/unknown query or server structures refuse. No CLI/MCP
+authority or PR2 collector is added.
