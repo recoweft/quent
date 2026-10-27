@@ -192,3 +192,5 @@ Historical statements above deferring public views describe their named baseline
 No public JSON or copied display classification is execution authority. Sensitive
 getters and the complete private gate remain unchanged; CLI/tracing/export remain
 with PR2/owning issues. All 24 full runtime_pending markers remain.
+
+QT-AI-12 PR1: [explicit finite estimated performance evidence](performance-plan-v1.md) uses the common retained-record gate and native binders. Its application-only SELECT acquisition is non-ANALYZE and Partial; no implicit EXPLAIN, measured-performance/authorization claim, public authority restoration or full runtime_pending completion is added.

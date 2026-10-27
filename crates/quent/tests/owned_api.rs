@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review", "review-ci"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review", "review-ci", "performance-plan"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -1301,14 +1301,86 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&r.stderr)
         );
     }
+    let output = run(
+        "async fn performance_control(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation) {let b=quent::PerformanceBudget::new(65536,64,std::time::Duration::from_secs(1)).unwrap();let r=s.performance_request(c,o,b,std::time::Duration::from_secs(2)).unwrap();let p=s.acquire_performance(c,o,r).await.unwrap();let _:quent::PerformanceView=p.public_view();let _=p.public_view().to_json();}",
+    );
+    assert!(
+        output.status.success(),
+        "performance positive control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (body, diagnostic) in [
+        (
+            "fn f(r:quent::PerformanceRequest){let _=r.clone();}",
+            "E0599",
+        ),
+        (
+            "fn f(p:&quent::PerformancePlan){let _=serde_json::to_string(p);}",
+            "E0277",
+        ),
+        (
+            "fn f(){let _:quent::PerformancePlan=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(){let _:quent::PerformanceRequest=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(r:quent::PerformanceRequest){let _=r.operation;}",
+            "E0616",
+        ),
+        ("fn f(p:&quent::PerformancePlan){let _=&p._raw;}", "E0616"),
+        (
+            "fn f(p:quent::PerformanceView)->quent::PerformanceRequest{p.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(p:quent_core::PlanView)->quent::PerformanceRequest{p.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(p:quent::ValidatedOperation)->quent::PerformanceRequest{p.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(p:quent::AuthorizedOperation)->quent::PerformanceRequest{p.into()}",
+            "E0277",
+        ),
+        (
+            "fn f(p:quent::PerformancePlan)->quent::ValidatedOperation{p.into()}",
+            "E0277",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,r:quent::PerformanceRequest){s.acquire_performance(c,o,r).await;s.acquire_performance(c,o,r).await;}",
+            "E0382",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,p:quent_core::PlanView){s.acquire_performance(c,o,p).await;}",
+            "E0308",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,c:&DatabaseContext,o:&Operation,p:quent_core::SensitiveSource<'_>){s.acquire_performance(c,o,p).await;}",
+            "E0308",
+        ),
+    ] {
+        let output = run(body);
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr)
+                    .contains(&format!("error[{diagnostic}]")),
+            "performance negative: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        21,
+        22,
         "compiling positive controls (20 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        377,
+        391,
         "diagnostic-checked negatives (361 retained)"
     );
 }

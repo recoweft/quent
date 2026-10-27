@@ -28,6 +28,8 @@ pub struct PostgresSession {
     available: bool,
     identity: Arc<()>,
     result_state: ResultState,
+    #[cfg(all(test, feature = "performance-plan"))]
+    pub(super) performance_return_barrier: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
     pub(super) final_now: Option<Instant>,
     #[cfg(test)]
@@ -60,6 +62,8 @@ impl PostgresSession {
             available: true,
             identity: Arc::new(()),
             result_state: ResultState::Observed,
+            #[cfg(all(test, feature = "performance-plan"))]
+            performance_return_barrier: None,
             #[cfg(test)]
             final_now: None,
             #[cfg(test)]
@@ -72,6 +76,8 @@ impl PostgresSession {
             atomic_fault: None,
         })
     }
+    #[cfg(feature = "performance-plan")]
+    performance_dispatch!(Postgres, Postgres);
     immediate_dispatch!(Postgres, Postgres, PostgresMatched);
     compiled_dispatch!(Postgres);
     atomic_dispatch!(Postgres, Postgres, BorrowedPostgresTransaction);
@@ -192,4 +198,33 @@ borrowed_dispatch!(
 
 impl BorrowedPostgresTransaction<'_> {
     command_protocol!(Postgres, Postgres);
+}
+
+#[cfg(feature = "performance-plan")]
+fn performance_payload(row: &PgRow) -> performance::PerfResult<Vec<u8>> {
+    if row.len() != 1 {
+        return Err(PerformanceError::Metadata);
+    }
+    if row.column(0).type_info().name() != "JSON" {
+        return Err(PerformanceError::Metadata);
+    }
+    let raw = row.try_get_raw(0).map_err(|_| PerformanceError::Decode)?;
+    let bytes = raw.as_bytes().map_err(|_| PerformanceError::Decode)?;
+    if bytes.len() > performance::MAX_BYTES {
+        return Err(PerformanceError::Budget);
+    }
+    Ok(bytes.to_vec())
+}
+
+#[cfg(feature = "performance-plan")]
+fn performance_version(row: &PgRow) -> performance::PerfResult<()> {
+    if row.len() != 1 {
+        return Err(PerformanceError::Metadata);
+    }
+    if row.column(0).type_info().name() != "TEXT" {
+        return Err(PerformanceError::Metadata);
+    }
+    let raw = row.try_get_raw(0).map_err(|_| PerformanceError::Metadata)?;
+    let bytes = raw.as_bytes().map_err(|_| PerformanceError::Metadata)?;
+    performance::version(bytes, Dialect::Postgres)
 }

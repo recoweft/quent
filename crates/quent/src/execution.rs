@@ -426,6 +426,12 @@ impl Recorder {
         self.metadata.push(metadata.clone());
     }
 }
+#[cfg(feature = "performance-plan")]
+#[macro_use]
+mod performance;
+#[cfg(feature = "performance-plan")]
+pub use performance::*;
+
 // A closed macro expands the identical immediate/delayed dispatcher for the two owned
 // driver connections. Binding/decoding are finite private adapter functions; no
 // caller can implement or supply a backend, binder, executor or callback.

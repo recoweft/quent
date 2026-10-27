@@ -28,6 +28,8 @@ pub struct MysqlSession {
     available: bool,
     identity: Arc<()>,
     result_state: ResultState,
+    #[cfg(all(test, feature = "performance-plan"))]
+    pub(super) performance_return_barrier: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
     pub(super) final_now: Option<Instant>,
     #[cfg(test)]
@@ -60,6 +62,8 @@ impl MysqlSession {
             available: true,
             identity: Arc::new(()),
             result_state: ResultState::Observed,
+            #[cfg(all(test, feature = "performance-plan"))]
+            performance_return_barrier: None,
             #[cfg(test)]
             final_now: None,
             #[cfg(test)]
@@ -72,6 +76,8 @@ impl MysqlSession {
             atomic_fault: None,
         })
     }
+    #[cfg(feature = "performance-plan")]
+    performance_dispatch!(MySql, Mysql);
     immediate_dispatch!(MySql, Mysql, MysqlFoundRows);
     compiled_dispatch!(Mysql);
     atomic_dispatch!(MySql, Mysql, BorrowedMysqlTransaction);
@@ -242,4 +248,41 @@ borrowed_dispatch!(
 
 impl BorrowedMysqlTransaction<'_> {
     command_protocol!(MySql, Mysql);
+}
+
+#[cfg(feature = "performance-plan")]
+fn performance_payload(row: &MySqlRow) -> performance::PerfResult<Vec<u8>> {
+    if row.len() != 1 {
+        return Err(PerformanceError::Metadata);
+    }
+    let info = row.column(0).type_info();
+    if !matches!(
+        info.name(),
+        "JSON" | "TEXT" | "BLOB" | "VARCHAR" | "VARBINARY" | "LONGTEXT" | "LONGBLOB"
+    ) {
+        return Err(PerformanceError::Metadata);
+    }
+    let bytes: &[u8] = row
+        .try_get_unchecked(0)
+        .map_err(|_| PerformanceError::Decode)?;
+    if bytes.len() > performance::MAX_BYTES {
+        return Err(PerformanceError::Budget);
+    }
+    Ok(bytes.to_vec())
+}
+
+#[cfg(feature = "performance-plan")]
+fn performance_version(row: &MySqlRow) -> performance::PerfResult<()> {
+    if row.len() != 1 {
+        return Err(PerformanceError::Metadata);
+    }
+    let info = row.column(0).type_info();
+    if !matches!(info.name(), "VARCHAR" | "VARBINARY") || !<String as Type<MySql>>::compatible(info)
+    {
+        return Err(PerformanceError::Metadata);
+    }
+    let bytes: &[u8] = row
+        .try_get_unchecked(0)
+        .map_err(|_| PerformanceError::Metadata)?;
+    performance::version(bytes, Dialect::Mysql)
 }

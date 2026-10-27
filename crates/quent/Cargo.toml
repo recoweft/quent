@@ -27,6 +27,7 @@ rustix = { version = "=1.1.4", default-features = false, features = ["std", "fs"
 
 [features]
 default = []
+performance-plan = ["dep:serde", "dep:serde_json"]
 review-ci = ["review"]
 source-review = ["dep:serde", "dep:serde_json", "dep:syn"]
 review = ["manifest", "operation-spec"]

@@ -267,3 +267,5 @@ migration detail export. Existing manifest v1/fingerprint and CRUD output format
 are unchanged; no preflight/apply/provider/handle/CLI/MCP execution is added.
 See [finite C22-centered evidence](migration-plan-v1-evidence.md). All 24 full
 runtime_pending markers and original fixtures remain unchanged.
+
+QT-AI-12 PR1: [explicit finite estimated performance evidence](performance-plan-v1.md) uses the common retained-record gate and native binders. Its application-only SELECT acquisition is non-ANALYZE and Partial; no implicit EXPLAIN, measured-performance/authorization claim, public authority restoration or full runtime_pending completion is added.

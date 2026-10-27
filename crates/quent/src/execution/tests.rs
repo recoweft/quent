@@ -585,6 +585,151 @@ macro_rules! live_suite {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||runtime.block_on(async {
                 let d = $dialect; let c = context(d,11,"subject",vec![]);
                 let mut session = $session::connect(options.clone(),c.clone()).await.unwrap();
+                #[cfg(feature="performance-plan")]
+                Box::pin(async {
+                    // C21/C01/C06/C08/C11-C15/C19/C23/C24: explicit finite
+                    // application acquisition; observer/setup never counted as dispatch.
+                    let op=select(d).filter(filter(1)).limit(10).freeze();
+                    let b=PerformanceBudget::new(65_536,64,Duration::from_secs(5)).unwrap();
+                    let mut perf=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let mut observer=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
+                    let catalog_sql="SELECT column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='quent_dispatch_test' AND table_name='items' ORDER BY ordinal_position";
+                    let catalog=sqlx::query(catalog_sql).fetch_all(&mut observer).await.unwrap();
+                    let before_schema:Vec<Vec<String>>=catalog.iter().map(|r|(0..3).map(|i|r.try_get_unchecked(i).unwrap()).collect()).collect();
+                    assert_eq!(before_schema.len(),fields(d).len());
+                    let request=perf.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                    let source=request.operation.prepared.sensitive_source();
+                    let final_record=source.final_source();
+                    let expected_sql=final_record.sql().to_owned();
+                    let expected_args=final_record.args().to_vec();
+                    let expected_metadata=final_record.metadata().clone();
+                    assert!(perf.recorder.calls.is_empty());
+                    assert!(perf.recorder.events.is_empty());
+                    let evidence=perf.acquire_performance(&c,&op,request).await.unwrap();
+                    assert_eq!(perf.recorder.calls.len(),1);
+                    let prefix=if d==Dialect::Postgres {"EXPLAIN (FORMAT JSON) "} else {"EXPLAIN FORMAT=JSON "};
+                    assert_eq!(perf.recorder.calls[0],(format!("{prefix}{expected_sql}"),expected_args));
+                    assert_eq!(perf.recorder.metadata[0],expected_metadata);
+                    assert_eq!(perf.recorder.events,vec!["performance_version","performance_explain","send"]);
+                    assert!(!perf.recorder.calls[0].0.contains("ANALYZE"));
+                    assert_eq!(evidence.public_view().to_json().matches("Estimated").count(),1);
+                    assert!(!format!("{evidence:?}").contains("items"));
+                    // The ordinary session's business counter is still untouched.
+                    assert!(session.recorder.calls.is_empty());
+                    // Independent full observer: data and projection metadata unchanged.
+                    let rows=sqlx::query("SELECT id,tenant,txt FROM quent_dispatch_test.items ORDER BY tenant,id").fetch_all(&mut observer).await.unwrap();
+                    assert_eq!(rows.len(),2);
+                    assert_eq!(rows[0].len(),3);
+                    assert_eq!(rows[0].try_get::<i64,_>(0).unwrap(),1);
+                    assert_eq!(rows[0].try_get::<i64,_>(1).unwrap(),11);
+                    assert_eq!(rows[0].try_get::<String,_>(2).unwrap(),"");
+                    assert_eq!(rows[1].try_get::<i64,_>(0).unwrap(),2);
+                    assert_eq!(rows[1].try_get::<i64,_>(1).unwrap(),22);
+                    assert_eq!(rows[1].try_get::<String,_>(2).unwrap(),"other");
+                    let catalog=sqlx::query(catalog_sql).fetch_all(&mut observer).await.unwrap();
+                    let after_schema:Vec<Vec<String>>=catalog.iter().map(|r|(0..3).map(|i|r.try_get_unchecked(i).unwrap()).collect()).collect();
+                    assert_eq!(before_schema,after_schema);
+
+                    // Every supported native nullable type is bound as native NULL;
+                    // both optimizers report an impossible predicate, never run SELECT.
+                    for column in fields(d).into_iter().filter(|c|c.nullable()) {
+                        let null=Value::Null(column.sql_type());
+                        let null_op=select(d).filter(Predicate::And(vec![filter(1),eq(column,null.clone())])).limit(10).freeze();
+                        let mut native=$session::connect(options.clone(),c.clone()).await.unwrap();
+                        let request=native.performance_request(&c,&null_op,b,Duration::from_secs(30)).unwrap();
+                        let evidence=native.acquire_performance(&c,&null_op,request).await.unwrap();
+                        assert_eq!(evidence.public_view().to_json().matches("Partial").count(),1);
+                        assert_eq!(native.recorder.calls.len(),1);
+                        assert!(native.recorder.calls[0].1.contains(&null));
+                        assert_eq!(native.recorder.calls[0].1[0],Value::I64(1));
+                        assert_eq!(native.recorder.calls[0].1[2],Value::I64(11));
+                        assert!(native.recorder.calls[0].0.starts_with(prefix));
+                    }
+                    let mut metadata_control=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    metadata_control.test_performance_metadata().await;
+                    assert!(metadata_control.recorder.calls.is_empty());
+                    // Result-budget failure consumes real EXPLAIN, no truncated success.
+                    let tiny=PerformanceBudget::new(1,64,Duration::from_secs(5)).unwrap();
+                    let mut limit=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let request=limit.performance_request(&c,&op,tiny,Duration::from_secs(30)).unwrap();
+                    assert_eq!(limit.acquire_performance(&c,&op,request).await.unwrap_err(),PerformanceError::Budget);
+                    assert_eq!(limit.recorder.calls.len(),1);
+                    assert!(!limit.is_available());
+                    // Internal deadline cancels at private post-bind seam after actual version I/O.
+                    let timeout_budget=PerformanceBudget::new(65_536,64,Duration::from_millis(100)).unwrap();
+                    let mut timeout=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    timeout.final_barrier=Some(Arc::new(tokio::sync::Notify::new()));
+                    let request=timeout.performance_request(&c,&op,timeout_budget,Duration::from_secs(30)).unwrap();
+                    assert_eq!(timeout.acquire_performance(&c,&op,request).await.unwrap_err(),PerformanceError::Timeout);
+                    assert!(timeout.recorder.calls.is_empty());
+                    assert_eq!(timeout.recorder.events,vec!["performance_version"]);
+                    assert!(!timeout.is_available());
+                    // Wrong application schema assertion produces a real driver refusal,
+                    // not permission/Fresh evidence or arbitrary cause text.
+                    let missing=col("canary_missing_column",SqlType::I64,false);
+                    let mut columns=fields(d);columns.push(missing.clone());
+                    let wrong=context_schema(d,11,"CANARY_SUBJECT",vec![],0,columns);
+                    let missing_op=Draft::select(table(),vec![Projection::new(missing,None)]).filter(filter(1)).freeze();
+                    let mut invalid=$session::connect(options.clone(),wrong.clone()).await.unwrap();
+                    let request=invalid.performance_request(&wrong,&missing_op,b,Duration::from_secs(30)).unwrap();
+                    let error=invalid.acquire_performance(&wrong,&missing_op,request).await.unwrap_err();
+                    assert_eq!(error,PerformanceError::Read);
+                    assert!(!format!("{error:?} {error}").contains("CANARY"));
+                    assert!(std::error::Error::source(&error).is_none());
+                    assert_eq!(invalid.recorder.calls.len(),1);
+                    assert!(!invalid.is_available());
+                    // Independently supplied context and operation mismatch refuse
+                    // before even the auxiliary version query.
+                    for current in [context(d,12,"subject",vec![]),context(d,11,"other_subject",vec![]),context_variant(d,11,"subject",vec![],9)] {
+                        let request=perf.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                        let before=perf.recorder.events.len();
+                        assert!(perf.acquire_performance(&current,&op,request).await.is_err());
+                        assert_eq!(perf.recorder.events.len(),before);
+                    }
+                    let request=perf.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                    let changed_op=select(d).filter(filter(2)).limit(10).freeze();
+                    let before=perf.recorder.events.len();
+                    assert_eq!(perf.acquire_performance(&c,&changed_op,request).await.unwrap_err(),PerformanceError::Execution(ExecutionError::OperationMismatch));
+                    assert_eq!(perf.recorder.events.len(),before);
+                    let write=Draft::update(table(),write(Value::Text("CANARY_VALUE".into()),changed())).filter(filter(1)).freeze();
+                    assert_eq!(perf.performance_request(&c,&write,b,Duration::from_secs(30)).unwrap_err(),PerformanceError::Unsupported);
+                    let request=perf.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                    let mut other=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    assert_eq!(other.acquire_performance(&c,&op,request).await.unwrap_err(),PerformanceError::Execution(ExecutionError::ContextMismatch));
+                    assert!(other.recorder.events.is_empty());
+                    let mut expired=perf.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                    expired.operation.expires=Instant::now();
+                    assert_eq!(perf.acquire_performance(&c,&op,expired).await.unwrap_err(),PerformanceError::Execution(ExecutionError::Expired));
+                    // Actual monotonic expiry after EXPLAIN/full decode, before return.
+                    let mut late=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let barrier=Arc::new(tokio::sync::Notify::new());
+                    late.performance_return_barrier=Some(barrier.clone());
+                    let request=late.performance_request(&c,&op,b,Duration::from_millis(500)).unwrap();
+                    let (result,())=futures_util::future::join(late.acquire_performance(&c,&op,request),async {tokio::time::sleep(Duration::from_millis(600)).await;barrier.notify_one();}).await;
+                    assert_eq!(result.unwrap_err(),PerformanceError::Execution(ExecutionError::Expired));
+                    assert_eq!(late.recorder.calls.len(),1);
+                    assert!(!late.is_available());
+                    // Native-bind boundary expiry: auxiliary1, EXPLAIN0, no business.
+                    let mut exp=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    let request=exp.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                    exp.final_now=Some(request.operation.expires);
+                    assert_eq!(exp.acquire_performance(&c,&op,request).await.unwrap_err(),PerformanceError::Execution(ExecutionError::Expired));
+                    assert_eq!(exp.recorder.events,vec!["performance_version"]);
+                    assert!(!exp.is_available());
+                    // Cancellation at the private post-bind seam, real auxiliary I/O.
+                    let mut cancel=$session::connect(options.clone(),c.clone()).await.unwrap();
+                    cancel.final_barrier=Some(Arc::new(tokio::sync::Notify::new()));
+                    let request=cancel.performance_request(&c,&op,b,Duration::from_secs(30)).unwrap();
+                    {
+                        let fut=cancel.acquire_performance(&c,&op,request);
+                        tokio::pin!(fut);
+                        assert!(tokio::time::timeout(Duration::from_millis(50),&mut fut).await.is_err());
+                    }
+                    assert!(!cancel.is_available());
+                    assert_eq!(cancel.recorder.events,vec!["performance_version"]);
+                    eprintln!("C21 {:?}: positive auxiliary1/EXPLAIN1/business0/provider0/Tx0; nativeNULL_cases={}; metadata raw-control1 separate; resultbudget/readerror/returnexpiry each auxiliary1/EXPLAIN1/business0; current-operation-session-entryexpiry rejects auxiliary0/EXPLAIN0; bindexpiry/timeout/cancel auxiliary1/EXPLAIN0; independent data+column/type/nullability/order catalog observer unchanged",d,fields(d).iter().filter(|c|c.nullable()).count());
+
+                }).await;
                 #[cfg(feature="output-tracing")]
                 if d==Dialect::Postgres {
                     // Deliberately hostile physical side effect, solely an output
