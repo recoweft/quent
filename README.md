@@ -31,7 +31,8 @@ cargo run -p quent --example tenant_review --no-default-features --features code
 ```
 
 This uses synthetic application assertions, exact production regeneration comparison,
-nominal keys and inspection-only patches. It supplies no authentication or execution
+nominal keys, inspection-only patches and a separately declared finite migration
+plan. It supplies no authentication or execution
 authority. For the public runtime flow, an application explicitly connects using its
 trusted current context, registers its own authorization adapter, and performs:
 

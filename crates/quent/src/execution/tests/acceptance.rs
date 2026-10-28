@@ -374,6 +374,10 @@ macro_rules! tenant_acceptance {
                         let error=outcome.unwrap_err();assert_eq!(error.cause(),ExecutionError::OutcomeUnknown);assert_eq!(error.disposition(),AtomicDisposition::OutcomeUnknown);assert!(!network.is_available());
                     }
                     assert_eq!(network.recorder.calls.len(),1);
+                    for (event,expected) in [("begin",1),("begun",1),("ledger_lookup",1),("ledger_reserve",1),("ledger_result",1),("commit",1),("committed",usize::from(i==2)),("rolled_back",0)] {
+                        assert_eq!(network.recorder.events.iter().filter(|&&actual|actual==event).count(),expected,"network stage {event}");
+                    }
+
                     assert_eq!(proxy.sent.load(Ordering::SeqCst),i!=0);assert_eq!(proxy.reply.load(Ordering::SeqCst),i!=0);
                     drop(network);drop(proxy);
                     let mut reconciliation=$session::connect(options.clone(),c.clone()).await.unwrap();
@@ -381,10 +385,16 @@ macro_rules! tenant_acceptance {
                     let stored=reconciliation.lookup_command(&c,&operation,handle).await.unwrap();
                     assert_eq!(stored.is_some(),i!=0);if let Some(result)=stored {assert_eq!(result.kind(),CommandResultKind::Replayed);}
                     assert!(reconciliation.recorder.calls.is_empty());
+                    for event in ["begin","begun","ledger_lookup","commit","committed"] {
+                        assert_eq!(reconciliation.recorder.events.iter().filter(|&&actual|actual==event).count(),1,"reconciliation stage {event}");
+                    }
+                    assert_eq!(reconciliation.recorder.responses.iter().filter(|&&actual|actual=="ledger_lookup").count(),1);
+
                     let expected=if i==0 {"CANARY_bundle_saved"}else{value};
                     assert_eq!(sqlx::query("SELECT txt FROM quent_dispatch_test.items WHERE tenant=11 AND id=1").fetch_one(&mut observer).await.unwrap().get::<String,_>(0),expected);
                     println!("QT-AI-14 {d:?} same-table command protocol case={i}: business1 forwarded_commit={} serverACK={} clientACK={} reconciliation_business0 stored={} observer_expected",i!=0,i!=0,i==2,i!=0);
                 }
+                assert_eq!(sqlx::query("SELECT COUNT(*) FROM quent_dispatch_test.acceptance_ledger").fetch_one(&mut observer).await.unwrap().get::<i64,_>(0),4);
                 sqlx::query("DROP TABLE quent_dispatch_test.acceptance_ledger").execute(&mut observer).await.unwrap();
                 assert_eq!(provider.calls.load(Ordering::SeqCst),3);
                 let business_before = session.recorder.calls.len();
@@ -434,6 +444,15 @@ macro_rules! tenant_acceptance {
                 assert!(session.execute_authorized(&auth,&request,&different,permit).await.is_err());
                 }).await;
                 assert_eq!(provider.calls.load(Ordering::SeqCst),19);
+                assert_eq!(session.recorder.calls.len(),8);
+                for (event,expected) in [("begin",10),("begun",10),("commit",5),("committed",5),("rollback",5),("rolled_back",5),("ledger_lookup",8),("ledger_reserve",3),("ledger_result",2)] {
+                    assert_eq!(session.recorder.events.iter().filter(|&&actual|actual==event).count(),expected,"session stage {event}");
+                }
+                for (event,expected) in [("ledger_lookup",8),("ledger_reserve",3),("ledger_result",2)] {
+                    assert_eq!(session.recorder.responses.iter().filter(|&&actual|actual==event).count(),expected,"ledger response {event}");
+                }
+                println!("QT-AI-14 {d:?} main session: business8 ledger SELECT8/reserve3/result-save2 allACK; owned BEGIN10/ACK10 COMMIT5/ACK5 ROLLBACK5/ACK5; protocol sessions separately business3 ledger3x3 begin3 commit_attempt3 commitACK1; reconciliation SQL3 business0 begin3/commitACK3; borrowed read1 caller rollback1; provider19");
+
                 assert_eq!(session.recorder.calls.len(),business_before);
                 assert_eq!(session.recorder.events.len(),tx_before);
                 let final_rows=sqlx::query("SELECT tenant,id,txt FROM quent_dispatch_test.items ORDER BY tenant,id").fetch_all(&mut observer).await.unwrap();

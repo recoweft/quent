@@ -41,7 +41,11 @@ evidence only, not its replacement.
 
 `examples/tenant_review.rs` is a DB-free synthetic walkthrough: production generation,
 exact regeneration comparison, nominal key/repository read, three-state patch and
-manifest-domain review. It deliberately uses the checked fixture application's
+manifest-domain review and a separate constraint-free nullable-integer tail ADD
+plan with Expand/NoWork phase checks. The migration source is supplied independently,
+never restored from the keyed model or a Fresh manifest. The DB-free example does
+not perform preflight, human acquisition or apply; the dedicated live suites exercise
+those existing explicit boundaries. It deliberately uses the checked fixture application's
 assertion helpers; replace those with authenticated current application supply in
 an actual service. Patch inspection does not become an executable update. The real
 public execution sequence is exercised in the live acceptance tests above.
@@ -181,3 +185,15 @@ fault fixtures from actual database commits. Setup/catalog observers and connect
 initialization are not business submissions. The retained request observation and
 migration suites report their own exact counters; their auxiliary/Tx measurements
 must not be summed into these application business counts.
+
+New tenant-flow aggregate counters are asserted separately from physical setup/
+observer/connection traffic: main session business8 and ledger SELECT8/reserve3/
+result-save2, all ledger ACKs; owned BEGIN10/ACK10, COMMIT5/ACK5, ROLLBACK5/ACK5.
+Protocol sessions contribute business3 and ledger3×3, begin3 and commit attempts3
+but client commit ACK1; independent fresh reconciliation contributes lookup3,
+business0 and begin3/commit ACK3. Borrowed read1/caller rollback1 remains separate.
+Provider calls19 include three response-rejection controls and thirteen acquired
+permits subsequently rejected at the independently current dispatch boundary.
+These are finite per-engine measurements, not all driver communications or a
+production authentication claim. Final ledger observer sees four durable records;
+failed duplicate and before-COMMIT controls leave no durable new identity.

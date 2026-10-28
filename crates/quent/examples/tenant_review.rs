@@ -11,6 +11,73 @@ mod generated {
 }
 use quent::codegen::{compare, generate};
 use quent_core::{Dialect, PolicyDeclaration};
+fn migration_review() {
+    use quent_core::{Ident, SqlType, Value, migration::*};
+    // Separate constraint-free telemetry table. This is independently supplied
+    // migration source, never a conversion from manifest Fresh or the keyed model.
+    let schema = |after: bool| {
+        let mut columns = vec![
+            MigrationColumn::new(
+                Ident::new("usage").unwrap(),
+                Observed::Known(SqlType::I64),
+                Observed::Known(false),
+                MigrationDefault::Literal(Value::I64(7)),
+            )
+            .unwrap(),
+        ];
+        if after {
+            columns.push(
+                MigrationColumn::new(
+                    Ident::new("observed_count").unwrap(),
+                    Observed::Known(SqlType::I32),
+                    Observed::Known(true),
+                    MigrationDefault::Absent,
+                )
+                .unwrap(),
+            );
+        }
+        let table = MigrationTable::new(
+            MigrationName::new(
+                Ident::new("quent_dispatch_test").unwrap(),
+                Ident::new("tenant_telemetry").unwrap(),
+            ),
+            TableEffects::Ordinary,
+            TableCoverage {
+                columns: Knowledge::Complete,
+                indexes: Knowledge::Complete,
+                foreign_keys: Knowledge::Complete,
+                checks: Knowledge::Complete,
+            },
+            columns,
+            vec![],
+            vec![],
+            vec![],
+        )
+        .unwrap();
+        MigrationSchema::new(
+            MigrationTarget::new(
+                "dedicated_test".into(),
+                "dedicated_loopback".into(),
+                Ident::new("quent_dispatch_test").unwrap(),
+                Dialect::Postgres,
+            )
+            .unwrap(),
+            SchemaAuthority::ApplicationDeclared,
+            Knowledge::Complete,
+            vec![table],
+        )
+        .unwrap()
+    };
+    let plan = plan_migration(&schema(false), &schema(true));
+    let phases = plan.phases();
+    assert_eq!(phases[0].capability(), PhaseCapability::NullableAppend);
+    assert_eq!(phases[0].steps(), 1);
+    assert_eq!(phases[1].capability(), PhaseCapability::NoWork);
+    assert_eq!(phases[2].capability(), PhaseCapability::NoWork);
+    println!("{}", plan.public_view().to_json());
+    // No apply: runtime preflight, independent human instruction and current
+    // attestations are explicit separate APIs, exercised by dedicated live tests.
+}
 fn main() {
     let source = include_bytes!("../../../fixtures/codegen-v2/postgres-source.json");
     let config = include_bytes!("../../../fixtures/codegen-v2/postgres-config.json");
@@ -65,4 +132,5 @@ fn main() {
     println!("{}", quent::review::inspection(&read.inspect()).to_json());
     // Offline domain review cannot establish live freshness or business authority.
     println!("{}", quent::review::manifest(source).unwrap().to_json());
+    migration_review();
 }
