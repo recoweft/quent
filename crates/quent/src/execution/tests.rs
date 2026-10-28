@@ -12,6 +12,8 @@ mod authorized_network;
 #[macro_use]
 mod observation;
 use observation::check_public;
+#[cfg(feature = "review")]
+mod acceptance;
 mod command;
 mod command_network;
 fn id(s: &str) -> Ident {

@@ -1,6 +1,21 @@
 use super::*;
 #[path = "../../../tests/codegen_support/mod.rs"]
 mod fixtures;
+#[allow(dead_code)]
+mod patches {
+    pub mod pg {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/codegen-v2/postgres-generated.rs"
+        ));
+    }
+    pub mod my {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/codegen-v2/mysql-generated.rs"
+        ));
+    }
+}
 macro_rules! suite {
     ($name:ident,$feature:literal,$driver:ident,$options:ty,$connection:ty,$dialect:expr,$dsn:literal,$module:ident,$create:literal,$seed:literal) => {
         #[cfg(feature=$feature)]
@@ -16,6 +31,55 @@ macro_rules! suite {
                 let mut raw=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();
                 sqlx::query($create).execute(&mut raw).await.unwrap();
                 sqlx::query($seed).execute(&mut raw).await.unwrap();
+                // One v2 generated consumer workflow: regenerate exact bytes,
+                // bind independently supplied current policy, inspect a three-state
+                // patch, then execute a generated read and verify no patch effects.
+                {
+                    use patches::$module::generated_items as v2;
+                    let columns=fixtures::columns(d,"generated_items");
+                    let declarations=if d==Dialect::Postgres {vec![PolicyDeclaration::Readonly(columns[3].clone()),PolicyDeclaration::Generated(columns[4].clone())]}else{vec![]};
+                    let current=fixtures::context(d,0,declarations);
+                    let mapping=fixtures::mapping(&current,d,"generated_items");
+                    let repository=v2::Repository::bind(&current,&mapping).unwrap();
+                    let dialect_name=if d==Dialect::Postgres {"postgres"}else{"mysql"};
+                    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/codegen-v2");
+                    let source=std::fs::read(root.join(format!("{dialect_name}-source.json"))).unwrap();
+                    let config=std::fs::read(root.join(format!("{dialect_name}-config.json"))).unwrap();
+                    let existing=std::fs::read(root.join(format!("{dialect_name}-generated.rs"))).unwrap();
+                    let prior=crate::codegen::generate(&source,&config).unwrap();
+                    let next=crate::codegen::generate(&source,&config).unwrap();
+                    assert_eq!(next.sensitive_rust_source().as_bytes(),existing);
+                    assert_eq!(crate::codegen::compare(&prior,&next,Some(&existing)).state(),crate::codegen::RegenerationState::NoChange);
+                    let patch=v2::Patch::new().set_null_big().unwrap().set_txt(String::new()).unwrap().set_flag(false).unwrap();
+                    let compiled=repository.compile_patch(v2::Key::new(-16,1),patch).unwrap();
+                    assert!(compiled.matches_current(&current,&mapping));
+                    assert_eq!(compiled.inspect().sensitive_source().args(),[Value::Null(SqlType::I64),Value::Bool(false),Value::Text(String::new()),Value::I16(-16),Value::I64(1),Value::I64(11)]);
+                    #[cfg(feature="review")]
+                    {
+                        assert_eq!(crate::review::inspection(&compiled.inspect()).state(),crate::review::State::Unknown);
+                        assert_eq!(crate::review::manifest(&source).unwrap().state(),crate::review::State::Unknown);
+                    }
+                    let mut consumer=$driver::connect(options.clone(),current.clone()).await.unwrap();
+                    assert!(consumer.recorder.calls.is_empty());
+                    assert!(consumer.recorder.events.is_empty());
+                    let read=repository.select(v2::Model::compact(),Some(v2::Key::new(-16,1).predicate().unwrap()),vec![],1).unwrap();
+                    let inspected=read.inspect();let record=inspected.sensitive_source();let allocation=record.sql().as_ptr() as usize;let args=record.args().to_vec();let metadata=record.metadata().clone();
+                    let result=execute!(read,consumer,current,mapping,$module).await.unwrap();
+                    assert_eq!(result.sensitive_rows().len(),1);
+                    assert_eq!(*result.sensitive_rows()[0].sensitive_id(),1);
+                    assert_eq!(*result.sensitive_rows()[0].sensitive_optional(),None);
+                    assert_eq!(consumer.recorder.calls.len(),1);
+                    assert_eq!(consumer.recorder.sql_addresses,[allocation]);
+                    assert_eq!(consumer.recorder.calls[0].1,args);
+                    assert_eq!(consumer.recorder.metadata,[metadata]);
+                    // Independent observer checks retained old data: inspection
+                    // never executed the patch's SetNull/false/empty text.
+                    use sqlx::Row;
+                    let row=sqlx::query("SELECT big,txt FROM quent_dispatch_test.generated_items WHERE part=-16 AND id=1 AND tenant=11").fetch_one(&mut raw).await.unwrap();
+                    assert_eq!(row.get::<i64,_>(0),i64::MIN);
+                    assert_eq!(row.get::<String,_>(1),"CANARY_GENERATED_RESULT");
+                    println!("QT-AI-14 {d:?} generated-v2: exact regen NoChange; patch inspection SQL0/provider0; generated-read SQL1 same allocation/args/metadata; independent observer unchanged big/txt; no patch execution authority");
+                }
                 let c=fixtures::context(d,0,vec![]);let m=fixtures::mapping(&c,d,"generated_items");
                 let repo=model::Repository::bind(&c,&m).unwrap();
                 let make=||repo.select(model::Model::detail(),Some(model::Key::new(-16,1).predicate().unwrap()),vec![model::Model::id().desc()],10).unwrap();

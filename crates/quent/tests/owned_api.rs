@@ -1501,14 +1501,64 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&output.stderr)
         );
     }
+    let output = run(
+        "async fn control(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation){let c=s.authorization_candidate(a,r,o,quent::authorization::AuthorizationScope::MultiRowUpdate,std::time::Duration::from_secs(1)).unwrap();let view:quent::review::Review=c.review();let _=c.review().to_json();let _=view.to_json();let h=s.acquire_authorized(a,r,c).await.unwrap();let _=s.execute_authorized(a,r,o,h).await;}",
+    );
+    assert!(
+        output.status.success(),
+        "candidate review control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (body, code) in [
+        (
+            "async fn f(s:&PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,c:quent::ExecutableAuthorizationCandidate){s.acquire_authorized(a,r,c.review()).await;}",
+            "E0308",
+        ),
+        (
+            "async fn f(s:&mut PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,o:&Operation,c:quent::ExecutableAuthorizationCandidate){s.execute_authorized(a,r,o,c.review()).await;}",
+            "E0308",
+        ),
+        (
+            "fn f(c:quent::ExecutableAuthorizationCandidate){let _:ValidatedOperation=c.review();}",
+            "E0308",
+        ),
+        (
+            "fn f(c:quent::ExecutableAuthorizationCandidate){let _=c.review().sensitive_source();}",
+            "E0599",
+        ),
+        (
+            "fn f(c:quent::ExecutableAuthorizationCandidate,o:Operation){c.replace_operation(o);}",
+            "E0599",
+        ),
+        (
+            "fn f(c:quent::ExecutableAuthorizationCandidate){let _:quent::ExecutableAuthorizationCandidate=serde_json::from_str(&c.review().to_json()).unwrap();}",
+            "E0277",
+        ),
+        (
+            "async fn f(s:&PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,c:quent::ExecutableAuthorizationCandidate){s.acquire_authorized(a,r,c).await;let _=c.review();}",
+            "E0382",
+        ),
+        (
+            "async fn f(s:&PostgresSession,a:&quent::authorization::AuthorizationContext,r:&quent::AuthorizationExecutionRequest,c:quent::ExecutableAuthorizationCandidate){let borrowed=&c;s.acquire_authorized(a,r,c).await;let _=borrowed.review();}",
+            "E0505",
+        ),
+    ] {
+        let output = run(body);
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains(&format!("error[{code}]")),
+            "candidate review negative {code}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        24,
-        "compiling positive controls (23 retained)"
+        25,
+        "compiling positive controls (24 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        417,
-        "diagnostic-checked negatives (409 retained)"
+        425,
+        "diagnostic-checked negatives (417 retained)"
     );
 }
