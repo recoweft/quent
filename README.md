@@ -23,7 +23,7 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
-**Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, bounded offline review, and phase-bound finite migration observations.**
+**Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, bounded offline review, request query observation/budgets, and phase-bound finite migration observations.**
 SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
 Immediate execution uses the common policy/risk/capability gate; ordinary INSERT/Unknown refuse.
 Application-only commands support all-column single INSERT (tenant supplementation only) and finite Low UPDATE (including checked optimistic versions), exact-one results, an explicit installed ledger and saved-result replay.
@@ -198,3 +198,5 @@ Explicit SELECT estimates have Partial coverage, separate from QueryPlan, measur
 performance and authorization. Ordinary Plan/compile/review and CRUD never acquire
 EXPLAIN implicitly; COUNT/DML/unknown query or server structures refuse. No CLI/MCP
 authority or PR2 collector is added.
+
+QT-AI-12 PR2 adds explicit application-owned [bounded request observation](specs/query-observation-v1.md) on existing PG/MySQL runtime sessions. Opt-in scopes accumulate non-Tx SQL submission attempts at the common final gate, measure consumption/duration and distinguish owned Tx ACKs from unknown outcomes. Private exact repeat-shape evidence yields only an N+1 suspicion. Authorized/command/EXPLAIN acquisition is unsupported inside these finite scopes; no implicit I/O, raw session escape, new feature or input wire is added.

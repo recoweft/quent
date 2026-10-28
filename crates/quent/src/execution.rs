@@ -37,6 +37,9 @@ pub enum ExecutionError {
     LedgerInvalid,
     ReservationUnresolved,
     LedgerFailed,
+    DispatchBudget,
+    ObservationLimit,
+    ObservationClosed,
 }
 impl fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -432,6 +435,9 @@ mod performance;
 #[cfg(feature = "performance-plan")]
 pub use performance::*;
 
+mod observation;
+pub use observation::*;
+
 // A closed macro expands the identical immediate/delayed dispatcher for the two owned
 // driver connections. Binding/decoding are finite private adapter functions; no
 // caller can implement or supply a backend, binder, executor or callback.
@@ -484,6 +490,7 @@ macro_rules! immediate_dispatch {
             scope: AuthorizationScope,
             ttl: Duration,
         ) -> Result<ExecutableAuthorizationCandidate> {
+            observation::unsupported(&self.observation)?;
             if !self.available {
                 return Err(ExecutionError::SessionUnavailable);
             }
@@ -509,6 +516,7 @@ macro_rules! immediate_dispatch {
             request: &AuthorizationExecutionRequest,
             candidate: ExecutableAuthorizationCandidate,
         ) -> Result<AuthorizedOperation> {
+            observation::unsupported(&self.observation)?;
             if !self.available {
                 return Err(ExecutionError::SessionUnavailable);
             }
@@ -549,6 +557,7 @@ macro_rules! immediate_dispatch {
             operation: &Operation,
             handle: AuthorizedOperation,
         ) -> Result<ExecutionResult> {
+            observation::unsupported(&self.observation)?;
             let AuthorizedOperation {
                 operation: validated,
                 binding,
@@ -603,7 +612,15 @@ macro_rules! immediate_dispatch {
             authorization: Option<AuthorizationCheck<'_>>,
             command: Option<(&ValidatedCommand, &Operation, Option<&CommandBundle>)>,
         ) -> Result<ExecutionResult> {
-            quiet(async {
+            let mut attempt = observation::Attempt::start(
+                &self.observation,
+                if self.result_state == ResultState::Uncommitted {
+                    ObservedTransaction::BorrowedUnconfirmed
+                } else {
+                    ObservedTransaction::None
+                },
+            )?;
+            let result = quiet(async {
                 if !self.available {
                     return Err(ExecutionError::SessionUnavailable);
                 }
@@ -633,6 +650,7 @@ macro_rules! immediate_dispatch {
                 for value in record.args() {
                     bind(&mut query, value)?;
                 }
+                let observed_shape = attempt.as_ref().map(|a| a.prepare_shape(&record));
                 // No application await occurs between this exact check and the SQLx send.
                 // &mut self and immutable current/operation borrows exclude app substitution.
                 #[cfg(test)]
@@ -657,6 +675,9 @@ macro_rules! immediate_dispatch {
                 #[cfg(not(test))]
                 let now = Instant::now();
                 check_expiry(handle, now)?;
+                if let (Some(a), Some(shape)) = (&attempt, observed_shape) {
+                    a.charge(shape)?;
+                }
                 self.available = false; // cancellation/error leaves this session unusable
                 #[cfg(test)]
                 self.recorder
@@ -696,7 +717,16 @@ macro_rules! immediate_dispatch {
                                 break;
                             }
                             match decode_count(&row) {
-                                Ok(v) => count = Some(v),
+                                Ok(v) => {
+                                    if let Some(a) = &attempt {
+                                        a.update(|e| {
+                                            e.decoded_rows += 1;
+                                            e.decoded_bytes += 8;
+                                            e.consumption = Consumption::Partial;
+                                        });
+                                    }
+                                    count = Some(v)
+                                }
                                 Err(e) => {
                                     failure = Some(e);
                                     break;
@@ -712,6 +742,13 @@ macro_rules! immediate_dispatch {
                                 Ok(r)
                             }) {
                                 Ok(r) => {
+                                    if let Some(a) = &attempt {
+                                        a.update(|e| {
+                                            e.decoded_rows += 1;
+                                            e.decoded_bytes = used as u32;
+                                            e.consumption = Consumption::Partial;
+                                        });
+                                    }
                                     #[cfg(test)]
                                     self.recorder.event("row_decoded");
                                     rows.push(r)
@@ -758,7 +795,12 @@ macro_rules! immediate_dispatch {
                 }
                 result
             })
-            .await
+            .await;
+            if let Some(a) = &mut attempt {
+                a.result(&result);
+                a.finish(result.is_ok());
+            }
+            result
         }
     };
 }
@@ -845,6 +887,10 @@ macro_rules! atomic_dispatch {
             expected: ExpectedRows,
             handle: AuthorizedOperation,
         ) -> std::result::Result<ExecutionResult, AtomicFailure> {
+            observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                cause,
+                disposition: AtomicDisposition::NotStarted,
+            })?;
             let AuthorizedOperation {
                 operation: validated,
                 binding,
@@ -873,7 +919,13 @@ macro_rules! atomic_dispatch {
             handle: ValidatedAtomicOperation,
             authorization: Option<AuthorizationCheck<'_>>,
         ) -> std::result::Result<ExecutionResult, AtomicFailure> {
-            quiet(async {
+            let mut attempt =
+                observation::Attempt::start(&self.observation, ObservedTransaction::NotStarted)
+                    .map_err(|cause| AtomicFailure {
+                        cause,
+                        disposition: AtomicDisposition::NotStarted,
+                    })?;
+            let result = quiet(async {
                 let before = |cause| AtomicFailure {
                     cause,
                     disposition: AtomicDisposition::NotStarted,
@@ -902,6 +954,12 @@ macro_rules! atomic_dispatch {
                     .final_source()
                     .metadata()
                     .optimistic_version();
+                if let Some(a) = &attempt {
+                    a.update(|e| {
+                        e.begin_attempts = 1;
+                        e.transaction = ObservedTransaction::Unknown;
+                    });
+                }
                 self.available = false;
                 #[cfg(test)]
                 self.recorder.event("begin");
@@ -919,12 +977,16 @@ macro_rules! atomic_dispatch {
                     cause: ExecutionError::OutcomeUnknown,
                     disposition: AtomicDisposition::OutcomeUnknown,
                 })?;
+                if let Some(a) = &attempt {
+                    a.update(|e| e.begin_acks = 1);
+                }
                 #[cfg(test)]
                 self.recorder.event("begun");
                 // Transaction holds the exact connection borrow. It has no independently
                 // exposed validation/executor identity. Recheck includes the begin await.
                 let mut runner =
                     $runner::internal(tx.as_mut(), self.context.clone(), self.identity.clone());
+                runner.observation = attempt.as_ref().map(|a| a.inherited());
                 #[cfg(test)]
                 {
                     runner.recorder.live = self.recorder.live.clone();
@@ -964,6 +1026,9 @@ macro_rules! atomic_dispatch {
                 self.recorder.event("expectation");
                 match checked {
                     Ok(mut result) => {
+                        if let Some(a) = &attempt {
+                            a.update(|e| e.commit_attempts = 1);
+                        }
                         #[cfg(test)]
                         self.recorder.event("commit");
                         #[cfg(test)]
@@ -985,11 +1050,20 @@ macro_rules! atomic_dispatch {
                         })?;
                         #[cfg(test)]
                         self.recorder.event("committed");
+                        if let Some(a) = &attempt {
+                            a.update(|e| {
+                                e.commit_acks = 1;
+                                e.transaction = ObservedTransaction::Committed;
+                            });
+                        }
                         self.available = true;
                         result.state = ResultState::Committed;
                         Ok(result)
                     }
                     Err(cause) => {
+                        if let Some(a) = &attempt {
+                            a.update(|e| e.rollback_attempts = 1);
+                        }
                         #[cfg(test)]
                         self.recorder.event("rollback");
                         #[cfg(test)]
@@ -1006,6 +1080,12 @@ macro_rules! atomic_dispatch {
                         #[cfg(not(test))]
                         let rollback = tx.rollback().await;
                         let disposition = if rollback.is_ok() {
+                            if let Some(a) = &attempt {
+                                a.update(|e| {
+                                    e.rollback_acks = 1;
+                                    e.transaction = ObservedTransaction::RolledBack;
+                                });
+                            }
                             #[cfg(test)]
                             self.recorder.event("rolled_back");
                             self.available = true;
@@ -1017,7 +1097,11 @@ macro_rules! atomic_dispatch {
                     }
                 }
             })
-            .await
+            .await;
+            if let Some(a) = &mut attempt {
+                a.finish(result.is_ok());
+            }
+            result
         }
     };
 }
@@ -1028,10 +1112,11 @@ macro_rules! borrowed_dispatch {
         /// is an application assertion. Quent never commits or rolls it back.
         pub struct $name<'a> {
             connection: &'a mut $connection,
-            context: DatabaseContext,
+            pub(super) context: DatabaseContext,
             available: bool,
             identity: Arc<()>,
             result_state: ResultState,
+            pub(super) observation: Option<observation::Link>,
             #[cfg(test)]
             final_now: Option<Instant>,
             #[cfg(test)]
@@ -1067,6 +1152,7 @@ macro_rules! borrowed_dispatch {
                     available: true,
                     identity,
                     result_state: ResultState::Uncommitted,
+                    observation: None,
                     #[cfg(test)]
                     final_now: None,
                     #[cfg(test)]
@@ -1095,6 +1181,10 @@ macro_rules! borrowed_dispatch {
                 _: ExpectedRows,
                 _: AuthorizedOperation,
             ) -> std::result::Result<ExecutionResult, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1119,6 +1209,10 @@ macro_rules! borrowed_dispatch {
                 _: &CommandBundle,
                 _: ValidatedCommandBundle,
             ) -> std::result::Result<CommandResult, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1130,6 +1224,10 @@ macro_rules! borrowed_dispatch {
                 _: &CommandBundle,
                 _: ValidatedCommandBundle,
             ) -> std::result::Result<Option<CommandResult>, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1153,6 +1251,10 @@ macro_rules! borrowed_dispatch {
                 _: &Operation,
                 _: ValidatedCommand,
             ) -> std::result::Result<CommandResult, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1164,6 +1266,10 @@ macro_rules! borrowed_dispatch {
                 _: &Operation,
                 _: ValidatedCommand,
             ) -> std::result::Result<Option<CommandResult>, AtomicFailure> {
+                observation::unsupported(&self.observation).map_err(|cause| AtomicFailure {
+                    cause,
+                    disposition: AtomicDisposition::NotStarted,
+                })?;
                 Err(AtomicFailure {
                     cause: ExecutionError::Unsupported,
                     disposition: AtomicDisposition::NotStarted,
@@ -1218,6 +1324,9 @@ impl ExecutionError {
             Self::ExpectationMismatch => DiagnosticCode::ExecutionExpectationMismatch,
             Self::Conflict | Self::IdentityConflict => DiagnosticCode::ExecutionConflict,
             Self::LedgerInvalid => DiagnosticCode::ExecutionDecode,
+            Self::DispatchBudget | Self::ObservationLimit | Self::ObservationClosed => {
+                DiagnosticCode::ExecutionResultLimit
+            }
             Self::ReservationUnresolved | Self::LedgerFailed => DiagnosticCode::ExecutionReadFailed,
         };
         DiagnosticView { code, state: None }

@@ -441,6 +441,7 @@ macro_rules! performance_dispatch {
             operation: &Operation,
             request: PerformanceRequest,
         ) -> performance::PerfResult<PerformancePlan> {
+            observation::unsupported(&self.observation)?;
             quiet(async {
                 if !self.available {
                     return Err(ExecutionError::SessionUnavailable.into());

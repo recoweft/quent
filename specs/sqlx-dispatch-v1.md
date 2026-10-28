@@ -194,3 +194,5 @@ getters and the complete private gate remain unchanged; CLI/tracing/export remai
 with PR2/owning issues. All 24 full runtime_pending markers remain.
 
 QT-AI-12 PR1: [explicit finite estimated performance evidence](performance-plan-v1.md) uses the common retained-record gate and native binders. Its application-only SELECT acquisition is non-ANALYZE and Partial; no implicit EXPLAIN, measured-performance/authorization claim, public authority restoration or full runtime_pending completion is added.
+
+Current QT-AI-12 PR2: [explicit bounded request observation and dispatch budgets](query-observation-v1.md) adds finite opt-in ordinary/delayed/owned-atomic/borrowed scopes. Tx control is separately observed and excluded from the non-Tx SQL budget. Unsupported acquisition/command paths cannot silently bypass the selected collector. PR-specific absence statements above remain historical; PR1 Estimated/Partial and all 24 full runtime_pending markers remain unchanged.

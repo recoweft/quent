@@ -321,3 +321,5 @@ success alone proves no stability. All 24 full runtime_pending markers remain.
 Current QT-AI-11 PR3: [explicit human-controlled finite application](migration-apply-v1.md), [finite evidence](migration-apply-v1-evidence.md). Historical PR1/PR2 absence statements retain their original scope; no full runtime_pending marker is cleared.
 
 QT-AI-12 PR1: [explicit finite estimated performance evidence](performance-plan-v1.md) uses the common retained-record gate and native binders. Its application-only SELECT acquisition is non-ANALYZE and Partial; no implicit EXPLAIN, measured-performance/authorization claim, public authority restoration or full runtime_pending completion is added.
+
+Current QT-AI-12 PR2: [explicit bounded request observation and dispatch budgets](query-observation-v1.md) adds finite opt-in ordinary/delayed/owned-atomic/borrowed scopes. Tx control is separately observed and excluded from the non-Tx SQL budget. Unsupported acquisition/command paths cannot silently bypass the selected collector. PR-specific absence statements above remain historical; PR1 Estimated/Partial and all 24 full runtime_pending markers remain unchanged.

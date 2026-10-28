@@ -176,3 +176,5 @@ A sandboxed CLI matrix attempt hit EPERM on its required 127.0.0.1 listener
 positive control. An approved listener/connect/accept diagnostic succeeded; the
 affected regression and remaining checks use that approved local-fixture scope.
 No DNS/firewall/global DB/host policy settings were changed.
+
+Current QT-AI-12 PR2: [explicit bounded request observation and dispatch budgets](query-observation-v1.md) adds finite opt-in ordinary/delayed/owned-atomic/borrowed scopes. Tx control is separately observed and excluded from the non-Tx SQL budget. Unsupported acquisition/command paths cannot silently bypass the selected collector. PR-specific absence statements above remain historical; PR1 Estimated/Partial and all 24 full runtime_pending markers remain unchanged.

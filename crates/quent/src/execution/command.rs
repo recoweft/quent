@@ -465,6 +465,7 @@ macro_rules! command_dispatch {
                     cause,
                     disposition: AtomicDisposition::NotStarted,
                 };
+                observation::unsupported(&self.observation).map_err(before)?;
                 if !self.available {
                     return Err(before(ExecutionError::SessionUnavailable));
                 }
