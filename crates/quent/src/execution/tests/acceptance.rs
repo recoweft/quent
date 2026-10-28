@@ -18,7 +18,26 @@ fn companion_column(table: &str, name: &str) -> Column {
     )
 }
 fn acceptance_context(d: Dialect, subject: &str) -> DatabaseContext {
-    let base = context_schema(d, 11, subject, vec![], 0, vec![key(), tenant(), changed()]);
+    acceptance_context_variant(d, 11, subject, 0)
+}
+fn acceptance_context_variant(
+    d: Dialect,
+    current_tenant: i64,
+    subject: &str,
+    variant: u8,
+) -> DatabaseContext {
+    let base = context_schema(
+        d,
+        current_tenant,
+        subject,
+        if variant == 11 {
+            vec![PolicyDeclaration::Readonly(changed())]
+        } else {
+            vec![]
+        },
+        variant,
+        vec![key(), tenant(), changed()],
+    );
     let mut facts = base.sensitive_source().schema().unwrap().2.to_vec();
     for table in ["acceptance_audit", "acceptance_outbox"] {
         facts.push(
@@ -45,26 +64,32 @@ fn acceptance_context(d: Dialect, subject: &str) -> DatabaseContext {
             .unwrap(),
         );
     }
+    let source = base.sensitive_source();
+    let (database, address, catalog, _) = source.target();
     let binding = DatabaseBinding::application_supplied(
-        DatabaseIdentity::new("dedicated_test").unwrap(),
-        TargetAddress::new("dedicated_loopback").unwrap(),
-        id("quent_dispatch_test"),
+        DatabaseIdentity::new(database).unwrap(),
+        TargetAddress::new(address).unwrap(),
+        catalog.clone(),
         d,
     );
+    let (schema_id, schema_generation, _) = source.schema().unwrap();
     base.with_application(
         ApplicationContext::application_supplied(
             binding.clone(),
             Some(
                 SchemaSnapshot::application_supplied(
                     binding.clone(),
-                    SchemaIdentity::new("schema").unwrap(),
-                    Generation::new(1).unwrap(),
+                    SchemaIdentity::new(schema_id).unwrap(),
+                    Generation::new(schema_generation).unwrap(),
                     facts,
                 )
                 .unwrap(),
             ),
             Some(SubjectIdentity::new(subject).unwrap()),
-            Some(TenantSnapshot::application_supplied(binding, tenant(), Value::I64(11)).unwrap()),
+            Some(
+                TenantSnapshot::application_supplied(binding, tenant(), Value::I64(current_tenant))
+                    .unwrap(),
+            ),
         )
         .unwrap(),
     )
@@ -387,12 +412,34 @@ macro_rules! tenant_acceptance {
                     assert_eq!(error,ExecutionError::Authorization(AuthorizationError::Mismatch));
                 }
                 assert_eq!(provider.calls.load(Ordering::SeqCst),6);
+                // Reviewed candidates still compare independently supplied
+                // complete contents, including same-generation changes.
+                Box::pin(async {
+                for variant in [0u8,1,2,4,5,6,7,8,9,10,11] {
+                    let changed=acceptance_context_variant(d,if variant==10 {22}else{11},if variant==0 {"other_subject"}else{"subject"},variant);
+                    let current=if matches!(variant,1|2) {AuthorizationContext::register(changed,"application-review-control".into(),1,vec![],provider.clone()).unwrap()}else{auth.with_database(changed).unwrap()};
+                    let candidate=session.authorization_candidate(&auth,&request,&op,AuthorizationScope::MultiRowUpdate,MAX_TTL).unwrap();
+                    let _=candidate.review();
+                    let permit=session.acquire_authorized(&auth,&request,candidate).await.unwrap();
+                    assert!(session.execute_authorized(&current,&request,&op,permit).await.is_err());
+                    assert_eq!(session.recorder.calls.len(),business_before);
+                    assert_eq!(session.recorder.events.len(),tx_before);
+                }
+                let candidate=session.authorization_candidate(&auth,&request,&op,AuthorizationScope::MultiRowUpdate,MAX_TTL).unwrap();
+                let _=candidate.review();let permit=session.acquire_authorized(&auth,&request,candidate).await.unwrap();
+                assert!(session.execute_authorized(&auth,&other_request,&op,permit).await.is_err());
+                let candidate=session.authorization_candidate(&auth,&request,&op,AuthorizationScope::MultiRowUpdate,MAX_TTL).unwrap();
+                let _=candidate.review();let permit=session.acquire_authorized(&auth,&request,candidate).await.unwrap();
+                let different=Draft::update(table(),write(Value::Text("CANARY_substitute".into()),changed())).filter(eq(tenant(),Value::I64(11))).freeze();
+                assert!(session.execute_authorized(&auth,&request,&different,permit).await.is_err());
+                }).await;
+                assert_eq!(provider.calls.load(Ordering::SeqCst),19);
                 assert_eq!(session.recorder.calls.len(),business_before);
                 assert_eq!(session.recorder.events.len(),tx_before);
                 let final_rows=sqlx::query("SELECT tenant,id,txt FROM quent_dispatch_test.items ORDER BY tenant,id").fetch_all(&mut observer).await.unwrap();
                 assert_eq!(final_rows.len(),2);assert_eq!(final_rows[0].get::<i64,_>(0),11);assert_eq!(final_rows[0].get::<String,_>(2),"CANARY_ack");assert_eq!(final_rows[1].get::<i64,_>(0),22);assert_eq!(final_rows[1].get::<String,_>(2),"other");
                 sqlx::query("DROP TABLE quent_dispatch_test.items").execute(&mut observer).await.unwrap();
-                println!("QT-AI-14 {d:?} QT-C01/C03/C08/C11/C12/C14/C15/C16/C17/C18: provider=6 (3 successful acquisition,3 rejection controls) authorized_business=2 plain_command_business=1 command_first_commit=1 replay=1 conflict=1 artificial_ledger_invalid=1 owned_commits=1 owned_rollbacks=1 borrowed_reads=1 caller_rollback=1; changed-current business=0 Tx=0; independent observer full tenant rows=2");
+                println!("QT-AI-14 {d:?} QT-C01/C03/C08/C11/C12/C14/C15/C16/C17/C18: provider=19 (3 baseline acquisitions,3 rejection controls,13 mismatched dispatch acquisitions) authorized_business=2 plain_command_business=1 command_first_commit=1 replay=1 conflict=1 artificial_ledger_invalid=1 owned_commits=1 owned_rollbacks=1 borrowed_reads=1 caller_rollback=1; changed-current business=0 Tx=0; independent observer full tenant rows=2");
             });
         }
     }

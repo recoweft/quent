@@ -121,20 +121,20 @@ macro_rules! authorized_cases {
         assert_eq!(probe.calls(),0);assert!(s.recorder.calls.is_empty());
         // Cross-session/request acquisition refuses BEFORE provider invocation.
         for wrong in [false,true] {
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
             let e=if wrong {other.acquire_authorized(&auth,&request,h).await.unwrap_err()}else{s.acquire_authorized(&auth,&other_request,h).await.unwrap_err()};
             assert_eq!(e,ExecutionError::Authorization(AuthorizationError::Mismatch));
         }
         assert_eq!(probe.calls(),0);
         for (response,error) in [(Deny,AuthorizationError::Denied),(Error,AuthorizationError::ProviderError),(Cancelled,AuthorizationError::Cancelled),(Timeout,AuthorizationError::Timeout)] {
             *probe.response.lock().unwrap()=Some(response);
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
             assert_eq!(s.acquire_authorized(&auth,&request,h).await.unwrap_err(),ExecutionError::Authorization(error));
             assert!(s.recorder.calls.is_empty());assert!(s.recorder.events.is_empty());
         }
         // Same-generation complete-content changes independently supplied after acquisition.
         for variant in 0..10 {
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
             let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
             let changed=context_variant(d,11,if variant==0 {"other_subject"} else {"subject"},vec![],variant);
             let changed=if variant==1 || variant==2 {AuthorizationContext::register(changed,"CANARY_provider".into(),1,b"CANARY_credential".to_vec(),probe.clone()).unwrap()}else{auth.with_database(changed).unwrap()};
@@ -142,7 +142,7 @@ macro_rules! authorized_cases {
             assert!(s.recorder.calls.is_empty());
         }
         for mode in 0..4 {
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
             let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
             let e=match mode {
                 0=>s.execute_authorized(&auth,&other_request,&op,h).await.unwrap_err(),
@@ -154,40 +154,40 @@ macro_rules! authorized_cases {
         }
         // Independently supplied same-generation content, not just generation labels.
         for changed in [context(d,22,"subject",vec![]),context(d,11,"subject",vec![PolicyDeclaration::Readonly(changed())])] {
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
             let changed=auth.with_database(changed).unwrap();
             assert!(s.execute_authorized(&changed,&request,&op,h).await.is_err());assert!(s.recorder.calls.is_empty());
         }
         // Provider genuinely suspended and resumed; current is supplied separately at dispatch.
         let barrier=Arc::new(tokio::sync::Notify::new());*probe.barrier.lock().unwrap()=Some(barrier.clone());
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
         let mut f=Box::pin(s.acquire_authorized(&auth,&request,h));assert!(poll_once(f.as_mut()).await.is_pending());
         let after_await_current=auth.with_database(context(d,11,"changed_after_await",vec![])).unwrap();
         barrier.notify_one();let h=f.await.unwrap();
         assert!(s.execute_authorized(&after_await_current,&request,&op,h).await.is_err());assert!(s.recorder.calls.is_empty());
         // Saved provider decision is not reusable on a different request/invocation.
         probe.save_next.store(true,Ordering::SeqCst);
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
         let mut f=Box::pin(s.acquire_authorized(&auth,&request,h));assert!(poll_once(f.as_mut()).await.is_pending());drop(f);
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
         assert_eq!(s.acquire_authorized(&auth,&request,h).await.unwrap_err(),ExecutionError::Authorization(AuthorizationError::Mismatch));
         // Unpolled acquisition/dispatch and actual runtime timeout of pending provider.
-        let calls=probe.calls();let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();drop(s.acquire_authorized(&auth,&request,h));assert_eq!(probe.calls(),calls);
+        let calls=probe.calls();let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();drop(s.acquire_authorized(&auth,&request,h));assert_eq!(probe.calls(),calls);
         *probe.barrier.lock().unwrap()=Some(Arc::new(tokio::sync::Notify::new()));
         let responses=probe.responses.load(Ordering::SeqCst);
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
         assert!(tokio::time::timeout(Duration::from_millis(1),s.acquire_authorized(&auth,&request,h)).await.is_err());assert_eq!(probe.calls(),calls+1);assert_eq!(probe.responses.load(Ordering::SeqCst),responses);assert!(s.recorder.calls.is_empty());
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();drop(s.execute_authorized(&auth,&request,&op,h));assert!(s.recorder.calls.is_empty());
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();drop(s.execute_authorized(&auth,&request,&op,h));assert!(s.recorder.calls.is_empty());
         // Actual provider await expiry: no injected product clock and no business send.
         let barrier=Arc::new(tokio::sync::Notify::new());*probe.barrier.lock().unwrap()=Some(barrier.clone());
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,Duration::from_millis(100)).unwrap();#[cfg(feature="review")] let _=h.review();
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,Duration::from_millis(100)).unwrap();
         let mut f=Box::pin(s.acquire_authorized(&auth,&request,h));assert!(poll_once(f.as_mut()).await.is_pending());
         tokio::time::sleep(Duration::from_millis(150)).await;barrier.notify_one();
         assert_eq!(f.await.unwrap_err(),ExecutionError::Authorization(AuthorizationError::Expired));assert!(s.recorder.calls.is_empty());
         // Real elapsed time after a controlled final boundary await, including begin.
         for atomic in [false,true] {
             let mut delayed=$session::connect(options.clone(),c.clone()).await.unwrap();
-            let h=delayed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,Duration::from_millis(500)).unwrap();#[cfg(feature="review")] let _=h.review();let h=delayed.acquire_authorized(&auth,&request,h).await.unwrap();
+            let h=delayed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,Duration::from_millis(500)).unwrap();let h=delayed.acquire_authorized(&auth,&request,h).await.unwrap();
             let barrier=Arc::new(tokio::sync::Notify::new());delayed.final_barrier=Some(barrier.clone());
             if atomic {
                 let trace=delayed.recorder.live.clone();let mut f=Box::pin(delayed.execute_authorized_atomic(&auth,&request,&op,ExpectedRows::exactly(1).unwrap(),h));
@@ -200,19 +200,19 @@ macro_rules! authorized_cases {
         }
         // Final gate uses the private production checker; equality is expired.
         for atomic in [false,true] {
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
             s.final_now=Some(h.operation.expires);
             if atomic {let e=s.execute_authorized_atomic(&auth,&request,&op,ExpectedRows::exactly(1).unwrap(),h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::Expired);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);assert_eq!(s.recorder.events,["begin","begun","expectation","rollback","rolled_back"]);}else{assert_eq!(s.execute_authorized(&auth,&request,&op,h).await.unwrap_err(),ExecutionError::Expired);}
             assert!(s.recorder.calls.is_empty());s.recorder=Recorder::default();
         }
         // Real expiry at acquisition entry refuses before an allow-capable adapter.
-        let calls=probe.calls();let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,Duration::from_millis(1)).unwrap();#[cfg(feature="review")] let _=h.review();
+        let calls=probe.calls();let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,Duration::from_millis(1)).unwrap();
         tokio::time::sleep(Duration::from_millis(3)).await;
         assert_eq!(s.acquire_authorized(&auth,&request,h).await.unwrap_err(),ExecutionError::Authorization(AuthorizationError::Expired));assert_eq!(probe.calls(),calls);
         // Public carrier/error summaries never traverse provider inputs or credentials.
         for response in [Deny,Error] {
             *probe.response.lock().unwrap()=Some(response);
-            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();
+            let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
             assert_eq!(format!("{h:?}"),"ExecutableAuthorizationCandidate([REDACTED])");
             let e=s.acquire_authorized(&auth,&request,h).await.unwrap_err();
             assert!(std::error::Error::source(&e).is_none());
@@ -224,7 +224,7 @@ macro_rules! authorized_cases {
         for mode in 0..3 {
             let op=if mode==2 {Draft::update(table(),write(Value::Text("CANARY_rollback_must_not_commit".into()),changed())).filter(eq(tenant(),Value::I64(11))).freeze()}else{op.clone()};
             let responses=probe.responses.load(Ordering::SeqCst);
-            let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
+            let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
             if mode==0 {assert_eq!(s.execute_authorized(&auth,&request,&op,h).await.unwrap().state(),ResultState::Observed);}
             else if mode==1 {assert_eq!(s.execute_authorized_atomic(&auth,&request,&op,ExpectedRows::exactly(1).unwrap(),h).await.unwrap().state(),ResultState::Committed);assert_eq!(s.recorder.events,["begin","begun","send","decoded","expectation","commit","committed"]);}
             else {let e=s.execute_authorized_atomic(&auth,&request,&op,ExpectedRows::exactly(2).unwrap(),h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::ExpectationMismatch);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);}
@@ -234,10 +234,10 @@ macro_rules! authorized_cases {
         }
         let finite=Draft::update(table(),write(Value::Text("CANARY_AUTHORIZED".into()),changed())).filter(Predicate::Or(vec![Predicate::And(vec![eq(tenant(),Value::I64(11)),filter(1)]),Predicate::And(vec![eq(tenant(),Value::I64(11)),filter(2)])])).freeze();
         assert_eq!(c.prepare().prepare_operation(&finite).unwrap().inspect().scope(),Scope::FiniteBound(2));
-        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&finite,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();s.execute_authorized(&auth,&request,&finite,h).await.unwrap();probe.compare(&s.recorder,index);s.recorder=Recorder::default();
+        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&finite,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();s.execute_authorized(&auth,&request,&finite,h).await.unwrap();probe.compare(&s.recorder,index);s.recorder=Recorder::default();
         // Native ordered arguments and typed NULL retain the very provider-inspected record.
         let native=Draft::update(table(),vec![(col("small",SqlType::I16,true),Input::Value(Value::I16(i16::MIN))),(col("optional",SqlType::I64,true),Input::Value(Value::Null(SqlType::I64)))]).filter(eq(tenant(),Value::I64(11))).freeze();
-        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&native,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
+        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&native,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
         assert_eq!(format!("{h:?}"),"AuthorizedOperation([REDACTED])");
         s.execute_authorized(&auth,&request,&native,h).await.unwrap();probe.compare(&s.recorder,index);s.recorder=Recorder::default();
         // Observe a real server lock wait before drop/timeout/disconnect, for BOTH
@@ -248,7 +248,7 @@ macro_rules! authorized_cases {
             let mut locker=<$connection>::connect_with(&options.clone().disable_statement_logging()).await.unwrap();let mut lock=locker.begin().await.unwrap();
             sqlx::query("UPDATE quent_dispatch_test.items SET txt=txt WHERE tenant=11 AND id=1").execute(&mut *lock).await.unwrap();
             let mut canceled=$session::connect(options.clone(),c.clone()).await.unwrap();let connection_id=canceled.test_connection_id().await;
-            let index=probe.calls();let h=canceled.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=canceled.acquire_authorized(&auth,&request,h).await.unwrap();
+            let index=probe.calls();let h=canceled.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=canceled.acquire_authorized(&auth,&request,h).await.unwrap();
             let trace=canceled.recorder.live.clone();
             let mut f=Box::pin(async {if atomic {canceled.execute_authorized_atomic(&auth,&request,&op,ExpectedRows::exactly(1).unwrap(),h).await.map_err(|e|{assert_eq!(e.disposition(),AtomicDisposition::OutcomeUnknown);e.cause()})}else{canceled.execute_authorized(&auth,&request,&op,h).await}});
             let waiting=if d==Dialect::Postgres {"SELECT COUNT(*) FROM pg_stat_activity WHERE pid=$1 AND usename=current_user AND wait_event_type='Lock' AND query LIKE 'UPDATE %'"} else {"SELECT COUNT(*) FROM performance_schema.data_lock_waits w JOIN performance_schema.threads t ON t.THREAD_ID=w.REQUESTING_THREAD_ID WHERE t.PROCESSLIST_ID=?"};
@@ -286,7 +286,7 @@ macro_rules! authorized_cases {
             let proxy=Proxy::new(target,d==Dialect::Postgres,hold);
             let plain=options.clone().host("127.0.0.1").port(proxy.address.port()).ssl_mode($ssl);
             let mut network=$session::connect(plain,c.clone()).await.unwrap();
-            let index=probe.calls();let h=network.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=network.acquire_authorized(&auth,&request,h).await.unwrap();
+            let index=probe.calls();let h=network.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=network.acquire_authorized(&auth,&request,h).await.unwrap();
             let trace=network.recorder.live.clone();
             let mut f=Box::pin(network.execute_authorized(&auth,&request,&op,h));
             if hold {
@@ -315,20 +315,20 @@ macro_rules! authorized_cases {
         let mut tx=raw.begin().await.unwrap();let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
         *probe.response.lock().unwrap()=Some(Deny);let calls=probe.calls();let rejected=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();
         assert_eq!(borrowed.acquire_authorized(&auth,&request,rejected).await.unwrap_err(),ExecutionError::Authorization(AuthorizationError::Denied));assert_eq!(probe.calls(),calls+1);assert!(borrowed.recorder.events.is_empty());
-        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();assert!(borrowed.execute_authorized(&auth,&request,&op,h).await.is_err());assert!(borrowed.recorder.calls.is_empty());
-        let index=probe.calls();let h=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=borrowed.acquire_authorized(&auth,&request,h).await.unwrap();assert_eq!(borrowed.execute_authorized(&auth,&request,&op,h).await.unwrap().state(),ResultState::Uncommitted);probe.compare(&borrowed.recorder,index);assert_eq!(borrowed.recorder.events,["send","decoded"]);drop(borrowed);tx.rollback().await.unwrap();
+        let h=s.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();assert!(borrowed.execute_authorized(&auth,&request,&op,h).await.is_err());assert!(borrowed.recorder.calls.is_empty());
+        let index=probe.calls();let h=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=borrowed.acquire_authorized(&auth,&request,h).await.unwrap();assert_eq!(borrowed.execute_authorized(&auth,&request,&op,h).await.unwrap().state(),ResultState::Uncommitted);probe.compare(&borrowed.recorder,index);assert_eq!(borrowed.recorder.events,["send","decoded"]);drop(borrowed);tx.rollback().await.unwrap();
         let mut tx=raw.begin().await.unwrap();let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();
-        let h=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=borrowed.acquire_authorized(&auth,&request,h).await.unwrap();
+        let h=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=borrowed.acquire_authorized(&auth,&request,h).await.unwrap();
         let e=borrowed.execute_authorized_atomic(&auth,&request,&op,ExpectedRows::exactly(1).unwrap(),h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::Unsupported);assert_eq!(e.disposition(),AtomicDisposition::NotStarted);assert!(borrowed.recorder.events.is_empty());
-        let h=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=borrowed.acquire_authorized(&auth,&request,h).await.unwrap();drop(borrowed);tx.rollback().await.unwrap();
+        let h=borrowed.authorization_candidate(&auth,&request,&op,MultiRowUpdate,MAX_TTL).unwrap();let h=borrowed.acquire_authorized(&auth,&request,h).await.unwrap();drop(borrowed);tx.rollback().await.unwrap();
         let mut tx=raw.begin().await.unwrap();let mut borrowed=$borrowed::new(&mut tx,c.clone()).unwrap();assert!(borrowed.execute_authorized(&auth,&request,&op,h).await.is_err());assert!(borrowed.recorder.calls.is_empty());drop(borrowed);tx.rollback().await.unwrap();
-        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&delete,MultiRowDelete,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
+        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&delete,MultiRowDelete,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();
         let e=s.execute_authorized_atomic(&auth,&request,&delete,ExpectedRows::exactly(2).unwrap(),h).await.unwrap_err();assert_eq!(e.cause(),ExecutionError::ExpectationMismatch);assert_eq!(e.disposition(),AtomicDisposition::RolledBack);probe.compare(&s.recorder,index);s.recorder=Recorder::default();
         assert_eq!(sqlx::query("SELECT COUNT(*) FROM quent_dispatch_test.items WHERE tenant=11").fetch_one(&mut *observer).await.unwrap().get::<i64,_>(0),1);
-        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&delete,MultiRowDelete,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();assert_eq!(s.execute_authorized(&auth,&request,&delete,h).await.unwrap().state(),ResultState::Observed);probe.compare(&s.recorder,index);
+        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&delete,MultiRowDelete,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();assert_eq!(s.execute_authorized(&auth,&request,&delete,h).await.unwrap().state(),ResultState::Observed);probe.compare(&s.recorder,index);
         s.recorder=Recorder::default();
         sqlx::query("INSERT INTO quent_dispatch_test.items(id,tenant,txt) VALUES(1,11,'before')").execute(&mut *observer).await.unwrap();
-        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&delete,MultiRowDelete,MAX_TTL).unwrap();#[cfg(feature="review")] let _=h.review();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();assert_eq!(s.execute_authorized_atomic(&auth,&request,&delete,ExpectedRows::exactly(1).unwrap(),h).await.unwrap().state(),ResultState::Committed);probe.compare(&s.recorder,index);
+        let index=probe.calls();let h=s.authorization_candidate(&auth,&request,&delete,MultiRowDelete,MAX_TTL).unwrap();let h=s.acquire_authorized(&auth,&request,h).await.unwrap();assert_eq!(s.execute_authorized_atomic(&auth,&request,&delete,ExpectedRows::exactly(1).unwrap(),h).await.unwrap().state(),ResultState::Committed);probe.compare(&s.recorder,index);
         assert_eq!(sqlx::query("SELECT COUNT(*) FROM quent_dispatch_test.items WHERE tenant=11").fetch_one(&mut *observer).await.unwrap().get::<i64,_>(0),0);
         println!("QT-AI-09 PR2 {:?}: request/session-bound provider positive; independently counted provider refusals and 0send; inspected SQL allocation/ordered args/all metadata equal; direct/owned/borrowed gates; expiry after begin rollback",d);
     }};

@@ -135,7 +135,11 @@ or authorization. Windows hosted DB-free is not Windows live DB or ACL evidence.
 
 Full-command totals, unique new subcases and feature-duplicate executions must be
 reported separately. Development failures (constructor Result handling; missing
-row_decoded event; wrong regeneration summary accessor) and initial filtered
+row_decoded event; wrong regeneration summary accessor; dialect-specific current
+policy mismatch; Clippy guard scope; stack overflow from inlining review temporaries
+into the existing large authorization regression future; helper-only attempt also
+failed, so that suite was restored byte-for-byte and added reviewed mismatch
+coverage moved into the new tenant flow) and initial filtered
 2-test smoke runs remain historical evidence, not full acceptance. No full case
 completion, public release or Go compatibility follows from this register.
 
@@ -143,13 +147,13 @@ completion, public release or Go compatibility follows from this register.
 
 ## Named new subcases (counts are not full fixture completion)
 
-The two new live test functions each contain 23 conceptual A subcases below.
+The two new live test functions each contain 36 conceptual A subcases below.
 The four G subcases extend each existing generated live test. Seven M subcases
-extend one additional stdio group for each dialect with **no live DB**. Thus 34
+extend one additional stdio group for each dialect with **no live DB**. Thus 47
 conceptual subcases, with dialect repetition, are distinct from test-harness totals
-and feature-repeat invocations. Existing authorization candidate flows additionally
-call the public review at 28 source sites under `review`; these remain regressions,
-not 28 newly independent acceptance cases.
+and feature-repeat invocations. The original large authorization regression suite remains unchanged; additional
+reviewed current-content/identity/dispatch mismatches are measured inside the new
+tenant test, preserving the original default-stack regression behavior.
 
 | IDs | Finite observation / counter boundary |
 | --- | --- |
@@ -167,6 +171,7 @@ not 28 newly independent acceptance cases.
 | A18 | real elapsed TTL after review, repeated expired review cannot extend deadline; acquisition provider0/business0 |
 | A19a/A19b/A19c | registered test response Deny/Error/Cancelled: provider1 each, business/Tx0 |
 | A20a/A20b | reviewed candidate wrong request/session acquisition, provider/business/Tx0 |
+| A21a–k/A22/A23 | independently changed subject/target/route/settings identity+generation/policy identity+generation/schema identity+generation/tenant/policy contents (same generation included), wrong dispatch request and substituted operation: acquisition provider1 each, business/Tx0 |
 | G01/G02/G03/G04 | production regenerate exact NoChange / inspection-only three-state patch SQL0 / generated read1 same record / independent prior big/text persisted |
 | M01/M02 | direct and actual child compiled public view correspond / source manifest remains offline unknown, neither authority nor live |
 | M03a–d/M04 | execute/apply/permit/live tool refusal / detecting network positive control, child connection0 and bounded parent kill/wait ownership |
