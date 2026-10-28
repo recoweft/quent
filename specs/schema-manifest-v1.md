@@ -1,3 +1,5 @@
+Current QT-AI-13 PR1: [finite offline read-only MCP stdio](mcp-v1.md). Earlier PR-specific MCP absence statements describe their historical baseline.
+
 Current QT-AI-05 PR2: [explicit finite catalog/CLI verification](manifest-verify-v1.md).
 Earlier PR-specific absence statements below describe their historical baseline.
 

@@ -8,6 +8,21 @@ mod review_ci;
 mod verify;
 fn main() -> std::process::ExitCode {
     install_panic_hook();
+    #[cfg(feature = "mcp")]
+    {
+        let mut args = std::env::args_os().skip(1);
+        if args.next().as_deref() == Some(std::ffi::OsStr::new("mcp")) {
+            if args.next().as_deref() != Some(std::ffi::OsStr::new("--stdio"))
+                || args.next().is_some()
+            {
+                let _ = std::io::stderr().write_all(b"QUENT_MCP_INVALID\n");
+                return std::process::ExitCode::from(2);
+            }
+            return std::process::ExitCode::from(
+                quent::mcp::Server::offline().serve_stdio().exit_code(),
+            );
+        }
+    }
     if let Some(code) = review_ci::run() {
         return std::process::ExitCode::from(code);
     }

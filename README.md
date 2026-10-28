@@ -200,3 +200,31 @@ EXPLAIN implicitly; COUNT/DML/unknown query or server structures refuse. No CLI/
 authority or PR2 collector is added.
 
 QT-AI-12 PR2 adds explicit application-owned [bounded request observation](specs/query-observation-v1.md) on existing PG/MySQL runtime sessions. Opt-in scopes accumulate non-Tx SQL submission attempts at the common final gate, measure consumption/duration and distinguish owned Tx ACKs from unknown outcomes. Private exact repeat-shape evidence yields only an N+1 suspicion. Authorized/command/EXPLAIN acquisition is unsupported inside these finite scopes; no implicit I/O, raw session escape, new feature or input wire is added.
+
+
+## Read-only MCP (finite offline profile)
+
+Build the optional stdio server with `cargo run -p quent-cli --features mcp --locked -- mcp --stdio`.
+MCP 2025-11-25 resources and the four fixed tools `quent_plan`, `quent_compile`,
+`quent_review`, `quent_manifest_status` return public summaries only. The ordinary
+CLI has no trusted model registration: typed plan/compile refuse with
+`missing_application_context`; syntax review stays Unknown. Authenticated application
+Rust code may supply existing mapping and independent current context to the server
+library. No MCP DB execution, permit, live catalog/EXPLAIN or source detail export.
+
+Send newline-delimited JSON with innocuous correlation IDs, for example:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"example","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"quent://public/context"}}
+```
+
+Await each request's response before sending the next request; send initialized
+only after the initialization response. Close stdin to finish. IDs are reflected
+only at top-level response `/id`; never put business secrets there. See the
+[MCP contract](specs/mcp-v1.md) for the exact capability/URI/tool allowlists,
+input/output/error budgets, cancellation/timeout/process lifecycle, trust limits,
+registered fixture versus unregistered product behavior and finite acceptance.
+This is not full-standard/all-client MCP, Go wire compatibility, live runtime
+authentication or autonomous DB execution. All 24 full runtime_pending markers remain.

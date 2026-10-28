@@ -70,6 +70,10 @@ pub struct TypedModelContract {
     snapshot: DatabaseContext,
 }
 impl TypedModelContract {
+    #[cfg(feature = "mcp")]
+    pub(crate) fn mcp_counts(&self) -> (usize, bool) {
+        (self.columns.len(), self.coverage == ModelCoverage::Complete)
+    }
     pub fn application_asserted(
         model: &str,
         table: Table,

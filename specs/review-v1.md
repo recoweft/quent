@@ -1,3 +1,5 @@
+Current QT-AI-13 PR1: [finite offline read-only MCP stdio](mcp-v1.md). Earlier PR-specific MCP absence statements describe their historical baseline.
+
 Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](review-ci-v1.md). Earlier PR-specific absence statements are historical.
 
 Current PR2 source support is independently opt-in: [finite Rust syntax candidates](source-review-v1.md). PR1 historical source deferrals below are superseded only for that feature; existing three-input wires stay unchanged.

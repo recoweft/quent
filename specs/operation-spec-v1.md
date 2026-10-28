@@ -1,3 +1,5 @@
+Current QT-AI-13 PR1: [finite offline read-only MCP stdio](mcp-v1.md). Earlier PR-specific MCP absence statements describe their historical baseline.
+
 Current PR2: [typed compilation and explicit owned read](typed-operation-spec-v1.md).
 PR1-specific implementation/absence statements below describe the historical baseline.
 
