@@ -11,7 +11,7 @@ pub const SPEC: &str = r#"{"kind":"quent_operation_spec","version":1,"model":"ca
 pub struct Client {
     child: Child,
     tx: SyncSender<Option<Vec<u8>>>,
-    ack: Receiver<()>,
+    ack: Receiver<bool>,
     pub rx: Receiver<Vec<u8>>,
     err: Receiver<Vec<u8>>,
 }
@@ -45,10 +45,8 @@ impl Client {
         let (done, ack) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
             while let Ok(Some(b)) = wire.recv() {
-                if stdin.write_all(&b).and_then(|_| stdin.flush()).is_err() {
-                    break;
-                }
-                if done.send(()).is_err() {
+                let ok = stdin.write_all(&b).and_then(|_| stdin.flush()).is_ok();
+                if done.send(ok).is_err() || !ok {
                     break;
                 }
             }
@@ -86,9 +84,19 @@ impl Client {
             err,
         }
     }
+    pub fn try_raw(&self, b: Vec<u8>) -> bool {
+        assert!(b.len() <= 65_538, "bounded test-client frame");
+        self.tx.try_send(Some(b)).is_ok() && self.ack.recv_timeout(Duration::from_secs(3)).is_ok()
+    }
+    pub fn is_running(&mut self) -> bool {
+        self.child.try_wait().unwrap().is_none()
+    }
+    pub fn kill_and_reap(&mut self) {
+        self.child.kill().unwrap();
+        assert!(!self.child.wait().unwrap().success());
+    }
     pub fn raw(&self, b: Vec<u8>) {
-        self.tx.send(Some(b)).unwrap();
-        let _ = self.ack.recv_timeout(Duration::from_secs(3));
+        assert!(self.try_raw(b), "bounded client write completion");
     }
     pub fn send(&self, v: Value) {
         let mut b = serde_json::to_vec(&v).unwrap();
@@ -159,7 +167,7 @@ impl Client {
         )
     }
     pub fn finish(&mut self, expected: i32) {
-        let _ = self.tx.send(None);
+        let _ = self.tx.try_send(None);
         self.wait(expected);
     }
     pub fn wait(&mut self, expected: i32) {

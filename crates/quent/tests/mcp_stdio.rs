@@ -513,10 +513,28 @@ fn network_detector() {
         );
     }
 }
+fn bounded_client_stalled_child() {
+    let mut c = Client::new("stall");
+    assert!(c.is_running());
+    let begin = std::time::Instant::now();
+    let blocked = (0..32).any(|_| !c.try_raw(vec![b'x'; 65_538]));
+    assert!(
+        blocked,
+        "finite client queue/write deadline against stalled child"
+    );
+    assert!(c.is_running());
+    c.kill_and_reap(); // Actual unread-pipe child, not a mock.
+    drop(c);
+    assert!(begin.elapsed() < std::time::Duration::from_secs(8));
+}
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     if args.get(1).map(String::as_str) == Some("--fixture-child") {
         let mode = args.get(2).unwrap();
+        if mode == "stall" {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            std::process::exit(0);
+        }
         let s = if mode == "offline" {
             Server::offline()
         } else {
@@ -549,9 +567,10 @@ fn main() {
         ("detector_controls", detector_controls),
         ("manifest_and_canary", manifest_and_canary),
         ("network_detector", network_detector),
+        ("bounded_client_stalled_child", bounded_client_stalled_child),
     ] {
         test();
         println!("test mcp_stdio::{name} ... ok");
     }
-    println!("test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out");
+    println!("test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out");
 }
