@@ -299,3 +299,11 @@ See [finite C22-centered evidence](migration-plan-v1-evidence.md). All 24 full
 runtime_pending markers and original fixtures remain unchanged.
 
 QT-AI-12 PR1: [explicit finite estimated performance evidence](performance-plan-v1.md) uses the common retained-record gate and native binders. Its application-only SELECT acquisition is non-ANALYZE and Partial; no implicit EXPLAIN, measured-performance/authorization claim, public authority restoration or full runtime_pending completion is added.
+
+## QT-AI-13 PR1 finite MCP boundary
+
+[Offline read-only MCP](mcp-v1.md) implements the stdio 2025-11-25 finite profile,
+fixed public resources/tools and application-supplied mapping/current library path.
+Ordinary CLI typed compilation remains unavailable without registration. Protocol
+correlation is isolated to response top-level id; business payload boundaries remain.
+No DB/provider/Tx/permit/live/execution capability or full runtime_pending clearance.

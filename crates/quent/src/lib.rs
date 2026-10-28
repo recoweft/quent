@@ -73,3 +73,7 @@ pub mod review_ci;
 
 /// Explicit application-only authorization; unbound receipts cannot execute.
 pub mod authorization;
+
+/// Finite offline MCP stdio process server; no execution authority.
+#[cfg(feature = "mcp")]
+pub mod mcp;

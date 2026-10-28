@@ -22,7 +22,7 @@ edition = "2024"
 publish = false
 [workspace]
 [dependencies]
-quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review", "review-ci", "performance-plan"] }}
+quent = {{ path = {:?}, features = ["postgres", "runtime-tokio", "local-details", "output-tracing", "manifest", "operation-spec", "review", "source-review", "review-ci", "performance-plan", "mcp"] }}
 quent-core = {{ path = {:?} }}
 serde_json = "=1.0.154"
 sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio"] }}
@@ -1460,14 +1460,55 @@ sqlx = {{ version = "=0.9.0", default-features = false, features = ["postgres", 
             String::from_utf8_lossy(&output.stderr)
         );
     }
+    let output = run(
+        "fn control(m:quent::operation_spec::TypedModelContract,c:DatabaseContext){let s=quent::mcp::Server::application_registered(m,c); let _=format!(\"{s:?}\"); let _=quent::mcp::Server::offline(); let _:fn(quent::mcp::Server)->quent::mcp::Termination=quent::mcp::Server::serve_stdio;}",
+    );
+    assert!(
+        output.status.success(),
+        "MCP compiling control: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (body, code) in [
+        ("fn f(s:quent::mcp::Server){let _=s.registration;}", "E0616"),
+        (
+            "fn f(){let _:quent::mcp::Server=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(s:&quent::mcp::Server){let _=serde_json::to_string(s);}",
+            "E0277",
+        ),
+        ("fn f(s:quent::mcp::Server){s.execute();}", "E0599"),
+        ("fn f(s:quent::mcp::Server){s.acquire_permit();}", "E0599"),
+        (
+            "fn f(){let _:quent::mcp::Termination=serde_json::from_str(\"{}\").unwrap();}",
+            "E0277",
+        ),
+        (
+            "fn f(v:quent::mcp::Termination){let _:DatabaseContext=v;}",
+            "E0308",
+        ),
+        (
+            "fn f(v:quent::mcp::Termination){let _:ValidatedOperation=v;}",
+            "E0308",
+        ),
+    ] {
+        let output = run(body);
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains(&format!("error[{code}]")),
+            "MCP negative {code}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     assert_eq!(
         controls.get(),
-        23,
-        "compiling positive controls (22 retained)"
+        24,
+        "compiling positive controls (23 retained)"
     );
     assert_eq!(
         runs.get() - controls.get(),
-        409,
-        "diagnostic-checked negatives (391 retained)"
+        417,
+        "diagnostic-checked negatives (409 retained)"
     );
 }

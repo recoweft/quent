@@ -22,9 +22,17 @@ fn every_current_cli_route_is_fixed_non_success() {
             .env("RUST_BACKTRACE", "full")
             .output()
             .unwrap();
-        assert_eq!(o.status.code(), Some(1));
+        let mcp = cfg!(feature = "mcp") && args.first() == Some(&"mcp");
+        assert_eq!(o.status.code(), Some(if mcp { 2 } else { 1 }));
         assert_eq!(o.stdout, b"");
-        assert_eq!(o.stderr, b"QUENT_NOT_IMPLEMENTED\n");
+        assert_eq!(
+            o.stderr,
+            if mcp {
+                b"QUENT_MCP_INVALID\n".as_slice()
+            } else {
+                b"QUENT_NOT_IMPLEMENTED\n".as_slice()
+            }
+        );
     }
     let large = "CANARY".repeat(3000);
     let o = Command::new(env!("CARGO_BIN_EXE_quent-cli"))
