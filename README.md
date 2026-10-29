@@ -98,3 +98,6 @@ use the current adoption matrix and linked later contracts for implemented exten
 Documentation preparation does not announce release, commercial adoption safety or
 completion of full runtime acceptance. Release/tag/publish, a version bump,
 `publish = true` and license changes require separate explicit instructions.
+
+SQLite adoption planning: [bounded contracts and independent anonymous fixture](specs/sqlite-adoption-v1.md).
+SQLite remains unimplemented; these future expectations do not clear runtime_pending.

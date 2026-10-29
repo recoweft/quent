@@ -197,3 +197,6 @@ permits subsequently rejected at the independently current dispatch boundary.
 These are finite per-engine measurements, not all driver communications or a
 production authentication claim. Final ledger observer sees four durable records;
 failed duplicate and before-COMMIT controls leave no durable new identity.
+
+SQLite adoption planning: [bounded contracts and independent anonymous fixture](sqlite-adoption-v1.md).
+SQLite remains unimplemented; these future expectations do not clear runtime_pending.

@@ -149,3 +149,6 @@ No row is a commercial safety certification. Full fixture acceptance, local Wind
 execution/live/ACL, arbitrary TLS/network faults, external provider authentication,
 physical routing and broader schema/effects remain separate unverified or unsupported
 items. The [publication checklist](release-checklist-v1.md) preserves these holds.
+
+SQLite adoption planning: [bounded contracts and independent anonymous fixture](sqlite-adoption-v1.md).
+SQLite remains unimplemented; these future expectations do not clear runtime_pending.
