@@ -228,8 +228,8 @@ its predecessor merged into the real base; contracts alone do not satisfy runtim
 | QT-RW-03 | [Issue56](https://github.com/recoweft/quent/issues/56): finite expressions/JOIN/EXISTS/JSON | Uses01/02 and00 query classification |
 | QT-RW-04 | [Issue57](https://github.com/recoweft/quent/issues/57): UPSERT/conditional writes/scope | Uses01–03 and00 conflict/effects inventory |
 | QT-RW-05 | [Issue58](https://github.com/recoweft/quent/issues/58): finite multi-op Tx/ledger contracts | PR3: existing ledger integration; depends on00 and relevant02–04 operations |
-| QT-RW-06 | No Quent Issue | PR1–2: application adoption after relevant01–05 paths; staged comparison, no implicit fallback |
-| QT-RW-07 | No Quent Issue | PR1–3: application migration/recovery after00 inventory and relevant05/06 boundaries |
+| QT-RW-06 | No Quent Issue | PR1–2: coexistence with existing migration/backup; upgrade, backup/restore, read-only/newer-version refusal and failure recovery; depends on02/05 |
+| QT-RW-07 | No Quent Issue | PR1–3: staged adoption from read pilot → project/work mutation/replay → remaining shared/answer/execution DML; depends on03/05/06; no implicit fallback |
 | QT-RW-08 | [Issue59](https://github.com/recoweft/quent/issues/59) PR1: anonymous common acceptance/regressions | PR2: app E2E/OS/performance after06/07; public fixtures cannot substitute |
 | QT-RW-09 | [Issue60](https://github.com/recoweft/quent/issues/60): adoption/public-candidate decision | Requires08 evidence, Gate A/B and unresolved decisions |
 
