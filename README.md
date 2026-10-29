@@ -1,272 +1,100 @@
-Current QT-AI-11 PR2: [phase-bound finite SELECT observations and limits](specs/migration-preflight-v1.md).
-
-Current QT-AI-11 PR1: [offline migration differences, capability and unknown coverage](specs/migration-plan-v1.md).
-Current QT-AI-10 PR3: [fixed business/audit/outbox owned command bundle](specs/command-bundle-v1.md).
-
-Current QT-AI-10 PR1/PR2: [finite durable command identity, owned ledger/results and explicit replay](specs/command-ledger-v1.md).
-
-Current QT-AI-09 PR2: [explicit request/session-bound permits and final common gate](specs/authorization-gate-v1.md).
-
-Current PR3: [bounded CI/SARIF/diff/expiring baseline contract](specs/review-ci-v1.md). Earlier PR-specific absence statements are historical.
-
-QT-AI-08 planned PR2: [bounded Rust source candidates, conservative coverage and independent precision](specs/source-review-v1.md).
-
-Current QT-AI-07 PR1: [finite nominal keys, explicit projections and typed repositories](specs/typed-codegen-v1.md).
-
-Current QT-AI-06 PR2: [typed read compilation, fixed diagnostics and explicit owned read](specs/typed-operation-spec-v1.md).
-
-QT-AI-06 PR1 baseline: [bounded read-only OperationSpec syntax and roles](specs/operation-spec-v1.md).
-QT-AI-05 PR2: [explicit finite catalog/CLI verification](specs/manifest-verify-v1.md).
-Earlier PR-specific absence statements below describe their historical baseline.
-
 # Quent
 
-QT-AI-14 PR1: [finite integration workflows and all 24 case responsibilities](specs/integration-acceptance-v1.md),
-[Goquent semantic comparison and unverified runtime differences](specs/goquent-case-comparison-v1.md).
+Plan-first Rust ORM for reviewing database operations before explicit application
+execution. The current v0.x workspace supports **finite** PostgreSQL/MySQL
+operations; it is not a general SQL executor or an autonomous database agent.
 
-Run the DB-free generated-model/three-state-patch/review example on Rust 1.94.0:
+Rust **1.94.0**, edition **2024**, is pinned in [rust-toolchain.toml](rust-toolchain.toml).
+Use this repository checkout: publication, crate-name availability and a released
+installation path are unverified. Workspace `publish = false` remains in place.
 
-```sh
-cargo run -p quent --example tenant_review --no-default-features --features codegen,review --locked
-```
+## Start without a database
 
-This uses synthetic application assertions, exact production regeneration comparison,
-nominal keys, inspection-only patches and a separately declared finite migration
-plan. It supplies no authentication or execution
-authority. For the public runtime flow, an application explicitly connects using its
-trusted current context, registers its own authorization adapter, and performs:
-
-```rust,ignore
-let candidate = session.authorization_candidate(
-    &authorization, &request, &operation, scope, ttl)?;
-let review = candidate.review(); // existing review feature; DB/provider zero
-let same_review = candidate.review(); // no mutation or TTL refresh
-let permit = session.acquire_authorized(&authorization, &request, candidate).await?;
-let result = session.execute_authorized_atomic(
-    &independently_current_authorization, &request, &operation,
-    ExpectedRows::exactly(1)?, permit).await?;
-```
-
-Review is an output-only projection of the same retained private record. Its result
-is not authorization; all current/request/session/expiry/permit checks still run.
-The integrated live tests exercise this public sequence, a same-table durable
-command, replay/conflict, owned rollback, borrowed caller responsibility and an
-independent observer on both dedicated databases. Build before the fixture lifetime:
-
-```sh
-cargo test --workspace --all-features --locked --no-run
-bash scripts/test-dispatch.sh cargo test --workspace --all-features --locked -- --test-threads=1 --nocapture
-```
-
-The script creates only its own digest-pinned loopback containers and verifies their
-removal. Migration, catalog and read-only stdio MCP retain distinct authority and
-completion boundaries; their regression results do not mean every API joined the
-same tenant business flow. All 24 full fixture cases remain runtime_pending.
-
-Plan-first Rust ORM foundation for reviewing AI-generated database operations.
-
-**Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, bounded offline review, request query observation/budgets, and phase-bound finite migration observations.**
-SELECT/COUNT/single INSERT/UPDATE/DELETE planning is implemented in core for PostgreSQL/MySQL.
-Immediate execution uses the common policy/risk/capability gate; ordinary INSERT/Unknown refuse.
-Application-only commands support all-column single INSERT (tenant supplementation only) and finite Low UPDATE (including checked optimistic versions), exact-one results, an explicit installed ledger and saved-result replay.
-Fixed business1 + audit INSERT1 + outbox INSERT1 bundles use the same Core preparation/gate/owned Tx and replay all three results without additional record sends; explicit bundle tenant mapping and installation/version requirements are in the PR3 contract. No external delivery worker or callback is provided.
-Finite concurrent reservation outcomes and real loopback COMMIT-reply loss are measured in the [PR2 evidence](specs/command-concurrency-v1-evidence.md); they do not establish general exactly-once.
-Finite High UPDATE/physical DELETE require an explicit bound permit; ordinary High still refuses. General multi-operation transactions remain future work.
-Offline finite migration differences and SQL planning are available in `quent_core::migration`; explicit application-only finite preflight observations use the existing catalog readers. [Human-controlled finite migration application](specs/migration-apply-v1.md) uses a separate dedicated session, new partial observation, individual application attestations and independent human authorization; full live-effects verification and MCP apply remain unsupported. Fixed DB business/audit/outbox bundles are implemented; external delivery is outside that guarantee (Refs #42). Offline plan/spec/manifest review and opt-in Rust syntax candidate review are available with explicit features.
-Optional `review-ci` adds `quent-cli review-ci --json|--pretty|--sarif HEAD_INPUTS BASE_INPUTS BASELINE`.
-It compares exact supplied inputs and supports expiring display baselines; all original
-findings remain non-suppressible. Git-head coverage and runtime remain unverified;
-there is no CI pass/exit0. See the linked closed input/output/SARIF contract.
-CLI `manifest verify --offline SOURCE COMPARISON` is DB-free; `--live SOURCE CONFIG`
-explicitly runs a bounded read-only catalog observation with optional driver/runtime
-features. Inputs must be explicitly named regular files; Unix FIFO inputs refuse
-without waiting for a writer. Opened-handle checks and byte limits do not guarantee
-OS/filesystem I/O deadlines; see the verification specification for symlink and OS
-conditions. Other CLI routes retain fixed non-success refusal.
-Plan/compile/inspect and validation remain DB/provider-free. Only explicit session
-connect/execute, command execution/lookup, dedicated catalog readers and explicit authorization acquisition
-(with a trusted application adapter) can perform I/O. Only runtime-bound acquisition
-can yield a finite executable permit; PR1 unbound acquisition remains non-executing. No release or crates.io publication is provided.
-
-- [Codegen config, naming/budgets, native/NULL/key/role matrix and PR2 responsibilities](specs/typed-codegen-v1.md)
-- [OperationSpec wire, budgets, application role assertions and PR2 boundary](specs/operation-spec-v1.md)
-- [Schema/manifest source, canonical fingerprints and offline evidence](specs/schema-manifest-v1.md)
-- [Output surfaces, local file protections, CLI and CI/MCP limits](specs/output-boundaries-v1.md)
-- [Public view schema, code register, information boundary and evidence](specs/public-views-v1.md)
-- [Owned atomic results, borrowed Tx boundaries and failure/guarantee tables](specs/atomic-results-v1.md)
-- [Consumed handles, exact current binding, expiry and cancellation stages](specs/owned-validation-v1.md)
-- [SQLx execution, Strict gate/refusals, native matrix and real DB test procedure](specs/sqlx-dispatch-v1.md)
-- [Implemented plan/type/dialect capabilities and safety boundaries](specs/plan-ir-v1.md)
-- [Finite policy enforcement, support/refusal table and acceptance limits](specs/policy-preparation-v1.md)
-- [Immutable settings, policy declarations and application context boundaries](specs/settings-context-v1.md)
-- [Conditional scope proof and fixed structural risk rules](specs/scope-risk-v1.md)
-- [Integrated contracts](specs/quent-contracts-v1.md)
-- [All 24 acceptance cases and owning issues](specs/acceptance.md)
-- [Architecture, dependency decisions and PR1 verification](specs/bootstrap.md)
-- [Versioned fixtures and test support limits](crates/quent/tests/support/README.md)
-
-The workspace contains `quent-core` (no dependencies), `quent` (facade with
-optional SQLx dependencies), and `quent-cli` (default depends only on core; manifest/driver/runtime are optional).
-Core exposes owned IR and non-executable plans with explicit sensitive inspection. LLM, runtime and database drivers
-are not required for core or default workspace builds.
-
-Rust 1.94.0 / edition 2024 is pinned. Run without a database:
+From the repository root, with the pinned toolchain and locked dependencies cached
+(or registry access for their first download):
 
 ```sh
 cargo build --workspace --locked
 cargo test --workspace --locked
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo doc --workspace --all-features --no-deps --locked
+cargo run -p quent --example tenant_review --no-default-features --features codegen,review --locked
 ```
 
-Optional adapter build checks (live behavior requires the separate test command):
+The [executable example](crates/quent/examples/tenant_review.rs) generates and compares
+exact Rust artifacts, binds nominal model keys and projections, inspects three-state
+patches, reviews offline manifest domains and plans a separate finite nullable-column
+migration. It exits 0 after its assertions and prints six public JSON lines. It
+uses **synthetic application assertions**, supplies no authentication or execution
+permission, and performs no DB/provider calls. Patches are inspection-only.
+See [setup, outputs, refusals and reproduction](specs/reproduction-v1.md).
+
+`quent-core` has zero normal dependencies. Default `quent` and `quent-cli` depend
+only on Core; neither selects a driver/runtime. `mcp` alone also selects neither.
+Application runtime builds explicitly choose an adapter, runtime and TLS:
 
 ```sh
 cargo check -p quent --no-default-features --features postgres,runtime-tokio,tls-rustls --locked
 cargo check -p quent --no-default-features --features mysql,runtime-tokio,tls-rustls --locked
 ```
 
-All QT-C01–QT-C24 full runtime acceptance cases remain pending. QT-AI-00 PR2 supplied 24
-language-neutral cases (69 scenarios after QT-AI-01 PR2), a bounded fixture validator, a scripted
-DB call recorder and PostgreSQL/MySQL source-consumer templates. The 13 support
-tests validate those tools and records; full runtime and real DB checks
-remain with their owning implementation issues. Later changes add real API compile-fail tests. Expected fixture results are
-contracts, never measured runtime verdicts.
+These are build checks, not live connections or proof of TLS interoperability.
+[Feature definitions](crates/quent/Cargo.toml) and
+[CLI feature definitions](crates/quent-cli/Cargo.toml) are authoritative.
 
-QT-AI-01 PR1 adds production plan evidence for QT-C01/QT-C07 and finite core
-planning tests; this does not clear full runtime acceptance or implement dispatch.
-No dependencies or Cargo.lock changes are needed.
+## Application execution and refusal boundaries
 
-QT-AI-01 PR2 adds `Plan::inspect` over the same private finalized record. Explicit
-application-asserted signed integer key facts can prove conditional maximum scope;
-missing WHERE writes are structurally Blocked. Risk and scope never grant permission.
-QT-C02–05/C07 have limited DB-free inspection evidence; full runtime acceptance,
-live schema, execution gates and real DB results remain pending. See the scope/risk guide.
+Builders, typed Spec and generated reads feed the common private immutable IR,
+finalizer, policy/risk gate and native dispatcher. Plan/compile/review do not call a
+DB or authorization provider. Public JSON, type success, reason, manifest Fresh
+and a Low classification never authenticate a user or grant permission.
+The application supplies trusted **independently current** subject, tenant, schema,
+policy, settings and physical routing; constructors do not authenticate them.
 
-QT-AI-02 PR1 introduced private owned Strict settings, finite policy
-declarations and typed target/schema/tenant/subject snapshots. DB-free preparation
-inherits exact immutable content; construction does not authenticate callers or
-physical databases. QT-C08/C11/C12/C15 have limited carrier/compile-fail evidence;
-raw snapshots alone enforce no policy.
+For the existing finite authorized UPDATE/physical DELETE flow, create a candidate,
+call **that candidate's `review()`**, then move the same candidate into
+`acquire_authorized`. Acquisition explicitly invokes the registered trusted adapter;
+`execute_authorized_atomic` consumes the permit and rechecks the current request,
+context, expiry and operation at the final common gate before native submission.
+Repeated review is DB/provider0, cannot extend TTL, does not reprepare and returns
+no Inspection secret getter or executable JSON. The complete compiled/live sequence
+and negative controls are in
+[the tenant acceptance source](crates/quent/src/execution/tests/acceptance.rs) and
+[authorization contract](specs/authorization-gate-v1.md).
 
-QT-AI-02 PR2 connects `PreparationContext::prepare_operation` to the common IR,
-then the existing finalizer and inspection record. Tenant guards wrap the entire
-caller predicate; explicit mismatch, tenant assignment and unsupported context
-refuse. Soft-delete, PII, RequiredFilter and protected-write rules are finite and
-conservative. Exact qualified canonical identities are required. Original WHERE-less
-write blocks survive automatic filters. Success grants no permission. See the
-[policy preparation guide](specs/policy-preparation-v1.md) for the family matrix,
-limited DB-free evidence and remaining runtime/Tx/authorization responsibilities.
+| Finite positive path | Required refusal / limit |
+| --- | --- |
+| Complete supported ordinary SELECT/COUNT/Low keyed UPDATE or physical DELETE | Original WHERE-less writes remain Blocked; ordinary INSERT, High and Unknown refuse |
+| Explicit finite High UPDATE/physical DELETE authorization | No permit can waive tenant mismatch, structural block, incomplete/native/schema refusal |
+| Owned exact-expectation execution, full bounded result consumption and completion ACK | Lost ACK/cancel is Unknown; borrowed results remain caller-owned Uncommitted |
+| Durable command exact1 and fixed business/audit/outbox bundle | Same-ID different input conflicts; corrupt ledger refuses; external delivery is not exactly-once |
+| Offline review, manifest comparison, generated model/key/patch | No public view/Fresh/type success → permit/apply; no patch execution |
 
-QT-AI-03 PR1 adds owned immediate sessions, the private shared dispatcher, finite
-native binding/decoding and redacted bounded results. The app supplies authenticated
-current context and authoritative database semantics; routing key equality does not
-authenticate a physical DB. PR2 adds consumed delayed handles with exact current-operation/context/session checks and an exclusive monotonic deadline. PR3 adds one-operation owned atomic execution and borrowed uncommitted results. Explicit finite provider permits now use this same dispatcher; see the QT-AI-09 PR2 contract.
+Read the [adoption and Go migration guide / support-refusal matrix](specs/adoption-v1.md)
+before selecting an execution path. SQL, values, identifiers, source, arbitrary errors
+and credentials belong outside default public output. Sensitive application getters
+must not be logged. Synthetic `AllowCandidate` controls are not a production
+identity provider or evidence of production least privilege.
 
-Run both real DB acceptance suites against freshly created digest-pinned containers:
+## Read-only tools and remaining work
 
-```sh
-bash scripts/test-dispatch.sh cargo test --workspace --all-features --locked -- --test-threads=1
-bash scripts/check-features.sh
-# Explicit DB-free all-feature subset, also used by Windows CI:
-cargo test --workspace --all-features --locked -- --skip live_
-```
+[Offline CLI and finite MCP stdio](specs/reproduction-v1.md#offline-cli-and-mcp)
+provide bounded public analysis. MCP implements a finite 2025-11-25 profile: the
+ordinary CLI has no typed model registration and refuses plan/compile with
+`missing_application_context`. There are no MCP CRUD/Raw/apply/permit/live/export
+tools. Application Rust registration and successful fixture children are distinct.
 
-Live tests fail without dedicated DB opt-in; they never silently pass on missing env.
-The required live-databases CI job runs them on both engines. Limited PR1 measurements
-are separate from the still-pending full case responsibilities; see the dispatch guide.
+[All 24 full acceptance cases remain `runtime_pending`](specs/integration-acceptance-v1.md).
+Finite passing subcases and original fixture expectations do not clear those markers.
+[Go comparison](specs/goquent-case-comparison-v1.md) is a pinned documentary contract
+comparison; Go runtime and wire compatibility remain unverified.
 
-Plan/Inspection/PolicyPreparation now expose finite `public_view()` copies and
-allowlist-only `to_json()`/Display. Raw Plans remain unevaluated/unknown. These
-outputs cannot restore execution authority. Optional `output-tracing` emits only sealed
-public views and installs no global subscriber/logger. Runtime execution scopes SQLx
-tracing privately during driver poll/drop, including protocol notices. Optional `local-details` provides
-application-only `local_details::create_new`: explicit opt-in, local surface, absolute
-new path and real SensitiveSource. Linux ext4/tmpfs owner/0600/new-file protection is
-checked before secret writes; all other OS/filesystems fail closed (Windows ACL export
-is unsupported). CI/MCP/remote refuse; environment detection does not authenticate an
-application. Files are output-only and cannot restore execution authority. See the
-output guide for exact conditional guarantees and CLI non-success behavior.
+- [Current adoption, limits and source-linked feature matrix](specs/adoption-v1.md)
+- [Reproduction, exact counts and CI interpretation](specs/reproduction-v1.md)
+- [Publication checklist: prepared, unresolved, separately authorized](specs/release-checklist-v1.md)
+- [Integrated specification baseline](specs/quent-contracts-v1.md) and [case responsibility history](specs/acceptance.md)
+- [AI contributor instructions](AGENTS.md) and [PR evidence template](.github/pull_request_template.md)
 
-Optional `manifest` adds a strict bounded sensitive JSON source parser and independent
-schema/policy/generated-code/live-claim canonical fingerprints. Offline exact-content
-comparison never grants live freshness or execution authority. Public summaries are
-output-only; Core and the default facade retain their dependency boundaries.
-
-Live observation is private in-process evidence with exact target/context/connection
-binding and exclusive monotonic expiry; it grants no execution authority. PG/MySQL
-default ambiguity, metadata privileges, finite support and snapshot/DDL conditions
-are explicit in the [verification matrix](specs/manifest-verify-v1.md).
-
-QT-AI-06 PR1 adds optional `operation-spec`: strict bounded single-model read-only
-source parsing, application-asserted tenant-column role refusal and output-only safe
-summaries. This is syntax/role validation, not typed compilation or execution. See
-[OperationSpec wire, budgets and PR1/PR2 boundary](specs/operation-spec-v1.md).
-
-QT-AI-06 planned PR2 adds immutable application typed mapping, lossless native/NULL
-checks and fixed diagnostics/actions through the common planner. Explicit owned
-read consumes the same finalized preparation and rechecks full current mapping and
-context through the existing Strict dispatcher. Type success grants no permission;
-soft-delete/nullable/NOT cases still obey existing partial-analysis refusal.
-See the [type, dialect, NULL, operator and diagnostic register](specs/typed-operation-spec-v1.md).
-
-Optional `codegen` is driver/runtime-free and generates finite local Rust code data
-from strict manifest source v1 and independent generation config v1. It preserves
-model-specific nominal keys, native widths/signs, Option and explicit projection
-row types. Applications bind their own complete TypedModelContract/current context;
-generated metadata never supplies trusted context or business permission. Generated
-reads retain the existing compiler/finalized record/session dispatch and refusal
-rules. Explicit config/generator v2 additionally emits model-specific three-state
-patches for DB-free common preparation/inspection. Pure exact-byte regeneration
-comparison reports changes/conflicts and never writes existing files. No patch
-execution connection or generator CLI is added. See the
-[patch/version/non-overwrite contract](specs/typed-patches-regeneration-v2.md) and
-[the contract and checked-in finite examples](specs/typed-codegen-v1.md).
-
-## Bounded offline Review CLI (QT-AI-08 PR1)
-
-Enable `quent-cli/review` and use `quent-cli review plan|spec|manifest --json|--pretty FILE` (one target and format). See [the finite grammar, precision axes, fixed exits and FIFO/OS limits](specs/review-v1.md). Valid offline input still has unverified runtime/authority and review never exits 0. For bounded Rust syntax candidates, enable `quent-cli/source-review` and use `quent-cli review rust --json|--pretty FILE`. See [source syntax/envelope/coverage and independent precision](specs/source-review-v1.md). Identity, SQL and runtime remain unverified; source coverage never becomes Complete. SARIF/baseline remain PR3. The new plan wire is independent from output-only local exports and public views.
-
-
-QT-AI-09 PR1 introduced immutable trusted registration and non-executing acquisition.
-[PR2 final permits](specs/authorization-gate-v1.md) add bound direct/owned/borrowed
-execution for finite scopes, with explicit support/refusal, currentness, expiry and
-cancellation limits. All 24 full runtime_pending markers remain.
-
-QT-AI-12 PR1 adds optional application-only
-[finite non-ANALYZE PerformancePlan acquisition](specs/performance-plan-v1.md).
-Explicit SELECT estimates have Partial coverage, separate from QueryPlan, measured
-performance and authorization. Ordinary Plan/compile/review and CRUD never acquire
-EXPLAIN implicitly; COUNT/DML/unknown query or server structures refuse. No CLI/MCP
-authority or PR2 collector is added.
-
-QT-AI-12 PR2 adds explicit application-owned [bounded request observation](specs/query-observation-v1.md) on existing PG/MySQL runtime sessions. Opt-in scopes accumulate non-Tx SQL submission attempts at the common final gate, measure consumption/duration and distinguish owned Tx ACKs from unknown outcomes. Private exact repeat-shape evidence yields only an N+1 suspicion. Authorized/command/EXPLAIN acquisition is unsupported inside these finite scopes; no implicit I/O, raw session escape, new feature or input wire is added.
-
-
-## Read-only MCP (finite offline profile)
-
-Build the optional stdio server with `cargo run -p quent-cli --features mcp --locked -- mcp --stdio`.
-MCP 2025-11-25 resources and the four fixed tools `quent_plan`, `quent_compile`,
-`quent_review`, `quent_manifest_status` return public summaries only. The ordinary
-CLI has no trusted model registration: typed plan/compile refuse with
-`missing_application_context`; syntax review stays Unknown. Authenticated application
-Rust code may supply existing mapping and independent current context to the server
-library. No MCP DB execution, permit, live catalog/EXPLAIN or source detail export.
-
-Send newline-delimited JSON with innocuous correlation IDs, for example:
-
-```json
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"example","version":"1"}}}
-{"jsonrpc":"2.0","method":"notifications/initialized"}
-{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"quent://public/context"}}
-```
-
-Await each request's response before sending the next request; send initialized
-only after the initialization response. Close stdin to finish. IDs are reflected
-only at top-level response `/id`; never put business secrets there. See the
-[MCP contract](specs/mcp-v1.md) for the exact capability/URI/tool allowlists,
-input/output/error budgets, cancellation/timeout/process lifecycle, trust limits,
-registered fixture versus unregistered product behavior and finite acceptance.
-This is not full-standard/all-client MCP, Go wire compatibility, live runtime
-authentication or autonomous DB execution. All 24 full runtime_pending markers remain.
+Older PR-specific absence statements in specifications describe their named baseline;
+use the current adoption matrix and linked later contracts for implemented extensions.
+Documentation preparation does not announce release, commercial adoption safety or
+completion of full runtime acceptance. Release/tag/publish, a version bump,
+`publish = true` and license changes require separate explicit instructions.
