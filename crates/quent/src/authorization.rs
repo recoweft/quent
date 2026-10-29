@@ -232,6 +232,14 @@ pub(crate) struct RuntimeBinding {
     any(feature = "postgres", feature = "mysql")
 ))]
 impl AuthorizationCandidate {
+    #[cfg(feature = "review")]
+    pub(crate) fn review(&self) -> crate::review::Review {
+        crate::review::inspection(&self.prepared.inspect())
+    }
+    #[cfg(all(test, feature = "review"))]
+    pub(crate) fn test_review_record(&self) -> &PolicyPreparation {
+        &self.prepared
+    }
     pub(crate) fn check_runtime(&self, session: &Arc<()>, request: &Arc<()>) -> Result<()> {
         match &self.runtime {
             Some(b) if Arc::ptr_eq(&b.session, session) && Arc::ptr_eq(&b.request, request) => {

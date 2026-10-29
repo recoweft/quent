@@ -21,6 +21,48 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 # Quent
 
+QT-AI-14 PR1: [finite integration workflows and all 24 case responsibilities](specs/integration-acceptance-v1.md),
+[Goquent semantic comparison and unverified runtime differences](specs/goquent-case-comparison-v1.md).
+
+Run the DB-free generated-model/three-state-patch/review example on Rust 1.94.0:
+
+```sh
+cargo run -p quent --example tenant_review --no-default-features --features codegen,review --locked
+```
+
+This uses synthetic application assertions, exact production regeneration comparison,
+nominal keys, inspection-only patches and a separately declared finite migration
+plan. It supplies no authentication or execution
+authority. For the public runtime flow, an application explicitly connects using its
+trusted current context, registers its own authorization adapter, and performs:
+
+```rust,ignore
+let candidate = session.authorization_candidate(
+    &authorization, &request, &operation, scope, ttl)?;
+let review = candidate.review(); // existing review feature; DB/provider zero
+let same_review = candidate.review(); // no mutation or TTL refresh
+let permit = session.acquire_authorized(&authorization, &request, candidate).await?;
+let result = session.execute_authorized_atomic(
+    &independently_current_authorization, &request, &operation,
+    ExpectedRows::exactly(1)?, permit).await?;
+```
+
+Review is an output-only projection of the same retained private record. Its result
+is not authorization; all current/request/session/expiry/permit checks still run.
+The integrated live tests exercise this public sequence, a same-table durable
+command, replay/conflict, owned rollback, borrowed caller responsibility and an
+independent observer on both dedicated databases. Build before the fixture lifetime:
+
+```sh
+cargo test --workspace --all-features --locked --no-run
+bash scripts/test-dispatch.sh cargo test --workspace --all-features --locked -- --test-threads=1 --nocapture
+```
+
+The script creates only its own digest-pinned loopback containers and verifies their
+removal. Migration, catalog and read-only stdio MCP retain distinct authority and
+completion boundaries; their regression results do not mean every API joined the
+same tenant business flow. All 24 full fixture cases remain runtime_pending.
+
 Plan-first Rust ORM foundation for reviewing AI-generated database operations.
 
 **Status: finite typed repositories, scoped authorization, durable command ledger/replay, inspection-only patches/regeneration, bounded offline review, request query observation/budgets, and phase-bound finite migration observations.**

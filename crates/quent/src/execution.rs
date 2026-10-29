@@ -152,6 +152,15 @@ impl fmt::Debug for AuthorizationExecutionRequest {
 pub struct ExecutableAuthorizationCandidate {
     candidate: authorization::AuthorizationCandidate,
 }
+#[cfg(feature = "review")]
+impl ExecutableAuthorizationCandidate {
+    /// Projects the retained record without preparing again or calling a provider.
+    /// This output grants no authority, does not consume the candidate, and does
+    /// not refresh its deadline. Acquisition and final execution checks still apply.
+    pub fn review(&self) -> crate::review::Review {
+        self.candidate.review()
+    }
+}
 impl fmt::Debug for ExecutableAuthorizationCandidate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ExecutableAuthorizationCandidate([REDACTED])")

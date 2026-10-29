@@ -52,3 +52,7 @@ name = "mcp_stdio"
 path = "tests/mcp_stdio.rs"
 harness = false
 required-features = ["mcp"]
+
+[[example]]
+name = "tenant_review"
+required-features = ["codegen", "review"]

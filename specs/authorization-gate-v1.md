@@ -42,6 +42,20 @@ success alone grants nothing. The existing dialect/native matrix remains authori
 
 ## Ownership and one record
 
+QT-AI-14 PR1 minimal repair: with the existing `review` feature,
+`ExecutableAuthorizationCandidate::review(&self)` internally borrows its retained
+preparation and projects the existing public `Review`. It does not reprepare,
+render, connect, invoke a provider, consume the candidate or refresh its TTL.
+It exposes neither `Inspection` nor a sensitive getter. The application can review
+repeatedly before moving that same candidate into `acquire_authorized`. Returned
+owned public output carries no borrow of the candidate; a caller's explicit live
+`&candidate` borrow still obeys Rust move rules. Review may describe an expired
+candidate but cannot make acquisition succeed. No reviewed flag skips eligibility,
+current/request/session/registration/native/expiry checks. CLI/MCP receive no
+candidate registration or runtime capability. See the
+[integration register](integration-acceptance-v1.md) for the decision and evidence
+boundaries; all full runtime_pending entries remain unchanged.
+
 The application creates a non-Clone/Copy/serde `AuthorizationExecutionRequest` for
 one authenticated runtime request. This is a local allocation identity, not remote
 authentication. The exact session must create `ExecutableAuthorizationCandidate`

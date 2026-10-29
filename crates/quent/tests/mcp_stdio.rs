@@ -1,5 +1,8 @@
 //! Actual subprocess client. Synthetic registration is ONLY in this test target;
 //! product CLI has no test command, environment switch or embedded model.
+#[cfg(feature = "codegen")]
+#[path = "codegen_support/mod.rs"]
+mod generated_assertions;
 mod mcp_fixture;
 use quent::mcp::*;
 use quent_core::{Dialect, SqlType};
@@ -527,6 +530,87 @@ fn bounded_client_stalled_child() {
     drop(c);
     assert!(begin.elapsed() < std::time::Duration::from_secs(8));
 }
+#[cfg(feature = "codegen")]
+fn generated_registration(
+    d: Dialect,
+) -> (
+    quent_core::DatabaseContext,
+    quent::operation_spec::TypedModelContract,
+) {
+    let columns = generated_assertions::columns(d, "generated_items");
+    let declarations = if d == Dialect::Postgres {
+        vec![
+            quent_core::PolicyDeclaration::Readonly(columns[3].clone()),
+            quent_core::PolicyDeclaration::Generated(columns[4].clone()),
+        ]
+    } else {
+        vec![]
+    };
+    let c = generated_assertions::context(d, 0, declarations);
+    let m = generated_assertions::mapping(&c, d, "generated_items");
+    (c, m)
+}
+#[cfg(feature = "codegen")]
+fn generated_workflow() {
+    use std::net::{TcpListener, TcpStream};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let control = TcpStream::connect(addr).unwrap();
+    let (accepted, _) = listener.accept().unwrap();
+    drop(control);
+    drop(accepted);
+    listener.set_nonblocking(true).unwrap();
+    for (mode, dialect) in [
+        ("generated-pg", Dialect::Postgres),
+        ("generated-my", Dialect::Mysql),
+    ] {
+        let d = if dialect == Dialect::Postgres {
+            "postgres"
+        } else {
+            "mysql"
+        };
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/codegen-v2");
+        let source = std::fs::read(root.join(format!("{d}-source.json"))).unwrap();
+        let config = std::fs::read(root.join(format!("{d}-config.json"))).unwrap();
+        let artifact = quent::codegen::generate(&source, &config).unwrap();
+        assert_eq!(
+            artifact.sensitive_rust_source().as_bytes(),
+            std::fs::read(root.join(format!("{d}-generated.rs"))).unwrap()
+        );
+        let spec=json!({"kind":"quent_operation_spec","version":1,"model":"generated_items","fields":["id","optional"],"order":[],"limit":1,"filter":{"op":"and","args":[{"op":"eq","field":"part","value":{"type":"i16","value":-16}},{"op":"eq","field":"id","value":{"type":"i64","value":1}}]}}).to_string();
+        let (current, mapping) = generated_registration(dialect);
+        let compiled = quent::operation_spec::SpecSource::parse(spec.as_bytes())
+            .unwrap()
+            .compile(&mapping, &current)
+            .unwrap();
+        let expected: Value = serde_json::from_str(&compiled.public_view().to_json()).unwrap();
+        independent_public(&expected);
+        assert_eq!(expected["scope"], "single");
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        command.args(["--fixture-child", mode]);
+        let mut child =
+            Client::command_dsn(&mut command, &format!("postgres://CANARY@{addr}/secret"));
+        child.init();
+        let response = child.call(json!(1), "quent_compile", &spec);
+        assert_eq!(content(&response), expected);
+        let manifest: Value = serde_json::from_slice(&source).unwrap();
+        let compact = manifest.to_string();
+        assert!(compact.len() <= 4096);
+        let response = child.call(json!(2), "quent_manifest_status", &compact);
+        let body = content(&response);
+        assert_eq!(body["state"], "unknown");
+        for forbidden in ["execute", "quent_apply", "quent_permit", "live"] {
+            let response = child.call(json!(3 + forbidden.len()), forbidden, &spec);
+            assert!(response.get("error").is_some());
+        }
+        child.finish(0);
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+    }
+}
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     if args.get(1).map(String::as_str) == Some("--fixture-child") {
@@ -534,6 +618,20 @@ fn main() {
         if mode == "stall" {
             std::thread::sleep(std::time::Duration::from_secs(30));
             std::process::exit(0);
+        }
+        #[cfg(feature = "codegen")]
+        if mode.starts_with("generated-") {
+            let d = if mode == "generated-my" {
+                Dialect::Mysql
+            } else {
+                Dialect::Postgres
+            };
+            let (current, mapping) = generated_registration(d);
+            std::process::exit(i32::from(
+                Server::application_registered(mapping, current)
+                    .serve_stdio()
+                    .exit_code(),
+            ));
         }
         let s = if mode == "offline" {
             Server::offline()
@@ -572,5 +670,11 @@ fn main() {
         test();
         println!("test mcp_stdio::{name} ... ok");
     }
-    println!("test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out");
+    #[cfg(feature = "codegen")]
+    {
+        generated_workflow();
+        println!("test mcp_stdio::generated_workflow ... ok");
+    }
+    let count = 10 + usize::from(cfg!(feature = "codegen"));
+    println!("test result: ok. {count} passed; 0 failed; 0 ignored; 0 measured; 0 filtered out");
 }

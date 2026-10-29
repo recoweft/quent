@@ -9,6 +9,10 @@ Earlier PR-specific absence statements below describe their historical baseline.
 
 # 受入責務台帳
 
+QT-AI-14 PR1 adds a separate [integration evidence/responsibility register](integration-acceptance-v1.md)
+and [semantic Goquent comparison](goquent-case-comparison-v1.md). Original case
+expectations and all 24 runtime_pending markers below remain unchanged.
+
 Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:
 [policy preparation v1](policy-preparation-v1.md). Implementation-status paragraphs describe their named historical PR; the
 integrated requirements remain current. Raw Plan/snapshot APIs are non-enforcing
