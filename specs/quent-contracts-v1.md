@@ -311,3 +311,6 @@ fixed public resources/tools and application-supplied mapping/current library pa
 Ordinary CLI typed compilation remains unavailable without registration. Protocol
 correlation is isolated to response top-level id; business payload boundaries remain.
 No DB/provider/Tx/permit/live/execution capability or full runtime_pending clearance.
+
+SQLite adoption planning: [bounded contracts and independent anonymous fixture](sqlite-adoption-v1.md).
+SQLite remains unimplemented; these future expectations do not clear runtime_pending.

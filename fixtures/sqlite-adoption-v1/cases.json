@@ -1,0 +1,448 @@
+{
+  "kind": "quent_sqlite_adoption_expectations",
+  "version": 1,
+  "evidence": "design_only",
+  "runtime": "pending",
+  "cases": [
+    {
+      "id": "QT-SQ01",
+      "topic": "native_text",
+      "synthetic_input": {
+        "text": "alpha",
+        "empty": ""
+      },
+      "positive_expectation": "exact_text",
+      "mandatory_refusal": "coerced_storage",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ02",
+      "topic": "native_integer",
+      "synthetic_input": {
+        "integer": "9223372036854775807"
+      },
+      "positive_expectation": "exact_i64",
+      "mandatory_refusal": "overflow_or_real",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ03",
+      "topic": "nullable",
+      "synthetic_input": {
+        "value": null
+      },
+      "positive_expectation": "typed_nullable_null",
+      "mandatory_refusal": "missing_or_nonnullable",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ04",
+      "topic": "text_key",
+      "synthetic_input": {
+        "key": "item-a",
+        "collation": "BINARY",
+        "affinity": "TEXT"
+      },
+      "positive_expectation": "at_most_one",
+      "mandatory_refusal": "unproved_collation",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ05",
+      "topic": "composite_key",
+      "synthetic_input": {
+        "project": "p-a",
+        "key": "item-a"
+      },
+      "positive_expectation": "all_components_bound",
+      "mandatory_refusal": "partial_tuple",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ06",
+      "topic": "nullable_unique",
+      "synthetic_input": {
+        "key": null
+      },
+      "positive_expectation": "unknown_scope",
+      "mandatory_refusal": "single_from_nullable_unique",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ07",
+      "topic": "partial_unique",
+      "synthetic_input": {
+        "predicate": "registered_subset"
+      },
+      "positive_expectation": "unknown_until_implication_proved",
+      "mandatory_refusal": "unproved_predicate",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ08",
+      "topic": "scope_project",
+      "synthetic_input": {
+        "scope": "project"
+      },
+      "positive_expectation": "current_app_mapping_required",
+      "mandatory_refusal": "wire_scope_authority",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ09",
+      "topic": "scope_local",
+      "synthetic_input": {
+        "scope": "local-system"
+      },
+      "positive_expectation": "explicit_capability_required",
+      "mandatory_refusal": "synthetic_tenant",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ10",
+      "topic": "scope_connection",
+      "synthetic_input": {
+        "scope": "connection"
+      },
+      "positive_expectation": "exact_connection_required",
+      "mandatory_refusal": "changed_file",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ11",
+      "topic": "scope_singleton",
+      "synthetic_input": {
+        "scope": "singleton"
+      },
+      "positive_expectation": "independent_identity_required",
+      "mandatory_refusal": "name_only_proof",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ12",
+      "topic": "join_on",
+      "synthetic_input": {
+        "left": [
+          "a",
+          "b"
+        ],
+        "right": [
+          "a",
+          "a"
+        ]
+      },
+      "positive_expectation": "multiplicity_two_for_a",
+      "mandatory_refusal": "parent_key_as_result_bound",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ13",
+      "topic": "left_join",
+      "synthetic_input": {
+        "left": [
+          "a",
+          "b"
+        ],
+        "right": [
+          "a"
+        ]
+      },
+      "positive_expectation": "nullable_right_for_b",
+      "mandatory_refusal": "nonnull_right_decode",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ14",
+      "topic": "using_alias",
+      "synthetic_input": {
+        "aliases": [
+          "a",
+          "b"
+        ]
+      },
+      "positive_expectation": "resolved_explicit_projection",
+      "mandatory_refusal": "ambiguous_or_star",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ15",
+      "topic": "distinct",
+      "synthetic_input": {
+        "values": [
+          "a",
+          "a",
+          null
+        ]
+      },
+      "positive_expectation": "two_distinct_values",
+      "mandatory_refusal": "implicit_order",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ16",
+      "topic": "exists",
+      "synthetic_input": {
+        "outer": [
+          "a",
+          "b"
+        ],
+        "inner": [
+          "a"
+        ]
+      },
+      "positive_expectation": "one_correlated_match",
+      "mandatory_refusal": "unscoped_inner",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ17",
+      "topic": "case_coalesce",
+      "synthetic_input": {
+        "value": null,
+        "fallback": "x"
+      },
+      "positive_expectation": "typed_fallback",
+      "mandatory_refusal": "mixed_type",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ18",
+      "topic": "arithmetic",
+      "synthetic_input": {
+        "left": "9223372036854775807",
+        "right": "1"
+      },
+      "positive_expectation": "overflow_refusal",
+      "mandatory_refusal": "real_promotion",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ19",
+      "topic": "like_in_order",
+      "synthetic_input": {
+        "values": [
+          "a",
+          null
+        ],
+        "empty": []
+      },
+      "positive_expectation": "three_valued_and_empty_false",
+      "mandatory_refusal": "null_false_rewrite",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ20",
+      "topic": "json_missing",
+      "synthetic_input": {
+        "document": "{}",
+        "path": "$.a"
+      },
+      "positive_expectation": "absent_tag",
+      "mandatory_refusal": "missing_as_json_null",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ21",
+      "topic": "json_null",
+      "synthetic_input": {
+        "document": "{\"a\":null}",
+        "path": "$.a"
+      },
+      "positive_expectation": "json_null_tag",
+      "mandatory_refusal": "json_null_as_sql_input_null",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ22",
+      "topic": "json_sql_null",
+      "synthetic_input": {
+        "document": null,
+        "path": "$.a"
+      },
+      "positive_expectation": "sql_null_tag",
+      "mandatory_refusal": "null_as_document",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ23",
+      "topic": "json_types",
+      "synthetic_input": {
+        "documents": [
+          "{\"a\":\"x\"}",
+          "{\"a\":1}",
+          "{\"a\":true}",
+          "{\"a\":[]}",
+          "{\"a\":{}}"
+        ],
+        "path": "$.a"
+      },
+      "positive_expectation": "separate_type_tags",
+      "mandatory_refusal": "wrong_type_coercion",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ24",
+      "topic": "json_error",
+      "synthetic_input": {
+        "document": "{",
+        "path": "$.a"
+      },
+      "positive_expectation": "error_refusal",
+      "mandatory_refusal": "malformed_as_missing",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ25",
+      "topic": "upsert",
+      "synthetic_input": {
+        "key": "item-a",
+        "value": "v"
+      },
+      "positive_expectation": "separate_insert_update_proofs",
+      "mandatory_refusal": "unproved_conflict_target",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ26",
+      "topic": "ignore",
+      "synthetic_input": {
+        "constraint": "not_null"
+      },
+      "positive_expectation": "classified_constraint_outcome",
+      "mandatory_refusal": "general_do_nothing",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ27",
+      "topic": "insert_select",
+      "synthetic_input": {
+        "source": [
+          "a"
+        ],
+        "destination_columns": [
+          "key"
+        ]
+      },
+      "positive_expectation": "both_scope_and_count_checked",
+      "mandatory_refusal": "unbounded_or_unscoped_source",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ28",
+      "topic": "snapshot",
+      "synthetic_input": {
+        "mode": "deferred"
+      },
+      "positive_expectation": "snapshot_at_first_read",
+      "mandatory_refusal": "snapshot_at_begin_claim",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ29",
+      "topic": "writer_busy",
+      "synthetic_input": {
+        "mode": "immediate",
+        "writers": "2"
+      },
+      "positive_expectation": "bounded_busy_no_autoretry",
+      "mandatory_refusal": "implicit_retry",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ30",
+      "topic": "tx_result",
+      "synthetic_input": {
+        "expected": "1",
+        "actual": "2"
+      },
+      "positive_expectation": "rollback_only_with_ack",
+      "mandatory_refusal": "count_failure_commit",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ31",
+      "topic": "ledger_replay",
+      "synthetic_input": {
+        "namespace": "fixture-v1",
+        "id": "sample-a",
+        "input": "input-a",
+        "response": "{ \"ok\": true }"
+      },
+      "positive_expectation": "same_bytes_business_zero",
+      "mandatory_refusal": "reserialize_response",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ32",
+      "topic": "ledger_conflict",
+      "synthetic_input": {
+        "id": "sample-a",
+        "inputs": [
+          "input-a",
+          "input-b"
+        ]
+      },
+      "positive_expectation": "conflict_business_zero",
+      "mandatory_refusal": "overwrite",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ33",
+      "topic": "ledger_corrupt",
+      "synthetic_input": {
+        "record": "truncated"
+      },
+      "positive_expectation": "refuse_business_zero",
+      "mandatory_refusal": "corrupt_as_absent",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ34",
+      "topic": "ledger_recovery",
+      "synthetic_input": {
+        "id": "sample-a",
+        "faults": [
+          "before_commit",
+          "after_durable_commit",
+          "restart",
+          "concurrent"
+        ]
+      },
+      "positive_expectation": "same_id_explicit_reconcile",
+      "mandatory_refusal": "replacement_id_or_blind_resend",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ35",
+      "topic": "external_delivery",
+      "synthetic_input": {
+        "stages": [
+          "save",
+          "adopt",
+          "deliver",
+          "execute"
+        ]
+      },
+      "positive_expectation": "separate_receipts",
+      "mandatory_refusal": "external_atomicity",
+      "runtime": "pending"
+    },
+    {
+      "id": "QT-SQ36",
+      "topic": "unresolved",
+      "synthetic_input": {
+        "families": [
+          "replace",
+          "group_by",
+          "cte",
+          "window",
+          "broad_native",
+          "ddl"
+        ]
+      },
+      "positive_expectation": "refuse_until_separate_design",
+      "mandatory_refusal": "advance_implementation",
+      "runtime": "pending"
+    }
+  ]
+}
