@@ -1,5 +1,9 @@
 # Quent — AI時代に対応したRust ORM 統合仕様・Issue/PR計画 v1
 
+Current adoption entry: [finite v0.x support/refusal matrix](adoption-v1.md),
+[reproduction](reproduction-v1.md), [publication holds](release-checklist-v1.md).
+The specification baseline below is not a claim that every planned capability is implemented.
+
 Current QT-AI-02 PR2 policy preparation, finite support/refusal matrix and evidence:
 [policy preparation v1](policy-preparation-v1.md). Implementation-status paragraphs describe their named historical PR; the
 integrated requirements remain current. Raw Plan/snapshot APIs are non-enforcing
